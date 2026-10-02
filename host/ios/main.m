@@ -139,15 +139,21 @@
 }
 @end
 
-@interface MiniDelegate : UIResponder <UIApplicationDelegate>
+// Scene-owned windows follow UIKit's orientation/geometry on current iOS.
+@interface MiniScene : UIResponder <UIWindowSceneDelegate>
 @property(nonatomic, strong) UIWindow *window;
 @end
-@implementation MiniDelegate
-- (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)options {
-  self.window = [[UIWindow alloc] initWithFrame:UIScreen.mainScreen.bounds];
+@implementation MiniScene
+- (void)scene:(UIScene *)scene willConnectToSession:(UISceneSession *)session options:(UISceneConnectionOptions *)options {
+  if (![scene isKindOfClass:UIWindowScene.class]) return;
+  self.window = [[UIWindow alloc] initWithWindowScene:(UIWindowScene *)scene];
   self.window.rootViewController = [[MiniController alloc] init];
-  [self.window makeKeyAndVisible]; return YES;
+  [self.window makeKeyAndVisible];
 }
+@end
+@interface MiniDelegate : UIResponder <UIApplicationDelegate>
+@end
+@implementation MiniDelegate
 @end
 int main(int argc, char *argv[]) {
   @autoreleasepool { return UIApplicationMain(argc, argv, nil, NSStringFromClass(MiniDelegate.class)); }

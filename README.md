@@ -115,7 +115,7 @@ bash tests/native.sh <simulator-id>
 Command tests verify create, automatic build, negotiated viewport/density,
 reload/error recovery, stale-build rejection, shutdown, and safe cleanup.
 XCTest uses actual UIKit taps and checks engine pixels, safe-area bounds,
-portrait/landscape rebuilds, saved-source reload, compile/runtime errors and
+portrait/landscape rebuilds and actual screen pixel coverage, saved-source reload, compile/runtime errors and
 recovery. Pixel receipts and source-mutation routes exist only in the internal
 acceptance mode. Screenshots are attached to the XCTest result bundle.
 CI runs command checks on Linux/macOS and native iPhone acceptance on a fixed

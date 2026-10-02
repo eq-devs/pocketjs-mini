@@ -47,3 +47,9 @@ No upstream source changes are needed for this negotiated rebuild approach.
 
 The previous Flutter phase is recorded in Git history (release 0.2 and CI run
 37001507994); its evidence is not used to claim native-container acceptance.
+
+Visual review caught a clipped landscape screenshot that the initial dimension
+assertions missed. The host now uses a `UIWindowScene`-owned window. Stronger
+XCTest acceptance passed: global phone screenshots have >85% fixture content
+coverage in both orientations, and a real landscape tap changes guest pixels.
+Fresh portrait/landscape screenshots replace the earlier evidence exports.

@@ -60,6 +60,11 @@ export function writeNativeProject(directory: string, upstream: string, library:
 <key>CFBundleShortVersionString</key><string>0.3.0</string><key>CFBundleVersion</key><string>1</string>
 <key>MinimumOSVersion</key><string>16.0</string><key>LSRequiresIPhoneOS</key><true/>
 <key>UILaunchScreen</key><dict/>
+<key>UIApplicationSceneManifest</key><dict>
+<key>UIApplicationSupportsMultipleScenes</key><false/>
+<key>UISceneConfigurations</key><dict><key>UIWindowSceneSessionRoleApplication</key><array><dict>
+<key>UISceneConfigurationName</key><string>Mini</string><key>UISceneDelegateClassName</key><string>MiniScene</string>
+</dict></array></dict></dict>
 <key>UISupportedInterfaceOrientations</key><array><string>UIInterfaceOrientationPortrait</string><string>UIInterfaceOrientationLandscapeLeft</string><string>UIInterfaceOrientationLandscapeRight</string></array>
 <key>NSAppTransportSecurity</key><dict><key>NSAllowsLocalNetworking</key><true/></dict>
 </dict></plist>`);
