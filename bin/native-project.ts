@@ -2,7 +2,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 // Two Xcode targets: a plain UIKit app and its actual input/rotation UI tests.
-export function writeNativeProject(directory: string, upstream: string, library: string, url: string, test: boolean) {
+export function writeNativeProject(directory: string, upstream: string, library: string, url: string, test: boolean, bundle = "dev.pjm.host") {
   mkdirSync(join(directory, "Mini.xcodeproj/xcshareddata/xcschemes"), { recursive: true });
   const q = (value: string) => JSON.stringify(value);
   const text = `// !$*UTF8*$!
@@ -37,7 +37,7 @@ export function writeNativeProject(directory: string, upstream: string, library:
   A022 = {isa = XCConfigurationList; buildConfigurations = (A062); defaultConfigurationIsVisible = 0; defaultConfigurationName = Debug; };
   A060 = {isa = XCBuildConfiguration; name = Debug; buildSettings = {SDKROOT = iphoneos; IPHONEOS_DEPLOYMENT_TARGET = 16.0; CLANG_ENABLE_MODULES = YES; CLANG_ENABLE_OBJC_ARC = YES; CODE_SIGNING_ALLOWED = NO; ONLY_ACTIVE_ARCH = YES; GCC_OPTIMIZATION_LEVEL = 1; }; };
   A061 = {isa = XCBuildConfiguration; name = Debug; buildSettings = {
-   PRODUCT_BUNDLE_IDENTIFIER = dev.pjm.host; PRODUCT_NAME = Mini; INFOPLIST_FILE = Info.plist;
+   PRODUCT_BUNDLE_IDENTIFIER = ${q(bundle)}; PRODUCT_NAME = Mini; INFOPLIST_FILE = Info.plist;
    TARGETED_DEVICE_FAMILY = 1; HEADER_SEARCH_PATHS = (${q(join(upstream, "engine/ios/include"))}, ${q(join(upstream, "engine/ios/uikit"))});
    OTHER_LDFLAGS = ("$(inherited)", ${q(library)}, "-framework", UIKit, "-framework", Foundation, "-framework", QuartzCore, "-framework", CoreGraphics, "-lc++");
   }; };
@@ -55,7 +55,7 @@ export function writeNativeProject(directory: string, upstream: string, library:
   writeFileSync(join(directory, "Info.plist"), `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
-<key>CFBundleExecutable</key><string>Mini</string><key>CFBundleIdentifier</key><string>dev.pjm.host</string>
+<key>CFBundleExecutable</key><string>Mini</string><key>CFBundleIdentifier</key><string>${bundle}</string>
 <key>CFBundleName</key><string>PocketJS Mini</string><key>CFBundlePackageType</key><string>APPL</string>
 <key>CFBundleShortVersionString</key><string>0.3.0</string><key>CFBundleVersion</key><string>1</string>
 <key>MinimumOSVersion</key><string>16.0</string><key>LSRequiresIPhoneOS</key><true/>
@@ -67,6 +67,7 @@ export function writeNativeProject(directory: string, upstream: string, library:
 </dict></array></dict></dict>
 <key>UISupportedInterfaceOrientations</key><array><string>UIInterfaceOrientationPortrait</string><string>UIInterfaceOrientationLandscapeLeft</string><string>UIInterfaceOrientationLandscapeRight</string></array>
 <key>NSAppTransportSecurity</key><dict><key>NSAllowsLocalNetworking</key><true/></dict>
+<key>NSLocalNetworkUsageDescription</key><string>Connect to your Mac to run and reload your PocketJS project.</string>
 </dict></plist>`);
   writeFileSync(join(directory, "Mini.xcodeproj/xcshareddata/xcschemes/Mini.xcscheme"), `<?xml version="1.0" encoding="UTF-8"?>
 <Scheme LastUpgradeVersion="1640" version="1.3">

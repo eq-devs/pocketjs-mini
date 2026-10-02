@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Add physical iPhone detection, device Rust builds, automatic Xcode development
+  signing, installation and attached launch through `pjm run`.
+- Add explicit signing Team ID and private LAN transport, local-network consent
+  text and per-device session ownership. Simulator transport remains loopback.
+- USB controls deployment; code reload requires a shared private network.
+
 ## 0.3.0
 
 - Remove Flutter, Dart and the generated Flutter host. Use upstream PocketJS

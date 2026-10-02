@@ -9,7 +9,7 @@ PocketJS upstream is pinned and never patched.
 
 Install Git, [Bun 1.3.11](https://bun.sh), a stable
 [Rust toolchain](https://rustup.rs), and Xcode with an available iPhone simulator.
-The interactive host currently runs on macOS with an iOS simulator.
+The interactive host runs on macOS with an iPhone simulator or a connected iPhone.
 
 ```sh
 git clone https://github.com/eq-devs/pocketjs-mini.git
@@ -19,12 +19,34 @@ cd hello
 pjm run
 ```
 
-`run` selects a booted iPhone simulator, or an available one. To select explicitly:
+`run` selects a single connected iPhone first, otherwise a booted/available
+iPhone simulator. With more than one connected phone, select explicitly:
 
 ```sh
 xcrun simctl list devices available
 pjm run -d <simulator-id-or-name>
 ```
+
+### Physical iPhone
+
+Connect/unlock the phone, trust the Mac and enable Developer Mode. Sign in to
+your Apple Account in Xcode. Keep the Mac and phone on the same private Wi-Fi/LAN
+and allow the app's Local Network prompt. Set your signing **Team ID** (not the
+certificate's personal identifier):
+
+```sh
+export PJM_TEAM=<your-10-character-Xcode-Team-ID>
+# If the Mac has multiple LAN/VPN interfaces, choose its Wi-Fi/LAN IPv4 address:
+export PJM_HOST=<your-Mac-LAN-IPv4-address>
+pjm run
+```
+
+To select a particular phone, inspect `xcrun devicectl list devices` and use
+`pjm run -d <identifier-or-UDID>`. The launcher builds the `aarch64-apple-ios`
+engine, signs the UIKit container, installs it and attaches its console. Xcode
+manages development provisioning; the selected Team may need device registration.
+USB is used for installation/control; application reload currently uses LAN.
+There is no USB-only reload tunnel or offline standalone app in this version.
 
 Only `create`, `run`, and `clean` are public commands. Compilation is automatic;
 there is no public `build`, `serve` or `dev` command. Tap the example to increment
@@ -85,17 +107,19 @@ also be deleted. Generated files are ignored by Git.
 
 ## Boundaries
 
-Android, physical iPhones (network routing/signing), Linux/macOS desktop windows,
+Android, Linux/macOS desktop windows,
 production packaging, keyboard/IME and accessible guest semantics are not
 implemented in this native-phone version. Linux can run command/compiler
 validation, but `pjm run` needs the current macOS/iPhone host. The former Flutter
 desktop preview was deliberately removed with the Flutter dependency.
 
 This is a development container for trusted local code, not a hardened public
-mini-program distribution service. Development transport binds to loopback and
-uses a random session URL. The simulator can reach that host; physical-device
-transport needs a separate design. The development app's bundle identity is
-`dev.pjm.host` (one session per simulator, protected by a per-device session lock). Application package identities remain
+mini-program distribution service. Simulator transport binds to loopback;
+physical transport binds only to the selected private LAN address. Both use a
+random session URL. LAN traffic is development HTTP on a trusted network.
+The container's bundle identity is `dev.pjm.host` on simulators and
+`dev.pjm.host.<team-id>` on physical phones, with one session per device protected
+by a session lock. Application package identities remain
 separate. See [ECOSYSTEM.md](ECOSYSTEM.md) for what we borrow from mini-programs.
 
 ## Validation

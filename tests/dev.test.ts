@@ -94,7 +94,7 @@ test("public run auto-compiles, watches, rejects stale revisions, recovers and s
       { cwd: project, env: { ...process.env, PJM_TEST_SERVER: "0", PATH: `${tools}:${process.env.PATH}` }, stdout: "pipe", stderr: "pipe" });
     const [failedStatus, failedOut, failedError] = await Promise.all([failedLaunch.exited, new Response(failedLaunch.stdout).text(), new Response(failedLaunch.stderr).text()]);
     expect(failedStatus).not.toBe(0);
-    expect(failedError).toContain("No available iPhone simulator");
+    expect(failedError).toContain("No available iPhone");
     expect(existsSync(join(project, "build/session.json"))).toBe(false);
     expect((await command(["clean"], project)).status).toBe(0);
     expect(existsSync(join(project, "build"))).toBe(false);

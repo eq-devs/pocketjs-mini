@@ -65,3 +65,17 @@ surface during rotation caused XCTest to fail before its wait could complete.
 Pixel receipt reads now treat a temporarily absent surface as not ready, while
 all frame/input/coverage assertions remain required. No assertion failure is
 retried or suppressed by the launcher.
+
+## Physical-device follow-up
+
+`pjm run` now detects connected iPhones, builds a device-native engine and signs,
+installs and launches the container. On the connected iPhone 12 / iOS 26.6,
+development signing, installation and attached process launch succeeded.
+Actual page display/input/reload on this phone still require confirmation:
+the development server has not yet received its negotiated window metrics.
+The app's local-network consent and shared LAN are required.
+
+After these changes, command/transport validation passed 49 assertions and the
+full native simulator XCTest passed again on iPhone 17 Pro / iOS 26.4.
+No upstream tracked files changed. Earlier simulator evidence above does not
+claim end-to-end physical-device acceptance.

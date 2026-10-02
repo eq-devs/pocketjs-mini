@@ -1,6 +1,7 @@
 // Official PocketJS compiler/package APIs + a native UIKit host.
 import { defaultWindow, readWindow, miniContracts, type WindowInfo } from "./profile.ts";
 import { launchNative } from "./native.ts";
+import { selectPhone } from "./devices.ts";
 import { createHash, randomBytes } from "node:crypto";
 import { cpSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
@@ -96,7 +97,9 @@ let compileChild: ReturnType<typeof Bun.spawn> | undefined;
 let setupChild: ReturnType<typeof Bun.spawn> | undefined;
 let hostCleanup: (() => Promise<void>) | undefined;
 const token = randomBytes(24).toString("hex");
-const server = Bun.serve({ hostname: "127.0.0.1", port: Number(process.env.PJM_PORT ?? 0),
+const phone = process.env.PJM_TEST_SERVER === "1" ? undefined : await selectPhone(device);
+const host = phone?.host ?? "127.0.0.1";
+const server = Bun.serve({ hostname: host, port: Number(process.env.PJM_PORT ?? 0),
   async fetch(request) {
     const path = new URL(request.url).pathname;
     if (!path.startsWith(`/${token}/`)) return new Response("Not found", { status: 404 });
@@ -121,7 +124,7 @@ const server = Bun.serve({ hostname: "127.0.0.1", port: Number(process.env.PJM_P
     return new Response(file, { headers: { "Cache-Control": "no-store" } });
   },
 });
-const url = `http://127.0.0.1:${server.port}/${token}/`;
+const url = `http://${host}:${server.port}/${token}/`;
 mkdirSync("build", { recursive: true });
 writeFileSync("build/session.json", JSON.stringify({ url, pid: process.pid }), { flag: "wx" });
 console.log(`PocketJS Mini: ${url}`);
@@ -175,7 +178,7 @@ await rebuild();
 
 if (process.env.PJM_TEST_SERVER !== "1") {
   try {
-    await launchNative({ root, upstream: upstream!, device, url,
+    await launchNative({ root, upstream: upstream!, device: phone!, url,
       stopping: () => stopping,
       child: child => { setupChild = child; },
       cleanup: callback => { hostCleanup = callback; },
