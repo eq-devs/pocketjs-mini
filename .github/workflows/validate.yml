@@ -36,7 +36,10 @@ jobs:
       - name: Verify tracked source stays clean
         run: git diff --exit-code
   iphone:
-    runs-on: macos-latest
+    # Pin the simulator toolchain rather than following the moving latest image.
+    runs-on: macos-15
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
@@ -54,7 +57,7 @@ jobs:
       - name: Boot an available iPhone simulator and run acceptance
         run: |
           xcrun simctl list devices available -j > "$RUNNER_TEMP/devices.json"
-          simulator_id=$(bun -e 'const list=await Bun.file(Bun.argv[1]).json();const d=Object.values(list.devices).flat().find(d=>d.name.startsWith("iPhone"));if(!d)throw Error("No iPhone simulator");console.log(d.udid)' "$RUNNER_TEMP/devices.json")
+          simulator_id=$(bun -e 'const list=await Bun.file(Bun.argv[1]).json();const d=(list.devices["com.apple.CoreSimulator.SimRuntime.iOS-18-5"]??[]).find(d=>d.name==="iPhone 16 Pro");if(!d)throw Error("No pinned iOS 18.5 iPhone 16 Pro simulator");console.log(d.udid)' "$RUNNER_TEMP/devices.json")
           xcrun simctl boot "$simulator_id" || true
           xcrun simctl bootstatus "$simulator_id" -b
           bash tests/flutter.sh "$simulator_id"

@@ -21,7 +21,7 @@ async function execute(command: string[], timeout: number) {
   clearTimeout(timer); child = undefined;
   return { status, timedOut };
 }
-const command = ["flutter", "test", ...args, "--reporter=expanded"];
+const command = ["flutter", "test", ...args, "--reporter=expanded", ...(mobile && process.env.CI ? ["--verbose"] : [])];
 let result = await execute(command, limit);
 if (result.timedOut && mobile) {
   console.error("iPhone simulator launch timed out; restarting it once before retrying acceptance.");

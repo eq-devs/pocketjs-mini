@@ -74,3 +74,9 @@ run on the final published commit. Assertions are never retried after failure.
 The untouched upstream clone passed `git diff --exit-code` and had no tracked
 changes. README, template/example, changelog and workflow describe the same
 three-command implementation. Changes are committed and published to `main`.
+
+The moving `macos-latest` iPhone environment intermittently stalled after a
+successful Xcode build, before any assertion (run 36998991688 exhausted both
+bounded attempts). Mobile CI now pins macOS 15, Xcode 16.4 and iOS 18.5 iPhone
+16 Pro. Local iOS 26.4 coverage remains separate. Verbose mobile CI logs retain
+launch diagnostics. The complete acceptance assertions are unchanged.
