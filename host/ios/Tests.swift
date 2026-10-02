@@ -3,6 +3,8 @@ import UIKit
 
 final class MiniTests: XCTestCase {
     func receipt(_ surface: XCUIElement, _ key: String) -> Int {
+        // Rotation intentionally hides/replaces the surface while compiling.
+        guard surface.exists else { return 0 }
         let text = surface.value as? String ?? ""
         let token = text.split(separator: " ").first { $0.hasPrefix(key + "=") }
         return token.flatMap { Int($0.split(separator: "=")[1]) } ?? 0
@@ -48,7 +50,7 @@ final class MiniTests: XCTestCase {
         wait { self.receipt(surface, "hash") != initial && self.receipt(surface, "touches") > 0 }
         let first = receipt(surface, "hash")
         surface.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
-        wait { self.receipt(surface, "hash") != first && self.receipt(surface, "hash") != initial }
+        wait { self.receipt(surface, "hash") > 0 && self.receipt(surface, "hash") != first && self.receipt(surface, "hash") != initial }
         let revision = receipt(surface, "revision")
         XCUIDevice.shared.orientation = .landscapeLeft
         wait { self.receipt(surface, "revision") > revision && self.receipt(surface, "width") > self.receipt(surface, "height") }

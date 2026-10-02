@@ -53,3 +53,9 @@ assertions missed. The host now uses a `UIWindowScene`-owned window. Stronger
 XCTest acceptance passed: global phone screenshots have >85% fixture content
 coverage in both orientations, and a real landscape tap changes guest pixels.
 Fresh portrait/landscape screenshots replace the earlier evidence exports.
+
+The first cloud run exposed a UI-test synchronization error: querying a hidden
+surface during rotation caused XCTest to fail before its wait could complete.
+Pixel receipt reads now treat a temporarily absent surface as not ready, while
+all frame/input/coverage assertions remain required. No assertion failure is
+retried or suppressed by the launcher.
