@@ -1,5 +1,5 @@
 import { test, expect } from "bun:test";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync, chmodSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -20,7 +20,7 @@ test("public run auto-compiles, watches, rejects stale revisions, recovers and s
   const project = join(temp, "hello");
   let child: ReturnType<typeof Bun.spawn> | undefined;
   const command = async (args: string[], cwd = temp) => {
-    const command = Bun.spawn([pjm, ...args], { cwd, stdout: "pipe", stderr: "pipe" });
+    const command = Bun.spawn([pjm, ...args], { cwd, env: { ...process.env, PJM_TEST_SERVER: "1" }, stdout: "pipe", stderr: "pipe" });
     const [status, stdout, stderr] = await Promise.all([command.exited, new Response(command.stdout).text(), new Response(command.stderr).text()]);
     return { status, stdout, stderr };
   };
@@ -41,19 +41,34 @@ test("public run auto-compiles, watches, rejects stale revisions, recovers and s
     const state = () => fetch(`${session.url}state`).then(r => r.json()) as Promise<{ revision: number; error: string | null }>;
     const ready = await until(state, value => value.revision > 0 && !value.error);
     expect(existsSync(join(project, "build/hello.pocket"))).toBe(true);
+    expect((await fetch(`${session.url}test/compile-error`, { method: "POST" })).status).toBe(404);
+    expect((await fetch(`${session.url}window`, { method: "POST", body: JSON.stringify({ width: 9999 }) })).status).toBe(400);
+    const window = { width: 402, height: 778, density: 3, safeTop: 62, safeBottom: 34, safeLeft: 0, safeRight: 0 };
+    expect((await fetch(`${session.url}window`, { method: "POST", body: JSON.stringify(window) })).status).toBe(200);
+    const adaptive = await until(state, value => value.revision > ready.revision && !value.error);
+    const fullState = await (await fetch(`${session.url}state`)).json();
+    expect(fullState.window).toEqual(window);
+    const plan = JSON.parse(readFileSync(join(project, `build/revisions/${adaptive.revision}/plan.json`), "utf8"));
+    expect(plan.target.id).toBe("pjm-ios");
+    expect(plan.viewport.logical).toEqual([402, 778]);
+    expect(plan.viewport.physical).toEqual([1206, 2334]);
+    const adaptiveJs = await (await fetch(`${session.url}${adaptive.revision}/app.js`)).text();
+    expect(adaptiveJs).toContain('globalThis.__pjmWindow=');
     expect((await fetch(`${session.url}${ready.revision}/app.js`)).status).toBe(200);
     expect((await fetch(`${session.url}../state`)).status).toBe(404);
     expect((await fetch(`${session.url}99999/app.js`)).status).toBe(404);
-    expect((await command(["run"], project)).status).not.toBe(0); // duplicate session refused
+    const duplicate = await command(["run"], project);
+    expect(duplicate.status).not.toBe(0);
+    expect(duplicate.stderr).toContain("already running");
     expect((await command(["clean"], project)).status).not.toBe(0);
     const sourcePath = join(project, "app/main.tsx");
     const original = readFileSync(sourcePath, "utf8");
     writeFileSync(sourcePath, 'this is not TypeScript');
     const broken = await until(state, value => !!value.error);
-    expect(broken.revision).toBe(ready.revision);
+    expect(broken.revision).toBe(adaptive.revision);
     expect(broken.error).toContain("TS");
     writeFileSync(sourcePath, original.replace("Hello PocketJS Mini", "Saved edit"));
-    const fixed = await until(state, value => value.revision > ready.revision && !value.error);
+    const fixed = await until(state, value => value.revision > adaptive.revision && !value.error);
     expect((await (await fetch(`${session.url}${fixed.revision}/app.js`)).text()).includes("Saved edit")).toBe(true);
     writeFileSync(join(project, "assets/new.txt"), "asset change");
     const assets = await until(state, value => value.revision > fixed.revision && !value.error);
@@ -71,6 +86,16 @@ test("public run auto-compiles, watches, rejects stale revisions, recovers and s
     child = undefined;
     expect(existsSync(join(project, "build/session.json"))).toBe(false);
     await expect(fetch(`${session.url}state`)).rejects.toThrow();
+    // A host startup failure must never be reported as successful command completion.
+    const tools = join(temp, "tools"); mkdirSync(tools);
+    const xcrun = join(tools, "xcrun");
+    writeFileSync(xcrun, "#!/bin/sh\nprintf '%s\\n' '{\"devices\":{}}'\n"); chmodSync(xcrun, 0o755);
+    const failedLaunch = Bun.spawn([process.execPath, resolve(import.meta.dir, "../bin/runtime.ts"), join(project, ".pjm/pocketjs")],
+      { cwd: project, env: { ...process.env, PJM_TEST_SERVER: "0", PATH: `${tools}:${process.env.PATH}` }, stdout: "pipe", stderr: "pipe" });
+    const [failedStatus, failedOut, failedError] = await Promise.all([failedLaunch.exited, new Response(failedLaunch.stdout).text(), new Response(failedLaunch.stderr).text()]);
+    expect(failedStatus).not.toBe(0);
+    expect(failedError).toContain("No available iPhone simulator");
+    expect(existsSync(join(project, "build/session.json"))).toBe(false);
     expect((await command(["clean"], project)).status).toBe(0);
     expect(existsSync(join(project, "build"))).toBe(false);
     expect(existsSync(sourcePath)).toBe(true);

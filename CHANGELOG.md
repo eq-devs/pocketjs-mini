@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.3.0
+
+- Remove Flutter, Dart and the generated Flutter host. Use upstream PocketJS
+  native UIKit rendering/input directly.
+- Negotiate the phone safe-area viewport and matching raster density; rebuild
+  on rotation rather than stretch a fixed 480×272 canvas.
+- Add actual UIKit XCTest coverage for taps, pixels, portrait/landscape bounds,
+  source reload and compile/runtime error recovery.
+- Use display-link frame boundaries for input and guest ticks.
+- Scope interactive development to macOS + iPhone simulators; former Flutter
+  desktop previews are removed. Rotation/reload currently reset guest state.
+
+
 ## 0.2.0 — 2026-10-02
 
 - Remove public `build`; `run` compiles and launches an interactive Flutter host.

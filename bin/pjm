@@ -44,8 +44,9 @@ if [ "$command" = clean ]; then
 fi
 command -v bun >/dev/null 2>&1 || fail 'Bun is required: https://bun.sh'
 if [ "${PJM_TEST_SERVER:-0}" != 1 ]; then
-  command -v flutter >/dev/null 2>&1 || fail 'Flutter is required: https://docs.flutter.dev/install'
   command -v cargo >/dev/null 2>&1 || fail 'Rust/Cargo is required: https://rustup.rs'
+  [ "$(uname -s)" = Darwin ] || fail 'The native phone host currently requires macOS and Xcode; Android/Linux hosts are not available yet'
+  command -v xcrun >/dev/null 2>&1 || fail 'Xcode is required for the native iPhone host'
 fi
 mkdir -p .pjm
 [ ! -L build ] || fail 'build must not be a symlink'

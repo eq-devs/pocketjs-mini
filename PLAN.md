@@ -1,82 +1,49 @@
-# Flutter development experience — plan and acceptance
+# Native phone phase — plan and acceptance
 
 ## Objective
 
-Keep PocketJS upstream untouched. Make `pjm create`, `pjm run`, and `pjm clean`
-the public commands; remove public `build`. `run` owns compilation, an
-interactive Flutter host, source watching, reload, logs, and shutdown.
-Connect the actual PocketJS runtime/rendering engine to Flutter, with an
-interactive counter, rather than recreating the UI in Dart.
+Remove Flutter and use an unchanged PocketJS native engine/view directly.
+Retain `pjm create`, `pjm run`, `pjm clean`. Let the phone report its usable
+window and density so the compiler and runtime agree on a full safe-area
+viewport. Learn host/tool/application separation from mini-program ecosystems.
 
-## Work sequence
+## Acceptance
 
-1. Inspect upstream native ABI, guest execution, framebuffer and input APIs;
-   inspect available Flutter SDK and devices. Choose the smallest usable bridge.
-2. Prove native engine + guest boot + framebuffer + touch through a narrow API.
-3. Display that framebuffer in Flutter, forward pointer events, and verify a
-   TSX counter changes text and pixels after a tap.
-4. Wire `pjm run` to compile automatically, launch Flutter, watch app/assets,
-   reload on valid changes, show errors on invalid changes, and recover.
-5. Validate mobile integration on an available Android/iOS simulator or device;
-   record exact scope. Provide documented install/run instructions.
-6. Add meaningful regression/CI coverage, run checks, commit and push changes,
-   inspect CI and fix failures. Audit all acceptance criteria before completion.
+- [x] Flutter/Dart/NativeScript are absent from runtime dependencies and CI setup.
+- [x] `run` automatically compiles and launches a plain UIKit container.
+- [x] Native PocketJS pixels and UIKit touch drive the TSX counter.
+- [x] Portrait content fills measured safe-area bounds, not a 480×272 tile.
+- [x] Rotation negotiates a new viewport/density and rebuilds matching artifacts.
+- [x] Rotation/source reload state reset is explicitly documented.
+- [x] Source saves, visible compile/runtime failures and recovery work.
+- [x] Command/compiler tests pass, including invalid geometry and stale builds.
+- [x] Final native acceptance, session shutdown and public launch are verified.
+- [ ] Upstream tracked files remain unchanged; final published CI passes.
 
-## Acceptance checklist
+## Evidence and scope
 
-- [x] Public `build` is rejected; `run` compiles without a preceding command.
-- [x] A newly created project boots in an interactive Flutter host.
-- [x] Pixels come from the PocketJS engine executing the TSX guest.
-- [x] Flutter pointer input reaches the guest; a tap updates counter text/pixels.
-- [x] Saving source rebuilds/reloads; stale builds cannot replace newer changes.
-- [x] Compile/runtime failures are visible and a valid edit recovers.
-- [x] Host shutdown stops watchers/server/child processes.
-- [x] `clean` preserves source and safely removes generated output.
-- [x] Mobile host builds and runs on an explicitly identified target; real-device
-      evidence is reported separately from emulator/simulator evidence.
-- [x] Upstream tracked files are unchanged.
-- [x] README, example, changelog and CI match the final behavior.
-- [x] Relevant tests and remote CI pass; changes are committed and published.
+The first native XCTest acceptance passed on iPhone 17 Pro / iOS 26.4 simulator
+`69A9330F-92B1-4192-B44E-035E41272064`: actual taps changed engine pixels,
+portrait/landscape dimensions matched the view, saved source reloaded, compile
+and guest errors appeared, and valid source recovered. Command checks passed
+43 assertions after adding negotiated viewport/density validation.
 
-## Constraints and tradeoffs
+Final native XCTest also passed with screenshots retained in its result bundle.
+The public native launcher reported a 402×778 safe viewport at density 3 on this
+phone. Ctrl+C closed the application/server and removed project/device session
+locks. A second project was rejected with a nonzero exit code while the first
+kept ownership. Regression coverage also checks that host startup failure can
+never exit successfully. Portrait and landscape screenshots were exported.
 
-Prefer a small native bridge using upstream C ABI and QuickJS. First prove
-correctness with software framebuffer presentation; GPU texture optimization
-can follow measured need. Do not substitute browser-only preview or a Dart
-reimplementation for the Flutter/PocketJS integration. SDK/device availability
-may affect what can be proven locally; incomplete criteria stay open.
+The release gate remains the native CI run on the published implementation.
+Physical iPhones, Android, tablet surfaces above the touch-coordinate range,
+production packaging, state-preserving rotation and desktop native windows are
+not claimed. Flutter desktop support from 0.2 was intentionally removed.
 
-## Acceptance evidence
+The UIKit view's width/height initializer and custom host-identity initializer
+already exist upstream. Mini defines its own contract registry outside the
+upstream tree and delegates plan validation/build/package encoding to upstream.
+No upstream source changes are needed for this negotiated rebuild approach.
 
-Validated on 2026-10-02. The public workflow creates a disposable TSX project,
-compiles automatically and launches Flutter. Command regression tests passed
-31 assertions, including rejected `build`, duplicate sessions, rapid edits,
-asset edits, error recovery, shutdown and safe/idempotent cleanup.
-
-Native tests passed both cases: upstream QuickJS execution with a nonempty
-framebuffer and two input-driven framebuffer changes; invalid guest rejection
-followed by successful recovery. Flutter analysis reported no issues.
-
-Interactive Flutter acceptance passed locally on iPhone 17 Pro, iOS 26.4,
-simulator `69A9330F-92B1-4192-B44E-035E41272064`. It verified boot, two taps,
-saved-source reload, visible TypeScript errors retaining the last revision,
-visible guest runtime errors, and recovery after each error. Public `pjm run -d`
-also launched that simulator; the genuine rendered screen is captured in
-`../iphone-pocketjs.png`. No physical-phone or Android result is claimed.
-The default public `pjm run` also launched the macOS host.
-
-[GitHub Actions run 36995430231](https://github.com/eq-devs/pocketjs-mini/actions/runs/36995430231)
-passed all Linux, macOS and iPhone simulator jobs, including the interactive
-reload/error acceptance. Later changes add automatic missing Rust target setup
-and bounded simulator launch/retry; the release gate is a successful validation
-run on the final published commit. Assertions are never retried after failure.
-
-The untouched upstream clone passed `git diff --exit-code` and had no tracked
-changes. README, template/example, changelog and workflow describe the same
-three-command implementation. Changes are committed and published to `main`.
-
-The moving `macos-latest` iPhone environment intermittently stalled after a
-successful Xcode build, before any assertion (run 36998991688 exhausted both
-bounded attempts). Mobile CI now pins macOS 15, Xcode 16.4 and iOS 18.5 iPhone
-16 Pro. Local iOS 26.4 coverage remains separate. Verbose mobile CI logs retain
-launch diagnostics. The complete acceptance assertions are unchanged.
+The previous Flutter phase is recorded in Git history (release 0.2 and CI run
+37001507994); its evidence is not used to claim native-container acceptance.

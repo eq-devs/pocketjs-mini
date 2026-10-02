@@ -1,9 +1,11 @@
-// Internal orchestration: official PocketJS compiler/package APIs + Flutter host.
+// Official PocketJS compiler/package APIs + a native UIKit host.
+import { defaultWindow, readWindow, miniContracts, type WindowInfo } from "./profile.ts";
+import { launchNative } from "./native.ts";
 import { createHash, randomBytes } from "node:crypto";
 import { cpSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
-const [upstream, device = process.platform === "darwin" ? "macos" : "linux"] = Bun.argv.slice(2);
+const [upstream, device = ""] = Bun.argv.slice(2);
 const root = resolve(import.meta.dir, "..");
 if (existsSync("build/session.json")) {
   let previous: { pid?: number } = {};
@@ -17,7 +19,10 @@ if (existsSync("build/session.json")) {
 }
 const load = (path: string) => import(resolve(upstream!, path));
 const { checkAppTypes } = await load("framework/compiler/app-check.ts");
-const { resolveIOSDevBuildPlan } = await load("tools/ios-profile.ts");
+const platforms = await load("contracts/spec/platforms.ts");
+const { validateAndResolveBuildPlan } = await load("framework/src/manifest/resolve.ts");
+let window: WindowInfo = { ...defaultWindow };
+const originalSource = process.env.PJM_NATIVE_TEST === "1" ? readFileSync("app/main.tsx", "utf8") : "";
 const { makeVariant } = await load("tools/pocket-pack.ts");
 const { encodePocketPackage, decodePocketPackage, POCKET_SECTION } = await load("contracts/spec/pocket-package.ts");
 const { canonicalJson } = await load("framework/src/manifest/plan.ts");
@@ -33,6 +38,7 @@ function fingerprint(): string {
     } else { hash.update(path); hash.update(readFileSync(path)); }
   }
   for (const path of ["app", "assets", "mini.json", "tsconfig.json"]) add(path);
+  hash.update(JSON.stringify(window));
   return hash.digest("hex");
 }
 
@@ -43,16 +49,19 @@ async function compile(revision: number) {
   const name = mini.name;
   const manifest = {
     $schema: "https://pocketjs.dev/schema/pocket-2.json", pocket: 2,
-    id: `dev.pjm.${name}`, name, title: name, version: "0.2.0",
+    id: `dev.pjm.${name}`, name, title: name, version: "0.3.0",
     engine: { capabilities: { requires: ["text.glyphs.baked", "input.touch"] } },
     app: { entry: "app/main.tsx", output: name, framework: "solid",
-      viewport: { fixed: { logical: [480, 272], presentation: "integer-fit" } } },
+      viewport: { fixed: { logical: [window.width, window.height], presentation: "native" } } },
   };
   const checked = checkAppTypes({ entry: resolve("app/main.tsx"),
     tsconfigPath: resolve("tsconfig.json"), declarationFiles: [resolve(upstream!, "framework/src/jsx.d.ts")] });
   if (!checked.ok) throw new Error(checked.diagnostics.filter((d: any) => d.category === "error")
     .map((d: any) => `${d.file ?? "TypeScript"}:${d.line ?? 0} TS${d.code}: ${d.message}`).join("\n"));
-  const plan = resolveIOSDevBuildPlan(manifest, 1);
+  const resolved = validateAndResolveBuildPlan(manifest, { target: "pjm-ios" }, miniContracts(platforms, window));
+  if (!resolved.ok) throw new Error(JSON.stringify(resolved.diagnostics));
+  const plan = resolved.plan;
+  const metrics = { ...window };
   const directory = resolve(`build/revisions/${revision}`);
   mkdirSync(directory, { recursive: true });
   const planPath = join(directory, "plan.json");
@@ -74,23 +83,38 @@ async function compile(revision: number) {
   const decoded = decodePocketPackage(packed);
   const section = (kind: number) => decoded.variants[0].sections.find((s: any) => s.kind === kind)!.bytes as Uint8Array;
   const js = section(POCKET_SECTION.js);
-  writeFileSync(join(directory, "app.js"), js.subarray(0, js.length - 1));
+  const environment = `globalThis.__pjmWindow=${JSON.stringify(metrics)};\n`;
+  writeFileSync(join(directory, "app.js"), Buffer.concat([Buffer.from(environment), js.subarray(0, js.length - 1)]));
   writeFileSync(join(directory, "app.pak"), section(POCKET_SECTION.pak));
-  return { directory, packed, name };
+  return { directory, packed, name, metrics };
 }
 
 let active = 0, sequence = 0, error: string | null = null;
+let publishedWindow: WindowInfo = { ...defaultWindow };
 let wanted = "", completed = "", compiling = false, stopping = false;
 let compileChild: ReturnType<typeof Bun.spawn> | undefined;
-let flutter: ReturnType<typeof Bun.spawn> | undefined;
 let setupChild: ReturnType<typeof Bun.spawn> | undefined;
+let hostCleanup: (() => Promise<void>) | undefined;
 const token = randomBytes(24).toString("hex");
 const server = Bun.serve({ hostname: "127.0.0.1", port: Number(process.env.PJM_PORT ?? 0),
-  fetch(request) {
+  async fetch(request) {
     const path = new URL(request.url).pathname;
     if (!path.startsWith(`/${token}/`)) return new Response("Not found", { status: 404 });
     const route = path.slice(token.length + 2);
-    if (route === "state") return Response.json({ revision: active, error }, { headers: { "Cache-Control": "no-store" } });
+    if (process.env.PJM_NATIVE_TEST === "1" && route.startsWith("test/") && request.method === "POST") {
+      const action = route.slice(5);
+      const content = action === "saved" ? originalSource.replace("Hello PocketJS Mini", "Saved edit")
+        : action === "compile-error" ? "this is not TypeScript"
+        : action === "runtime-error" ? originalSource.replace("mount(() => <App />);", 'throw new Error("Intentional guest failure");\nmount(() => <App />);')
+        : action === "restore" ? originalSource : null;
+      if (content === null) return new Response("Unknown fixture action", { status: 404 });
+      writeFileSync("app/main.tsx", content); return new Response("ok");
+    }
+    if (route === "window" && request.method === "POST") {
+      try { window = readWindow(await request.json()); wanted = fingerprint(); void rebuild(); return Response.json(window); }
+      catch (failure) { return new Response(String(failure), { status: 400 }); }
+    }
+    if (route === "state") return Response.json({ revision: active, error, window: publishedWindow }, { headers: { "Cache-Control": "no-store" } });
     const match = /^(\d+)\/(app\.(?:js|pak))$/.exec(route);
     if (!match || Number(match[1]) > active) return new Response("Not found", { status: 404 });
     const file = Bun.file(resolve(`build/revisions/${match[1]}/${match[2]}`));
@@ -110,7 +134,7 @@ async function rebuild() {
     const result = await compile(++sequence);
     wanted = fingerprint();
     if (!stopping && snapshot === wanted) {
-      active = sequence; error = null;
+      active = sequence; error = null; publishedWindow = result.metrics;
       writeFileSync(`build/${result.name}.pocket`, result.packed);
       console.log(`Ready revision ${active}`);
     }
@@ -132,7 +156,7 @@ function shutdown(status = 0) {
   if (stopping) return;
   stopping = true;
   clearInterval(watch); server.stop(true);
-  for (const child of [compileChild, setupChild, flutter]) {
+  for (const child of [compileChild, setupChild]) {
     if (!child) continue;
     try { process.kill(-child.pid, "SIGTERM"); } catch { child.kill("SIGTERM"); }
   }
@@ -140,7 +164,9 @@ function shutdown(status = 0) {
     if (JSON.parse(readFileSync("build/session.json", "utf8")).pid === process.pid)
       rmSync("build/session.json", { force: true });
   } catch {}
-  setTimeout(() => process.exit(status), 100).unref();
+  const exit = () => process.exit(status);
+  if (hostCleanup) { const timeout = setTimeout(exit, 5000); void hostCleanup().finally(() => { clearTimeout(timeout); exit(); }); }
+  else setTimeout(exit, 100);
 }
 process.on("SIGINT", () => shutdown());
 process.on("SIGTERM", () => shutdown());
@@ -148,21 +174,13 @@ wanted = fingerprint();
 await rebuild();
 
 if (process.env.PJM_TEST_SERVER !== "1") {
-  const host = resolve(".pjm/flutter");
-  if (!existsSync(join(host, "pubspec.yaml"))) {
-    const create = Bun.spawn(["flutter", "create", "--empty", "--no-pub", "--platforms=macos,ios,linux", "--project-name=pjm_host", host], { stdout: "inherit", stderr: "inherit", detached: true });
-    setupChild = create;
-    if (await create.exited !== 0) { shutdown(1); } else cpSync(join(root, "host"), host, { recursive: true });
-    setupChild = undefined;
-  } else cpSync(join(root, "host"), host, { recursive: true });
-  writeFileSync(join(host, "upstream.txt"), upstream!);
-  writeFileSync(join(host, "toolchain.json"), JSON.stringify({ cargo: Bun.which("cargo"),
-    environment: Object.fromEntries(["PATH", "CARGO_HOME", "RUSTUP_HOME", "LIBCLANG_PATH"].flatMap(key =>
-      process.env[key] ? [[key, process.env[key]]] : [])) }));
-  if (!stopping) {
-    flutter = Bun.spawn(["flutter", "run", "-d", device, `--dart-define=PJM_URL=${url}`],
-      { cwd: host, stdin: "inherit", stdout: "inherit", stderr: "inherit", detached: true });
-    const status = await flutter.exited;
-    shutdown(status);
+  try {
+    await launchNative({ root, upstream: upstream!, device, url,
+      stopping: () => stopping,
+      child: child => { setupChild = child; },
+      cleanup: callback => { hostCleanup = callback; },
+      stopped: shutdown });
+  } catch (failure) {
+    console.error(String(failure)); shutdown(1);
   }
 }

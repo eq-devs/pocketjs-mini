@@ -1,14 +1,15 @@
 # PocketJS Mini
 
-Write TypeScript/JSX, run it inside Flutter, and save to reload. PocketJS
-executes the guest in **native QuickJS** and renders the pixels; Flutter
-presents those pixels and forwards touch. Upstream is never patched.
+Write TSX, run it in a native phone container, and save to reload.
+PocketJS owns QuickJS, layout and rendering. UIKit owns the window, safe area,
+display link and touch. No Flutter, Dart, NativeScript or WebView is required.
+PocketJS upstream is pinned and never patched.
 
-## Install and run
+## First run
 
-Install [Bun 1.3.11](https://bun.sh), [Flutter 3.41.5](https://docs.flutter.dev/install),
-Git and a stable [Rust/Cargo toolchain](https://rustup.rs). Flutter's normal
-platform requirements apply: Xcode for macOS/iOS, GTK build tools for Linux.
+Install Git, [Bun 1.3.11](https://bun.sh), a stable
+[Rust toolchain](https://rustup.rs), and Xcode with an available iPhone simulator.
+The interactive host currently runs on macOS with an iOS simulator.
 
 ```sh
 git clone https://github.com/eq-devs/pocketjs-mini.git
@@ -18,37 +19,47 @@ cd hello
 pjm run
 ```
 
-On macOS this opens the Flutter desktop host. On Linux it opens the Linux host.
-Edit `app/main.tsx` and save: compilation and app reload happen automatically.
-Tap/click the example to increment its counter. Compile and guest errors appear
-in the Flutter window; fix the source and save to recover. Reload creates a
-fresh guest realm, so application state resets. This is automatic reload, not
-state-preserving hot reload.
-
-There are only three public commands: `create`, `run`, and `clean`. Compilation
-is part of `run`; **there is no public `build` command**.
-
-## Run on an iPhone simulator
-
-Install an iOS simulator runtime in Xcode and the matching Rust target:
+`run` selects a booted iPhone simulator, or an available one. To select explicitly:
 
 ```sh
-rustup target add --toolchain stable aarch64-apple-ios-sim
-flutter devices
-pjm run -d <simulator-id>
+xcrun simctl list devices available
+pjm run -d <simulator-id-or-name>
 ```
 
-Intel Macs use `x86_64-apple-ios`. The host connects to the local development
-server, loads the app, and runs it natively inside the simulator. Validation
-includes boot, two taps changing the guest framebuffer, saved-source reload,
-visible compile/runtime errors, and recovery. A physical iPhone has different
-network/signing requirements and is not covered by simulator evidence.
+Only `create`, `run`, and `clean` are public commands. Compilation is automatic;
+there is no public `build`, `serve` or `dev` command. Tap the example to increment
+its counter. Save `app/main.tsx` to rebuild/reload. Errors appear over the last
+running application; a valid edit recovers. Ctrl+C stops the session and closes
+its app. Quit the native app to end the attached session.
 
-This version supports macOS, Linux and iOS simulator development. Android and
-Windows are not wired up yet. Neither production mobile packaging nor App Store
-submission is part of this development workflow.
+First run downloads the pinned upstream, installs its Bun dependencies, adds a
+missing stable Rust simulator target, builds PocketJS, and generates a disposable
+UIKit Xcode project. Subsequent runs reuse native build caches. You never edit
+that generated native project to develop the TSX app.
 
-## Small projects
+## Phone layout
+
+The host takes over the phone window. Its background fills the screen; the
+PocketJS content fills the actual safe content area. UIKit measures that area
+in logical points, reports its width/height, safe insets and raster density, and
+Mini resolves a matching **Mini-owned `pjm-ios` host contract** through official
+PocketJS APIs. It does not pretend to use the upstream fixed `ios-dev` profile.
+
+The template's `w-full h-full` layout uses the measured viewport. There is no
+480×272 tile and no stretch-to-fill simulation. Font assets bake at the same
+1..4 raster density used by the native view. Physical pixels and logical layout
+units stay separate.
+
+Rotation reports new metrics and compiles/recreates the guest for the new
+viewport. **Rotation and source reload reset application state in this version.**
+This is negotiated rebuild/reload, not live engine resize or stateful hot reload.
+The current touch contract limits each logical dimension to 1024; larger surfaces
+are rejected rather than silently truncating coordinates. Tablet support is not
+claimed. Native `CADisplayLink` requests 60 ticks/s, matching the compiler;
+actual presentation cadence remains subject to the device/OS. Input is collected
+by upstream and delivered at frame boundaries, including multiple contacts.
+
+## Tiny application
 
 ```text
 hello/
@@ -58,63 +69,56 @@ hello/
   tsconfig.json
 ```
 
-`mini.json` contains the app name. Names start with a lowercase letter and
-contain lowercase letters, digits or hyphens, at most 48 characters. Existing
-destinations are refused. Place resources in `assets/` and reference image
-paths relative to the entry, such as `../assets/logo.png`. Extend the small
-TypeScript import map when using additional framework modules.
-
-First run downloads the pinned upstream and installs its dependencies in
-`.pjm/pocketjs`, then generates a disposable Flutter host in `.pjm/flutter`.
-It also builds the native bridge and installs missing stable Rust target components
-(macOS Flutter builds can request both arm64 and x64). This requires internet access and can take a
-few minutes. Subsequent runs reuse these caches. You do not edit Flutter's
-platform projects to develop the TSX app.
-
-The current embedded profile is `ios-dev`, with a fixed 480×272 logical viewport
-and density 1. Desktop preview uses the same contract. Software framebuffer
-presentation proves the integration; GPU textures, responsive phone viewports,
-multitouch and native phone services are future work. Input currently forwards
-one contact, including cancellation; the engine receives touches in logical
-coordinates after Flutter scales the displayed surface.
-
-`run` checks types, resolves the official profile, invokes `tools/build.ts`, and
-uses official packaging/validation APIs. It writes `build/<name>.pocket` and
-immutable revision artifacts. A loopback-only development server delivers
-validated JS/PAK sections to the Flutter host through a per-session random URL.
-Compilation is serialized and changed snapshots are discarded before publication.
-Source and asset contents are checked every 300ms. Invalid edits preserve the
-last running application and expose the error. There is no browser/WebView in
-this execution path.
-
-Quit the Flutter session or press Ctrl+C to stop. Then:
+`mini.json` currently holds the application name. `tsconfig.json` provides normal
+TypeScript/editor module resolution. Keep application resources in `assets/`.
+Names start with a lowercase letter and contain lowercase letters, digits or
+hyphens, at most 48 characters. Existing destinations are refused.
 
 ```sh
 pjm clean
 ```
 
-`clean` removes `build/`, preserves source and refuses symlinked output.
-`.pjm/` holds downloaded dependencies and Flutter/native caches; delete it
-manually to reclaim space. Generated files and caches are ignored by Git.
+`clean` removes generated `build/`, preserves source, and refuses active sessions
+and symlinked output. `.pjm/` holds downloaded SDK/native caches; delete it
+manually to reclaim space. Old `.pjm/flutter` caches from 0.2 are unused and can
+also be deleted. Generated files are ignored by Git.
 
-## Development and validation
+## Boundaries
 
-The executable `bin/pjm` supports macOS Bash 3.2 and Linux Bash.
-`bin/runtime.ts` is an internal compiler/watcher/launcher, and `host/` contains
-the small Flutter/native adapter. PocketJS is fixed at
-`fe971ebb8e14724d2a98d4df6b34c065caf11132`. Its tracked files are untouched;
-its official tools create ignored caches/styles. Rust dependencies start from
-the pinned upstream lockfile, and Flutter dependencies have a committed lockfile.
+Android, physical iPhones (network routing/signing), Linux/macOS desktop windows,
+production packaging, keyboard/IME and accessible guest semantics are not
+implemented in this native-phone version. Linux can run command/compiler
+validation, but `pjm run` needs the current macOS/iPhone host. The former Flutter
+desktop preview was deliberately removed with the Flutter dependency.
+
+This is a development container for trusted local code, not a hardened public
+mini-program distribution service. Development transport binds to loopback and
+uses a random session URL. The simulator can reach that host; physical-device
+transport needs a separate design. The development app's bundle identity is
+`dev.pjm.host` (one session per simulator, protected by a per-device session lock). Application package identities remain
+separate. See [ECOSYSTEM.md](ECOSYSTEM.md) for what we borrow from mini-programs.
+
+## Validation
+
+PocketJS is pinned to `fe971ebb8e14724d2a98d4df6b34c065caf11132`.
+The shell entrypoint is compatible with Bash 3.2 and Linux Bash. Internal Bun
+scripts use official manifest resolution, compiler and `.pocket` packaging APIs.
+`build/<name>.pocket` records a resolved device snapshot; the development host
+receives its JS/PAK sections. Native rendering/input reuses upstream
+`PocketSurfaceView` and `pocket-apple` directly.
 
 ```sh
 bash tests/check.sh
-bash tests/flutter.sh macos
-# Or, with a simulator already booted:
-bash tests/flutter.sh <simulator-id>
+bash tests/native.sh <simulator-id>
 ```
 
-Test scripts use disposable projects. Native tests verify QuickJS boot, pixels,
-touch changes, error reporting and disposal. Flutter integration tests exercise
-pointer forwarding, source reload and visible error recovery. GitHub Actions
-runs command checks plus native/interactive checks on Linux and macOS and a
-separate iPhone simulator job. See [PLAN.md](PLAN.md) for the acceptance audit.
+Command tests verify create, automatic build, negotiated viewport/density,
+reload/error recovery, stale-build rejection, shutdown, and safe cleanup.
+XCTest uses actual UIKit taps and checks engine pixels, safe-area bounds,
+portrait/landscape rebuilds, saved-source reload, compile/runtime errors and
+recovery. Pixel receipts and source-mutation routes exist only in the internal
+acceptance mode. Screenshots are attached to the XCTest result bundle.
+CI runs command checks on Linux/macOS and native iPhone acceptance on a fixed
+macOS 15 / Xcode 16.4 / iOS 18.5 simulator. See [PLAN.md](PLAN.md).
+
+Documentation-only pushes do not rebuild the simulator acceptance suite.
