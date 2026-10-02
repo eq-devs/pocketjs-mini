@@ -1,0 +1,32 @@
+name: Validate
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  hello:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.11
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - name: Validate shell and generated project
+        run: |
+          bash -n bin/pjm tests/check.sh
+          bash tests/check.sh
+      - name: Build and boot committed example
+        working-directory: examples/hello
+        run: |
+          ../../bin/pjm build
+          PJM_EXPECT_TEXT='Hello PocketJS Mini' ../../bin/pjm run
+          ../../bin/pjm clean
+          test ! -e build
+      - name: Verify tracked source stays clean
+        run: git diff --exit-code

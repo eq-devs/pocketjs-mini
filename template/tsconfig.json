@@ -1,0 +1,8 @@
+{
+  "compilerOptions": {
+    "paths": {
+      "@pocketjs/framework/solid": ["./.pjm/pocketjs/framework/src/index.ts"],
+      "@pocketjs/framework/components": ["./.pjm/pocketjs/framework/src/components.ts"]
+    }
+  }
+}
