@@ -48,6 +48,6 @@ flutter pub get
 flutter analyze
 flutter test test/native_test.dart
 if [ "$#" -gt 0 ]; then
-  flutter test integration_test/boot_test.dart -d "$1" --dart-define="PJM_URL=$url" --dart-define="PJM_TEST_CONTROL=$control"
+  bun "$ROOT/tests/run-flutter.ts" integration_test/boot_test.dart -d "$1" --dart-define="PJM_URL=$url" --dart-define="PJM_TEST_CONTROL=$control"
 fi
 cat "$tmp/run.log"

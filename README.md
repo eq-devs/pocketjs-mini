@@ -66,7 +66,8 @@ TypeScript import map when using additional framework modules.
 
 First run downloads the pinned upstream and installs its dependencies in
 `.pjm/pocketjs`, then generates a disposable Flutter host in `.pjm/flutter`.
-It also builds the native bridge. This requires internet access and can take a
+It also builds the native bridge and installs missing stable Rust target components
+(macOS Flutter builds can request both arm64 and x64). This requires internet access and can take a
 few minutes. Subsequent runs reuse these caches. You do not edit Flutter's
 platform projects to develop the TSX app.
 

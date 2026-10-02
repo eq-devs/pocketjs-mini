@@ -37,7 +37,7 @@ jobs:
         run: git diff --exit-code
   iphone:
     runs-on: macos-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
