@@ -3,7 +3,7 @@ set -eu
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 REV=fe971ebb8e14724d2a98d4df6b34c065caf11132
 fail() { echo "pjm: $*" >&2; exit 1; }
-usage() { fail 'usage: pjm create <appname> | run | build | clean'; }
+usage() { fail 'usage: pjm create <appname> | run [-d device] | clean'; }
 [ "$#" -gt 0 ] || usage
 command=$1
 shift
@@ -20,16 +20,33 @@ case "$command" in
     echo "Created $name"
     exit 0
     ;;
-  run|build|clean) [ "$#" -eq 0 ] || usage;;
+  run)
+    device=''
+    if [ "$#" -ne 0 ]; then
+      [ "$#" -eq 2 ] && [ "$1" = '-d' ] && [ -n "$2" ] || usage
+      device=$2
+    fi
+    ;;
+  clean) [ "$#" -eq 0 ] || usage;;
   *) usage;;
 esac
 [ -f mini.json ] && [ ! -L mini.json ] || fail 'run this command in a Mini project (mini.json required)'
 if [ "$command" = clean ]; then
   [ ! -L build ] || fail 'refusing to clean a symlinked build directory'
+  if [ -f build/session.json ]; then
+    running_pid=$(sed -n 's/.*"pid":\([0-9][0-9]*\).*/\1/p' build/session.json)
+    if [ -n "$running_pid" ] && kill -0 "$running_pid" 2>/dev/null; then
+      fail 'stop the active pjm run session before cleaning'
+    fi
+  fi
   rm -rf -- build
   exit 0
 fi
 command -v bun >/dev/null 2>&1 || fail 'Bun is required: https://bun.sh'
+if [ "${PJM_TEST_SERVER:-0}" != 1 ]; then
+  command -v flutter >/dev/null 2>&1 || fail 'Flutter is required: https://docs.flutter.dev/install'
+  command -v cargo >/dev/null 2>&1 || fail 'Rust/Cargo is required: https://rustup.rs'
+fi
 mkdir -p .pjm
 [ ! -L build ] || fail 'build must not be a symlink'
 if [ ! -d .pjm/pocketjs/.git ]; then
@@ -45,4 +62,7 @@ if [ ! -f .pjm/pocketjs/node_modules/.pjm-ready ]; then
   (cd .pjm/pocketjs && bun install --frozen-lockfile)
   touch .pjm/pocketjs/node_modules/.pjm-ready
 fi
-bun "$ROOT/bin/runtime.ts" "$command" "$PWD/.pjm/pocketjs"
+if [ -n "$device" ]; then
+  exec bun "$ROOT/bin/runtime.ts" "$PWD/.pjm/pocketjs" "$device"
+fi
+exec bun "$ROOT/bin/runtime.ts" "$PWD/.pjm/pocketjs"
