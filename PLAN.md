@@ -18,7 +18,7 @@ viewport. Learn host/tool/application separation from mini-program ecosystems.
 - [x] Source saves, visible compile/runtime failures and recovery work.
 - [x] Command/compiler tests pass, including invalid geometry and stale builds.
 - [x] Final native acceptance, session shutdown and public launch are verified.
-- [ ] Upstream tracked files remain unchanged; final published CI passes.
+- [x] Upstream tracked files remain unchanged; final published CI passes.
 
 ## Evidence and scope
 
@@ -35,7 +35,13 @@ locks. A second project was rejected with a nonzero exit code while the first
 kept ownership. Regression coverage also checks that host startup failure can
 never exit successfully. Portrait and landscape screenshots were exported.
 
-The release gate remains the native CI run on the published implementation.
+Published implementation `7f37b74662963ed03b54f1d4f11d402c0b3c23f6` passed
+[CI run 37008898815](https://github.com/eq-devs/pocketjs-mini/actions/runs/37008898815):
+Linux and macOS command checks plus native iPhone 16 Pro / iOS 18.5 acceptance.
+The downloaded XCTest result confirms one test passed, zero failed or skipped.
+That test requires both orientations to cover >85% of the screen, actual taps
+to change guest pixels, and successful source/error recovery. Upstream tracked
+files remain unchanged. This documentation-only evidence update changes no code.
 Physical iPhones, Android, tablet surfaces above the touch-coordinate range,
 production packaging, state-preserving rotation and desktop native windows are
 not claimed. Flutter desktop support from 0.2 was intentionally removed.
