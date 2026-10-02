@@ -7,9 +7,13 @@ void main(List<String> arguments) async {
   await build(arguments, (input, output) async {
     if (!input.config.buildCodeAssets) return;
     final code = input.config.code;
-    final arch = code.targetArchitecture == Architecture.arm64
-        ? 'aarch64'
-        : 'x86_64';
+    final arch = switch (code.targetArchitecture) {
+      Architecture.arm64 => 'aarch64',
+      Architecture.x64 => 'x86_64',
+      _ => throw UnsupportedError(
+        'Native host requires an arm64 or x64 target',
+      ),
+    };
     final target = switch (code.targetOS) {
       OS.macOS => '$arch-apple-darwin',
       OS.iOS =>
@@ -50,20 +54,40 @@ opt-level = "s"
     final lock = File('${native.path}/Cargo.lock');
     if (!await lock.exists())
       await File('$upstream/engine/Cargo.lock').copy(lock.path);
-    final cargo = await Process.start(
-      toolchain['cargo'] as String? ?? 'cargo',
-      [
-        '+stable',
-        'build',
-        '--release',
-        '--manifest-path',
-        '${native.path}/Cargo.toml',
-        '--target',
+    final environment = (toolchain['environment'] as Map<String, dynamic>?)
+        ?.cast<String, String>();
+    final installed = await Process.run('rustup', [
+      'target',
+      'list',
+      '--installed',
+      '--toolchain',
+      'stable',
+    ], environment: environment);
+    if (installed.exitCode != 0)
+      throw StateError('A rustup-managed stable toolchain is required');
+    if (!(installed.stdout as String).split('\n').contains(target)) {
+      final add = await Process.start('rustup', [
+        'target',
+        'add',
+        '--toolchain',
+        'stable',
         target,
-      ],
-      environment: (toolchain['environment'] as Map<String, dynamic>?)
-          ?.cast<String, String>(),
-    );
+      ], environment: environment);
+      await stdout.addStream(add.stdout);
+      await stderr.addStream(add.stderr);
+      if (await add.exitCode != 0)
+        throw StateError('Could not install Rust target $target');
+    }
+    final cargo =
+        await Process.start(toolchain['cargo'] as String? ?? 'cargo', [
+          '+stable',
+          'build',
+          '--release',
+          '--manifest-path',
+          '${native.path}/Cargo.toml',
+          '--target',
+          target,
+        ], environment: environment);
     await stdout.addStream(cargo.stdout);
     await stderr.addStream(cargo.stderr);
     if (await cargo.exitCode != 0)
