@@ -3,11 +3,24 @@ set -eu
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 REV=fe971ebb8e14724d2a98d4df6b34c065caf11132
 fail() { echo "pjm: $*" >&2; exit 1; }
-usage() { fail 'usage: pjm create <appname> | run [-d device] | clean'; }
+usage() { fail 'usage: pjm doctor | create <appname> | run | check | build [--release --key file] | export-ios --package dir --public-key file --output dir [--target simulator|device] | clean (use --device ios|android to select a platform)'; }
 [ "$#" -gt 0 ] || usage
 command=$1
 shift
 case "$command" in
+  export-ios)
+    command -v bun >/dev/null 2>&1 || fail 'Bun is required'
+    exec bun "$ROOT/bin/export-ios.ts" "$@"
+    ;;
+  doctor)
+    platform=ios
+    if [ "$#" -ne 0 ]; then
+      [ "$#" -eq 2 ] && [ "$1" = --device ] || usage
+      case "$2" in ios|android) platform=$2;; *) usage;; esac
+    fi
+    command -v bun >/dev/null 2>&1 || fail 'Bun 1.3.11 is required: https://bun.sh'
+    exec bun "$ROOT/bin/doctor.ts" "$platform"
+    ;;
   create)
     [ "$#" -eq 1 ] || usage
     name=$1
@@ -22,15 +35,42 @@ case "$command" in
     ;;
   run)
     device=''
-    if [ "$#" -ne 0 ]; then
-      [ "$#" -eq 2 ] && [ "$1" = '-d' ] && [ -n "$2" ] || usage
-      device=$2
-    fi
+    platform=ios
+    while [ "$#" -ne 0 ]; do
+      [ "$#" -ge 2 ] && [ -n "$2" ] || usage
+      case "$1" in
+        -d) device=$2;;
+        --device) case "$2" in ios|android) platform=$2;; *) usage;; esac;;
+        *) usage;;
+      esac
+      shift 2
+    done
+    ;;
+  build|check)
+    platform=ios
+    build_args=()
+    while [ "$#" -ne 0 ]; do
+      case "$1" in
+        --device)
+          [ "$#" -ge 2 ] || usage
+          case "$2" in ios|android) platform=$2;; *) usage;; esac
+          shift 2;;
+        --release) build_args+=("$1"); shift;;
+        --key|--width|--height|--density)
+          [ "$#" -ge 2 ] && [ -n "$2" ] || usage
+          build_args+=("$1" "$2");shift 2;;
+        *) usage;;
+      esac
+    done
     ;;
   clean) [ "$#" -eq 0 ] || usage;;
   *) usage;;
 esac
-[ -f mini.json ] && [ ! -L mini.json ] || fail 'run this command in a Mini project (mini.json required)'
+if [ -e pocket.json ] || [ -L pocket.json ]; then
+  [ -f pocket.json ] && [ ! -L pocket.json ] || fail 'pocket.json must be a regular file'
+else
+  [ -f mini.json ] && [ ! -L mini.json ] || fail 'run this command in a PocketJS project (pocket.json required)'
+fi
 if [ "$command" = clean ]; then
   [ ! -L build ] || fail 'refusing to clean a symlinked build directory'
   if [ -f build/session.json ]; then
@@ -43,10 +83,12 @@ if [ "$command" = clean ]; then
   exit 0
 fi
 command -v bun >/dev/null 2>&1 || fail 'Bun is required: https://bun.sh'
-if [ "${PJM_TEST_SERVER:-0}" != 1 ]; then
+if [ "$command" = run ] && [ "${PJM_TEST_SERVER:-0}" != 1 ]; then
   command -v cargo >/dev/null 2>&1 || fail 'Rust/Cargo is required: https://rustup.rs'
-  [ "$(uname -s)" = Darwin ] || fail 'The native phone host currently requires macOS and Xcode; Android/Linux hosts are not available yet'
-  command -v xcrun >/dev/null 2>&1 || fail 'Xcode is required for the native iPhone host'
+  if [ "$platform" = ios ]; then
+    [ "$(uname -s)" = Darwin ] || fail 'The iPhone host requires macOS and Xcode; use --device android for Android'
+    command -v xcrun >/dev/null 2>&1 || fail 'Xcode is required for the native iPhone host'
+  fi
 fi
 mkdir -p .pjm
 [ ! -L build ] || fail 'build must not be a symlink'
@@ -63,7 +105,7 @@ if [ ! -f .pjm/pocketjs/node_modules/.pjm-ready ]; then
   (cd .pjm/pocketjs && bun install --frozen-lockfile)
   touch .pjm/pocketjs/node_modules/.pjm-ready
 fi
-if [ -n "$device" ]; then
-  exec bun "$ROOT/bin/runtime.ts" "$PWD/.pjm/pocketjs" "$device"
+if [ "$command" != run ]; then
+  exec bun "$ROOT/bin/build.ts" "$PWD/.pjm/pocketjs" "$command" "$platform" ${build_args[@]+"${build_args[@]}"}
 fi
-exec bun "$ROOT/bin/runtime.ts" "$PWD/.pjm/pocketjs"
+exec bun "$ROOT/bin/runtime.ts" "$PWD/.pjm/pocketjs" "$device" "$platform"

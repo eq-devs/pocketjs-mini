@@ -1,0 +1,8 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="dev.pjm.android" android:versionCode="4" android:versionName="0.4.0">
+<uses-sdk android:minSdkVersion="23" android:targetSdkVersion="34"/>
+<uses-permission android:name="android.permission.INTERNET"/>
+<uses-feature android:glEsVersion="0x00020000" android:required="true"/>
+<application android:label="PocketJS Mini" android:debuggable="true" android:allowBackup="false" android:usesCleartextTraffic="true" android:theme="@android:style/Theme.Material.NoActionBar">
+<activity android:name="dev.pjm.android.MiniActivity" android:exported="true" android:configChanges="orientation|screenSize|keyboardHidden">
+<intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+</activity></application></manifest>

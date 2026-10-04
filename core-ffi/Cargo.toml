@@ -1,0 +1,18 @@
+[package]
+name = "mini-core-ffi"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[lib]
+crate-type = ["rlib", "staticlib", "cdylib"]
+
+[dependencies]
+pocket-mod = { path = "../examples/hello/.pjm/pocketjs/engine/crates/pocket-mod" }
+pocket-ui-surface = { path = "../examples/hello/.pjm/pocketjs/engine/crates/pocket-ui-surface" }
+pocketjs-core = { path = "../examples/hello/.pjm/pocketjs/engine/core" }
+
+[target.'cfg(any(target_os = "ios", target_os = "android"))'.dependencies]
+rquickjs = { version = "0.12", features = ["bindgen"] }

@@ -1,5 +1,14 @@
 import { test, expect } from "bun:test";
 import { physicalPhones, lanAddress } from "../bin/devices.ts";
+import { parseAndroidDevices } from "../bin/android.ts";
+
+test("Android discovery preserves unauthorized and offline states for diagnostics", () => {
+  expect(parseAndroidDevices("List of devices attached\nemulator-5554 device product:sdk model:Pixel_2 transport_id:1\nphone unauthorized usb:1\nold offline\n")).toEqual([
+    { id: "emulator-5554", state: "device", name: "Pixel 2" },
+    { id: "phone", state: "unauthorized", name: "phone" },
+    { id: "old", state: "offline", name: "old" },
+  ]);
+});
 
 test("only connected physical iPhones are candidates", () => {
   const phone = { hardwareProperties: { deviceType: "iPhone" }, connectionProperties: { tunnelState: "connected" } };

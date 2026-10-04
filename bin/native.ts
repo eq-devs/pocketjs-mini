@@ -46,11 +46,12 @@ export async function launchNative(options: Options) {
   const target = physical ? "aarch64-apple-ios" : arch === "aarch64" ? "aarch64-apple-ios-sim" : "x86_64-apple-ios";
   const installed = await run(["rustup", "target", "list", "--installed", "--toolchain", "stable"], true);
   if (!installed.split("\n").includes(target)) await run(["rustup", "target", "add", "--toolchain", "stable", target]);
-  await run(["cargo", "+stable", "build", "--release", "--locked", "--manifest-path", join(options.upstream, "engine/Cargo.toml"), "-p", "pocket-apple", "--target", target]);
+  await run(["rustup", "run", "stable", "cargo", "build", "--release", "--locked", "--manifest-path", join(options.root, "core-ffi/Cargo.toml"), "--target", target]);
   const directory = resolve(".pjm/native");
   mkdirSync(directory, { recursive: true });
   cpSync(join(options.root, "host/ios"), directory, { recursive: true });
-  const library = join(options.upstream, "engine/target", target, "release/libpocket_apple.a");
+  cpSync(join(options.root, "core-ffi/include/mini_core.h"), join(directory, "mini_core.h"));
+  const library = join(options.root, "core-ffi/target", target, "release/libmini_core_ffi.a");
   writeNativeProject(directory, options.upstream, library, options.url, process.env.PJM_NATIVE_TEST === "1", bundle);
   if (!physical) {
     if (device.state !== "Booted") await run(["xcrun", "simctl", "boot", device.udid], true, 30000);

@@ -9,9 +9,13 @@ final class MiniTests: XCTestCase {
         let token = text.split(separator: " ").first { $0.hasPrefix(key + "=") }
         return token.flatMap { Int($0.split(separator: "=")[1]) } ?? 0
     }
-    func wait(_ condition: @escaping () -> Bool, timeout: TimeInterval = 90) {
+    func wait(_ condition: @escaping () -> Bool, timeout: TimeInterval = 90, file: StaticString = #filePath, line: UInt = #line) {
         let result = XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in condition() }, object: nil)], timeout: timeout)
-        XCTAssertEqual(result, .completed)
+        if result != .completed {
+            let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+            attachment.name = "Failed native wait"; attachment.lifetime = .keepAlways; add(attachment)
+        }
+        XCTAssertEqual(result, .completed, file:file, line:line)
     }
     func assertPhoneCoverage(_ app: XCUIApplication) {
         let image = XCUIScreen.main.screenshot().image.cgImage!
@@ -88,6 +92,52 @@ final class MiniTests: XCTestCase {
         add(screenshot)
         app.terminate()
     }
+    func testSDKServicesAndGuestReconnection() {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        edit("restore")
+        let app = XCUIApplication(bundleIdentifier:"dev.pjm.host")
+        app.launchArguments=["--pjm-url",pjmTestURL];app.launch()
+        let surface=app.otherElements["pocket-surface"]
+        wait { surface.exists && self.receipt(surface,"frames") > 0 }
+        let initial=receipt(surface,"hash"),before=receipt(surface,"revision")
+        edit("native-services")
+        wait { self.receipt(surface,"revision") > before && self.receipt(surface,"sdk") == 7 }
+        let native=receipt(surface,"revision")
+        edit("sdk-services")
+        wait { self.receipt(surface,"revision") > native && self.receipt(surface,"sdk") == 31 }
+        let receiptAttachment=XCTAttachment(string:surface.value as? String ?? "missing receipt")
+        receiptAttachment.name="Native SDK receipt";receiptAttachment.lifetime = .keepAlways;add(receiptAttachment)
+        let screenshot=XCTAttachment(screenshot:XCUIScreen.main.screenshot())
+        screenshot.name="SDK services and reconnection";screenshot.lifetime = .keepAlways;add(screenshot)
+        let sdk=receipt(surface,"revision")
+        edit("restore")
+        wait { self.receipt(surface,"revision") > sdk && self.receipt(surface,"hash") == initial }
+        app.terminate()
+    }
+    func testStoragePersistenceQuotasAndFailedBootEffects() {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        edit("restore")
+        let app=XCUIApplication(bundleIdentifier:"dev.pjm.host")
+        app.launchArguments=["--pjm-url",pjmTestURL];app.launch()
+        let surface=app.otherElements["pocket-surface"],error=app.staticTexts["pjm-status"]
+        wait { surface.exists && self.receipt(surface,"frames") > 0 }
+        let before=receipt(surface,"revision")
+        edit("runtime-error")
+        wait { error.exists && error.label.contains("Intentional guest failure") }
+        edit("restore")
+        wait { self.receipt(surface,"revision") > before && !error.exists }
+        var revision=receipt(surface,"revision")
+        for action in ["storage-write","storage-read","storage-empty"] {
+            edit(action)
+            wait { self.receipt(surface,"revision") > revision && self.receipt(surface,"sdk") == 63 }
+            revision=receipt(surface,"revision")
+        }
+        let attachment=XCTAttachment(string:surface.value as? String ?? "missing receipt")
+        attachment.name="Native storage receipt";attachment.lifetime = .keepAlways;add(attachment)
+        edit("restore");app.terminate()
+    }
     func edit(_ action: String) {
         let expectation = expectation(description: action)
         // Fixture shares the authenticated development server session.
@@ -100,4 +150,57 @@ final class MiniTests: XCTestCase {
         }.resume()
         waitForExpectations(timeout: 10)
     }
+    func testUnloadStorageEffectBeforeReplacement() {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        edit("unload-storage")
+        let app=XCUIApplication(bundleIdentifier:"dev.pjm.host")
+        app.launchArguments=["--pjm-url",pjmTestURL];app.launch()
+        defer { edit("restore");app.terminate() }
+        let surface=app.otherElements["pocket-surface"]
+        wait { surface.exists && self.receipt(surface,"sdk") == 127 }
+        let revision=receipt(surface,"revision")
+        edit("unload-read")
+        wait { self.receipt(surface,"revision") > revision && self.receipt(surface,"sdk") == 127 }
+        let attachment=XCTAttachment(string:surface.value as? String ?? "missing receipt")
+        attachment.name="Unload storage committed before replacement";attachment.lifetime = .keepAlways;add(attachment)
+    }
+    func testSDKLifecycleOrderingAcrossBackground() {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        edit("sdk-lifecycle")
+        let app=XCUIApplication(bundleIdentifier:"dev.pjm.host")
+        app.launchArguments=["--pjm-url",pjmTestURL];app.launch()
+        defer { edit("restore");app.terminate() }
+        let surface=app.otherElements["pocket-surface"]
+        wait { surface.exists && self.receipt(surface,"sdk") == 3 }
+        let revision=receipt(surface,"revision")
+        XCUIDevice.shared.press(.home)
+        app.activate()
+        wait { surface.exists && self.receipt(surface,"sdk") == 7 }
+        XCTAssertEqual(receipt(surface,"revision"),revision,"Lifecycle delivery must preserve the guest")
+        let attachment=XCTAttachment(string:surface.value as? String ?? "missing receipt")
+        attachment.name="SDK launch show hide show ordering";attachment.lifetime = .keepAlways;add(attachment)
+    }
+    func testNativeBackgroundResumePreservesGuest() throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = XCUIApplication(bundleIdentifier: "dev.pjm.host")
+        app.launchArguments = ["--pjm-url", pjmTestURL]
+        app.launch()
+        let surface = app.otherElements["pocket-surface"]
+        wait { surface.exists && self.receipt(surface,"hash") > 0 }
+        let initial = receipt(surface,"hash")
+        surface.coordinate(withNormalizedOffset: CGVector(dx: 0.5,dy: 0.5)).tap()
+        wait { self.receipt(surface,"hash") > 0 && self.receipt(surface,"hash") != initial }
+        let changed = receipt(surface,"hash"), revision = receipt(surface,"revision"), frames = receipt(surface,"frames")
+        XCUIDevice.shared.press(.home)
+        app.activate()
+        wait { surface.exists && self.receipt(surface,"frames") > frames }
+        XCTAssertEqual(receipt(surface,"revision"),revision)
+        XCTAssertEqual(receipt(surface,"hash"),changed,"Resume reset guest state")
+        surface.coordinate(withNormalizedOffset: CGVector(dx: 0.5,dy: 0.5)).tap()
+        wait { self.receipt(surface,"hash") > 0 && self.receipt(surface,"hash") != changed }
+    }
+
 }

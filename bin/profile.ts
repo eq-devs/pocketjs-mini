@@ -15,10 +15,10 @@ export function readWindow(value: any): WindowInfo {
     throw new Error("Invalid native window metrics (100..1024 logical units, density 1..4)");
   return result;
 }
-export function miniContracts(platforms: any, window: WindowInfo) {
+export function miniContracts(platforms: any, window: WindowInfo, platform: "ios" | "android" = "ios") {
   return platforms.definePlatformContractRegistry(platforms.POCKET_CAPABILITIES,
-    platforms.defineTargetRegistry({ "pjm-ios": {
-      hostAbi: 7, platform: "ios", form: "takeover",
+    platforms.defineTargetRegistry({ [`pjm-${platform}`]: {
+      hostAbi: 7, platform, form: "takeover",
       display: {
         physicalViewport: [window.width * window.density, window.height * window.density],
         logicalViewports: [[window.width, window.height]],

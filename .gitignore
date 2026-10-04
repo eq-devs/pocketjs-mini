@@ -1,3 +1,5 @@
 .DS_Store
 build/
 .pjm/
+node_modules/
+core-ffi/target/

@@ -2,6 +2,8 @@ import { test, expect } from "bun:test";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync, chmodSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import type { PackageMetadata } from "../container/package";
+import type { WindowInfo } from "../bin/profile";
 
 const pjm = resolve(import.meta.dir, "../bin/pjm");
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -38,14 +40,37 @@ test("public run auto-compiles, watches, rejects stale revisions, recovers and s
     }
     child = Bun.spawn([pjm, "run"], { cwd: project, env: { ...process.env, PJM_TEST_SERVER: "1" }, stdout: "inherit", stderr: "inherit" });
     const session = await until(async () => JSON.parse(readFileSync(join(project, "build/session.json"), "utf8")), value => !!value.url);
-    const state = () => fetch(`${session.url}state`).then(r => r.json()) as Promise<{ revision: number; error: string | null }>;
-    const ready = await until(state, value => value.revision > 0 && !value.error);
+    const state = () => fetch(`${session.url}state`).then(r => r.json()) as Promise<{ revision: number; error: string | null; window: WindowInfo; metadata: PackageMetadata | null }>;
+    let ready = await until(state, value => value.revision > 0 && !value.error);
+    expect(ready.metadata?.appId).toBe("dev.pjm.hello");
     expect(existsSync(join(project, "build/hello.pocket"))).toBe(true);
+    const manifestPath = join(project, "pocket.json");
+    const manifest = {
+      $schema: "https://pocketjs.dev/schema/pocket-2.json", pocket: 2,
+      id: "dev.example.hello", name: "hello", title: "Official manifest", version: "1.0.0",
+      engine: { capabilities: { requires: ["text.glyphs.baked", "input.touch", "net.http"] } },
+      app: { entry: "app/main.tsx", output: "hello", framework: "solid",
+        viewport: { fixed: { logical: [390, 844], presentation: "native" } } },
+    };
+    writeFileSync(manifestPath, JSON.stringify(manifest));
+    const rejected = await until(state, value => !!value.error);
+    expect(rejected.revision).toBe(ready.revision);
+    expect(rejected.metadata).toEqual(ready.metadata);
+    manifest.engine.capabilities.requires.pop();
+    writeFileSync(manifestPath, JSON.stringify(manifest));
+    const canonical = await until(state, value => value.revision > ready.revision && !value.error);
+    expect(canonical.metadata?.appId).toBe("dev.example.hello");
+    const canonicalPlan = JSON.parse(readFileSync(join(project, `build/revisions/${canonical.revision}/plan.json`), "utf8"));
+    expect(canonicalPlan.app.id).toBe(manifest.id);
+    expect(canonicalPlan.app.title).toBe(manifest.title);
+    rmSync(manifestPath);
+    ready = await until(state, value => value.revision > canonical.revision && !value.error);
+
     expect((await fetch(`${session.url}test/compile-error`, { method: "POST" })).status).toBe(404);
     expect((await fetch(`${session.url}window`, { method: "POST", body: JSON.stringify({ width: 9999 }) })).status).toBe(400);
     const window = { width: 402, height: 778, density: 3, safeTop: 62, safeBottom: 34, safeLeft: 0, safeRight: 0 };
     expect((await fetch(`${session.url}window`, { method: "POST", body: JSON.stringify(window) })).status).toBe(200);
-    const adaptive = await until(state, value => value.revision > ready.revision && !value.error);
+    let adaptive = await until(state, value => value.revision > ready.revision && !value.error);
     const fullState = await (await fetch(`${session.url}state`)).json();
     expect(fullState.window).toEqual(window);
     const plan = JSON.parse(readFileSync(join(project, `build/revisions/${adaptive.revision}/plan.json`), "utf8"));
@@ -57,6 +82,22 @@ test("public run auto-compiles, watches, rejects stale revisions, recovers and s
     expect((await fetch(`${session.url}${ready.revision}/app.js`)).status).toBe(200);
     expect((await fetch(`${session.url}../state`)).status).toBe(404);
     expect((await fetch(`${session.url}99999/app.js`)).status).toBe(404);
+    const containerPath=join(project,"container.json");
+    writeFileSync(containerPath,JSON.stringify({permissions:["root"]}));
+    const invalidContainer=await until(state,value=>!!value.error);
+    expect(invalidContainer.revision).toBe(adaptive.revision);
+    expect(invalidContainer.metadata).toEqual(adaptive.metadata);
+    const artifactPath=join(project,"build/hello.pocket"),previousArtifact=readFileSync(artifactPath);
+    rmSync(artifactPath);mkdirSync(artifactPath);
+    writeFileSync(containerPath,JSON.stringify({pages:["/","/detail"]}));
+    const failedCommit=await until(state,value=>!!value.error?.includes("rename"));
+    expect(failedCommit.revision).toBe(adaptive.revision);
+    expect(failedCommit.metadata).toEqual(adaptive.metadata);
+    expect(failedCommit.window).toEqual(adaptive.window);
+    rmSync(artifactPath,{recursive:true});writeFileSync(artifactPath,previousArtifact);
+    writeFileSync(containerPath,JSON.stringify({pages:["/","/detail","/settings"]}));
+    adaptive=await until(state,value=>value.revision>adaptive.revision && !value.error);
+    expect(adaptive.metadata?.pages).toEqual(["/","/detail","/settings"]);
     const duplicate = await command(["run"], project);
     expect(duplicate.status).not.toBe(0);
     expect(duplicate.stderr).toContain("already running");

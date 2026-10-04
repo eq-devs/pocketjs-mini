@@ -1,6 +1,10 @@
 #import <UIKit/UIKit.h>
 #import "PocketSurfaceView.h"
 #import "Config.h"
+#import "AppStorage.h"
+#import "InstalledController.h"
+
+#if PJM_DEVELOPMENT_MODE
 
 // UIKit owns display timing, safe areas and input. PocketJS owns the guest/UI.
 @interface MiniController : UIViewController
@@ -12,6 +16,7 @@
 @property NSUInteger revision, failedRevision;
 @property BOOL fetching, reporting;
 @property NSUInteger touches;
+@property NSUInteger queuedServiceReplies, sdkReceipt;
 @end
 
 @implementation MiniController
@@ -20,6 +25,8 @@
   self.view.backgroundColor = [UIColor colorWithRed:15/255.0 green:23/255.0 blue:42/255.0 alpha:1];
   self.message = [[UILabel alloc] init];
   self.message.textColor = UIColor.whiteColor;
+  self.message.backgroundColor = [UIColor colorWithRed:15/255.0 green:23/255.0 blue:42/255.0 alpha:0.95];
+  self.message.textAlignment = NSTextAlignmentCenter;
   self.message.numberOfLines = 0;
   self.message.text = @"Starting PocketJS…";
   self.message.accessibilityIdentifier = @"pjm-status";
@@ -33,6 +40,50 @@
   self.poll = [NSTimer scheduledTimerWithTimeInterval:0.3 repeats:YES block:^(NSTimer *timer) { [weak reload]; }];
 }
 - (void)dealloc { [self.poll invalidate]; [self.surface stop]; }
+- (void)queueService:(NSString *)line surface:(PocketSurfaceView *)surface metrics:(NSDictionary *)metrics storage:(MiniAppStorage *)storage {
+  if ([line lengthOfBytesUsingEncoding:NSUTF8StringEncoding] > 4096 || self.queuedServiceReplies >= 32) return;
+  self.queuedServiceReplies++;
+  __weak MiniController *weak = self;
+  __weak PocketSurfaceView *weakSurface = surface;
+  // Deliver on the next owner-thread turn and reject replies belonging to
+  // a replaced guest.
+  dispatch_async(dispatch_get_main_queue(), ^{
+    MiniController *self = weak; if (!self) return;
+    self.queuedServiceReplies--;
+    PocketSurfaceView *surface = weakSurface;
+    if (!surface || surface != self.surface) return;
+    [self processService:line surface:surface metrics:metrics storage:storage];
+  });
+}
+- (void)processService:(NSString *)line surface:(PocketSurfaceView *)surface metrics:(NSDictionary *)metrics storage:(MiniAppStorage *)storage {
+  if(!surface || surface!=self.surface || [line lengthOfBytesUsingEncoding:NSUTF8StringEncoding]>4096)return;
+    id parsed = [NSJSONSerialization JSONObjectWithData:[line dataUsingEncoding:NSUTF8StringEncoding] options:0 error:nil];
+    if (![parsed isKindOfClass:NSDictionary.class]) return;
+    NSDictionary *request = parsed; id identifier = request[@"id"], version = request[@"v"], kind = request[@"kind"];
+    if (![identifier isKindOfClass:NSNumber.class] || CFGetTypeID((__bridge CFTypeRef)identifier) == CFBooleanGetTypeID()) return;
+    double number = [identifier doubleValue];
+    if (!isfinite(number) || number < 1 || number > 9007199254740991.0 || floor(number) != number) return;
+    NSMutableDictionary *reply = [@{@"v":@1,@"id":identifier} mutableCopy];
+    NSString *errorCode = nil, *errorMessage = nil;
+    NSRegularExpression *pattern = [NSRegularExpression regularExpressionWithPattern:@"^[a-z][a-zA-Z0-9.]*\\.v[1-9][0-9]*$" options:0 error:nil];
+    if (![version isKindOfClass:NSNumber.class] || CFGetTypeID((__bridge CFTypeRef)version) == CFBooleanGetTypeID() || [version doubleValue] != 1
+      || ![kind isKindOfClass:NSString.class] || [kind length] > 64 || [pattern numberOfMatchesInString:kind options:0 range:NSMakeRange(0,[kind length])] != 1 || !request[@"args"]) {
+      errorCode=@"PROTOCOL";errorMessage=@"Invalid service request";
+    } else if ([kind isEqual:@"device.info.v1"]) {
+      NSMutableDictionary *data=[metrics mutableCopy];data[@"platform"]=@"ios";data[@"model"]=UIDevice.currentDevice.model;reply[@"data"]=data;
+    } else if ([kind isEqual:@"storage.get.v1"] || [kind isEqual:@"storage.set.v1"] || [kind isEqual:@"storage.remove.v1"]) {
+      NSError *failure=nil;id result=[storage dispatch:kind arguments:request[@"args"] error:&failure];
+      if(result)reply[@"data"]=result;
+      else {errorCode=[failure.domain isEqual:@"MiniBusy"]?@"BUSY":[failure.domain isEqual:@"MiniProtocol"]?@"PROTOCOL":@"FAILED";errorMessage=failure.localizedDescription ?: @"Storage unavailable";}
+    } else if ([kind isEqual:@"cancel.v1"]) { reply[@"data"] = NSNull.null; }
+    else if (PJM_TEST_MODE && [kind isEqual:@"test.report.v1"] && [request[@"args"] isKindOfClass:NSDictionary.class] && [request[@"args"][@"value"] isKindOfClass:NSNumber.class]) {
+      self.sdkReceipt=[request[@"args"][@"value"] unsignedIntegerValue];reply[@"data"]=NSNull.null;
+    } else { errorCode=@"UNSUPPORTED";errorMessage=@"Unsupported native service"; }
+    reply[@"ok"]=errorCode ? @NO : @YES;
+    if(errorCode)reply[@"error"]=@{@"code":errorCode,@"message":errorMessage};
+    NSData *data=[NSJSONSerialization dataWithJSONObject:reply options:0 error:nil];
+    if(data && data.length<=4096)[surface postEvent:[[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding]];
+}
 - (void)viewDidLayoutSubviews {
   [super viewDidLayoutSubviews];
   CGRect bounds = self.view.safeAreaLayoutGuide.layoutFrame;
@@ -89,10 +140,15 @@
     MiniController *self = weak; if (!self) return;
     if (error) { self.fetching = NO; [self showError:error.localizedDescription]; [self reportWindow]; return; }
     NSDictionary *state = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+    if(![state isKindOfClass:NSDictionary.class]){self.fetching=NO;[self showError:@"Invalid development state"];return;}
     NSString *compileError = [state[@"error"] isKindOfClass:NSString.class] ? state[@"error"] : nil;
     if (compileError) [self showError:compileError];
     NSUInteger next = [state[@"revision"] unsignedIntegerValue];
     if (next <= self.revision || next == self.failedRevision || ![state[@"window"] isEqual:metrics]) { self.fetching = NO; return; }
+    NSError *identityError=nil;
+    NSDictionary *metadata=state[@"metadata"];
+    MiniAppStorage *storage=[[MiniAppStorage alloc] initWithAppId:[metadata isKindOfClass:NSDictionary.class]?metadata[@"appId"]:nil error:&identityError];
+    if(!storage){self.fetching=NO;self.failedRevision=next;[self showError:identityError.localizedDescription ?: @"Invalid host identity"];return;}
     [self request:[NSString stringWithFormat:@"%lu/app.js", (unsigned long)next] body:nil completion:^(NSData *js, NSError *jsError) {
       if (jsError) { self.fetching = NO; [self showError:jsError.localizedDescription]; return; }
       [self request:[NSString stringWithFormat:@"%lu/app.pak", (unsigned long)next] body:nil completion:^(NSData *pak, NSError *pakError) {
@@ -102,13 +158,17 @@
         PocketSurfaceView *replacement = [PocketSurfaceView surfaceWithLogicalWidth:[metrics[@"width"] intValue]
           logicalHeight:[metrics[@"height"] intValue] density:[metrics[@"density"] intValue] hostId:@"pjm-ios" hostAbi:7];
         replacement.tickRate = 60;
+        __weak PocketSurfaceView *weakServiceSurface = replacement;
+        replacement.onEffect = ^(NSString *line) { [weak queueService:line surface:weakServiceSurface metrics:metrics storage:storage]; };
+        replacement.onCleanupEffect = ^(NSString *line) { [weak processService:line surface:weakServiceSurface metrics:metrics storage:storage]; };
+        if (![replacement setServiceNamespaces:@[@"mini"]]) {self.failedRevision=next;[self showError:replacement.lastError ?: @"Service configuration failed"];return;}
         if (![replacement loadPak:pak] || ![replacement evalBundle:[[NSString alloc] initWithData:js encoding:NSUTF8StringEncoding] label:@"mini"]) {
           self.failedRevision = next;
           [self showError:replacement.lastError ?: @"Guest boot failed"];
           [replacement stop]; return;
         }
-        [self.surface stop]; [self.surface removeFromSuperview];
-        self.surface = replacement; self.revision = next; self.failedRevision = 0; self.touches = 0;
+        [self.surface shutdown]; [self.surface removeFromSuperview];
+        self.surface = replacement; self.revision = next; self.failedRevision = 0; self.touches = 0;self.sdkReceipt=0;
         replacement.frame = self.view.safeAreaLayoutGuide.layoutFrame;
         replacement.isAccessibilityElement = YES;
         replacement.accessibilityLabel = @"PocketJS content";
@@ -123,13 +183,10 @@
           PocketSurfaceView *replacement = weakSurface; if (!replacement) return;
           // Test-only receipt observes native pixels; it never changes guest state.
           if (PJM_TEST_MODE) {
-            CGImageRef image = (__bridge CGImageRef)replacement.layer.contents;
-            CFDataRef bytes = image ? CGDataProviderCopyData(CGImageGetDataProvider(image)) : NULL;
-            uint32_t hash = 2166136261u;
-            if (bytes) { const UInt8 *p = CFDataGetBytePtr(bytes); for (CFIndex i=0; i<CFDataGetLength(bytes); i++) hash=(hash^p[i])*16777619u; CFRelease(bytes); }
-            replacement.accessibilityValue = [NSString stringWithFormat:@"revision=%lu hash=%u width=%u height=%u frames=%llu touches=%lu",
+            uint32_t hash = replacement.presentedHash;
+            replacement.accessibilityValue = [NSString stringWithFormat:@"revision=%lu hash=%u width=%u height=%u frames=%llu touches=%lu sdk=%lu",
               (unsigned long)self.revision, hash, replacement.logicalWidth, replacement.logicalHeight,
-              frame, (unsigned long)self.touches];
+              frame, (unsigned long)self.touches, (unsigned long)self.sdkReceipt];
           }
         };
         [replacement start];
@@ -139,6 +196,23 @@
 }
 @end
 
+#endif
+static NSData *bundledData(NSString *name,NSString *type){NSString *path=[NSBundle.mainBundle pathForResource:name ofType:type];return path?[NSData dataWithContentsOfFile:path]:nil;}
+static UIViewController *installedController(void) {
+  NSError *error=nil;
+  NSData *key=bundledData(@"publisher",@"key");
+  NSData *payload=bundledData(@"main",@"pocket");
+  NSData *envelope=bundledData(@"manifest",@"json");
+  NSData *identityBytes=bundledData(@"app",@"id");NSString *identity=identityBytes?[[NSString alloc] initWithData:identityBytes encoding:NSUTF8StringEncoding]:nil;
+  NSString *root=[NSSearchPathForDirectoriesInDomains(NSLibraryDirectory,NSUserDomainMask,YES).firstObject stringByAppendingPathComponent:@"mini-packages"];
+  MiniPackageStore *store=key?[[MiniPackageStore alloc] initWithRoot:root trustedKey:key error:&error]:nil;
+  if(store && payload && envelope && identity && [store seedPayload:payload envelope:envelope error:&error]){
+    NSData *launch=[@"{\"source\":\"installed\",\"path\":\"/\",\"query\":{}}" dataUsingEncoding:NSUTF8StringEncoding];
+    MiniInstalledController *controller=[[MiniInstalledController alloc] initWithIdentity:identity store:store launchData:launch error:&error];if(controller)return controller;
+  }
+  UIViewController *failure=[UIViewController new];failure.view.backgroundColor=UIColor.blackColor;
+  UILabel *message=[UILabel new];message.text=@"Unable to open this app.";message.textColor=UIColor.whiteColor;message.textAlignment=NSTextAlignmentCenter;message.frame=failure.view.bounds;message.autoresizingMask=UIViewAutoresizingFlexibleWidth|UIViewAutoresizingFlexibleHeight;message.accessibilityIdentifier=@"pjm-status";[failure.view addSubview:message];return failure;
+}
 // Scene-owned windows follow UIKit's orientation/geometry on current iOS.
 @interface MiniScene : UIResponder <UIWindowSceneDelegate>
 @property(nonatomic, strong) UIWindow *window;
@@ -147,7 +221,11 @@
 - (void)scene:(UIScene *)scene willConnectToSession:(UISceneSession *)session options:(UISceneConnectionOptions *)options {
   if (![scene isKindOfClass:UIWindowScene.class]) return;
   self.window = [[UIWindow alloc] initWithWindowScene:(UIWindowScene *)scene];
+  #if PJM_DEVELOPMENT_MODE
   self.window.rootViewController = [[MiniController alloc] init];
+#else
+  self.window.rootViewController = installedController();
+#endif
   [self.window makeKeyAndVisible];
 }
 @end
