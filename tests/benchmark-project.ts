@@ -1,0 +1,18 @@
+import {generateKeyPairSync} from "node:crypto";
+import {mkdirSync,readFileSync,writeFileSync,existsSync} from "node:fs";
+import {resolve,join} from "node:path";
+import {signPackage} from "../container/package.ts";
+import {writeInstalledAndroidProject} from "../bin/installed-android-project.ts";
+const [output,library]=process.argv.slice(2);
+if(!output||!library)throw Error("benchmark-project <new-output> <native-library>");
+const directory=resolve(output);if(existsSync(directory))throw Error("Output already exists");
+mkdirSync(directory,{recursive:true});
+const payload=readFileSync(join(import.meta.dir,"../examples/benchmark/build/benchmark.pocket"));
+const keys=generateKeyPairSync("ed25519");
+const metadata={appId:"dev.pjm.benchmark",version:"0.3.0",minHostAbi:7,entry:"main.pocket" as const,pages:["/"],permissions:[],domains:[],targets:["pjm-android"]};
+const envelope=signPackage(payload,metadata,keys.privateKey);
+writeFileSync(join(directory,"main.pocket"),payload);
+writeFileSync(join(directory,"manifest.json"),JSON.stringify(envelope));
+writeFileSync(join(directory,"publisher.key"),keys.publicKey.export({format:"der",type:"spki"}).subarray(-32));
+writeInstalledAndroidProject({directory:join(directory,"project"),bundle:"dev.pjm.benchmark.validation",library:resolve(library),payload:join(directory,"main.pocket"),envelope:join(directory,"manifest.json"),publicKey:join(directory,"publisher.key")});
+console.log("Exported actual signed benchmark; temporary private signing key was not saved");

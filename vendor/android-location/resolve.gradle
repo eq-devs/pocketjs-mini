@@ -1,0 +1,35 @@
+plugins { id 'java-base' }
+repositories { google(); mavenCentral() }
+configurations {
+  locationRuntime {
+    canBeConsumed = false
+    canBeResolved = true
+    attributes {
+      attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage, Usage.JAVA_RUNTIME))
+      attribute(Category.CATEGORY_ATTRIBUTE, objects.named(Category, Category.LIBRARY))
+      attribute(Attribute.of('org.jetbrains.kotlin.platform.type', String), 'jvm')
+    }
+  }
+}
+dependencies {
+  locationRuntime 'com.google.android.gms:play-services-location:21.2.0'
+  constraints {
+    locationRuntime('org.jetbrains.kotlin:kotlin-stdlib:2.1.21')
+    locationRuntime('org.jetbrains:annotations:13.0')
+    locationRuntime('androidx.annotation:annotation:1.10.0')
+  }
+}
+dependencyLocking { lockAllConfigurations() }
+tasks.register('exportRuntime') {
+  doLast {
+    def records = configurations.locationRuntime.resolvedConfiguration.resolvedArtifacts.collect { artifact ->
+      def id = artifact.moduleVersion.id
+      copy { from artifact.file; into layout.buildDirectory.dir('artifacts') }
+      [group:id.group, name:id.name, version:id.version, file:artifact.file.name]
+    }.sort { a,b -> (a.group+':'+a.name) <=> (b.group+':'+b.name) }
+    def output = layout.buildDirectory.file('resolved.json').get().asFile
+    output.parentFile.mkdirs()
+    output.text = groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(records))
+    println "Resolved ${records.size()} artifacts into ${output.parentFile}"
+  }
+}

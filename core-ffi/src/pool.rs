@@ -39,6 +39,16 @@ impl<G: RetainedGuest> InstancePool<G> {
     pub fn len(&self) -> usize {
         self.entries.len()
     }
+    #[cfg(target_os = "android")]
+    pub(crate) fn visit(
+        &mut self,
+        mut action: impl FnMut(&mut G) -> Result<(), String>,
+    ) -> Result<(), String> {
+        for (_, guest) in &mut self.entries {
+            action(guest)?;
+        }
+        Ok(())
+    }
     /// Native completions address a retained identity, never the current foreground.
     pub fn retained(&mut self, id: &str) -> Option<&mut G> {
         self.entries

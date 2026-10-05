@@ -23,6 +23,152 @@ pub struct MpFrame {
     pub height: u32,
     pub stride: u32,
 }
+#[repr(C)]
+pub struct MpGlesFrame {
+    pub size: u32,
+    pub x: i32,
+    pub y: i32,
+    pub width: i32,
+    pub height: i32,
+    pub window_width: i32,
+    pub window_height: i32,
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn mp_gles_attach(handle: *mut MpInstance, epoch: u64) -> i32 {
+    call(handle, -1, |state| {
+        #[cfg(target_os = "android")]
+        {
+            unsafe {
+                state.engine.attach_gles(epoch)?;
+            }
+            Ok(0)
+        }
+        #[cfg(not(target_os = "android"))]
+        {
+            let _ = (state, epoch);
+            Err("GLES backend unavailable on this platform".into())
+        }
+    })
+}
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn mp_gles_render(
+    handle: *mut MpInstance,
+    epoch: u64,
+    frame: *const MpGlesFrame,
+) -> i32 {
+    call(handle, -1, |state| {
+        if frame.is_null() || unsafe { (*frame).size } != std::mem::size_of::<MpGlesFrame>() as u32
+        {
+            return Err("Invalid GLES frame size".into());
+        }
+        #[cfg(target_os = "android")]
+        {
+            let frame = unsafe { &*frame };
+            unsafe {
+                state.engine.render_gles(
+                    epoch,
+                    [frame.x, frame.y, frame.width, frame.height],
+                    [frame.window_width, frame.window_height],
+                )?;
+            }
+            Ok(0)
+        }
+        #[cfg(not(target_os = "android"))]
+        {
+            let _ = (state, epoch);
+            Err("GLES backend unavailable on this platform".into())
+        }
+    })
+}
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn mp_gles_release(handle: *mut MpInstance, epoch: u64) -> i32 {
+    call(handle, -1, |state| {
+        #[cfg(target_os = "android")]
+        {
+            unsafe {
+                state.engine.release_gles(epoch)?;
+            }
+            Ok(0)
+        }
+        #[cfg(not(target_os = "android"))]
+        {
+            let _ = (state, epoch);
+            Err("GLES backend unavailable on this platform".into())
+        }
+    })
+}
+#[unsafe(no_mangle)]
+pub extern "C" fn mp_gles_lost(handle: *mut MpInstance, epoch: u64) -> i32 {
+    call(handle, -1, |state| {
+        #[cfg(target_os = "android")]
+        {
+            state.engine.lose_gles(epoch)?;
+            Ok(0)
+        }
+        #[cfg(not(target_os = "android"))]
+        {
+            let _ = (state, epoch);
+            Err("GLES backend unavailable on this platform".into())
+        }
+    })
+}
+
+#[cfg(all(test, not(target_os = "android")))]
+mod gles_ffi_tests {
+    use super::*;
+    #[test]
+    fn unsupported_backend_and_bad_frame_fail_without_stopping_guest() {
+        let config = MpConfig {
+            size: std::mem::size_of::<MpConfig>() as u32,
+            abi: 1,
+            width: 32,
+            height: 32,
+            density: 1,
+            heap_bytes: 8 * 1024 * 1024,
+            target: 2,
+        };
+        unsafe {
+            let handle = mp_create(&config);
+            assert!(!handle.is_null());
+            let source = b"globalThis.frame=()=>{}";
+            assert_eq!(
+                mp_boot(handle, source.as_ptr(), source.len(), std::ptr::null(), 0),
+                0
+            );
+            assert_eq!(mp_gles_attach(handle, 1), -1);
+            assert_eq!(mp_gles_render(handle, 1, std::ptr::null()), -1);
+            assert_eq!(
+                std::ffi::CStr::from_ptr(mp_last_error(handle))
+                    .to_str()
+                    .unwrap(),
+                "Invalid GLES frame size"
+            );
+            let frame = MpGlesFrame {
+                size: std::mem::size_of::<MpGlesFrame>() as u32,
+                x: 0,
+                y: 0,
+                width: 32,
+                height: 32,
+                window_width: 32,
+                window_height: 32,
+            };
+            assert_eq!(mp_gles_render(handle, 1, &frame), -1);
+            assert_eq!(mp_gles_release(handle, 1), -1);
+            assert_eq!(mp_gles_lost(handle, 1), -1);
+            assert_eq!(
+                std::ffi::CStr::from_ptr(mp_last_error(handle))
+                    .to_str()
+                    .unwrap(),
+                "GLES backend unavailable on this platform"
+            );
+            assert_eq!(mp_frame(handle, std::ptr::null(), 0), 0);
+            assert_eq!(mp_destroy(handle), 0);
+            assert_eq!(mp_gles_attach(std::ptr::null_mut(), 1), -1);
+            assert_eq!(mp_gles_lost(std::ptr::null_mut(), 1), -1);
+        }
+    }
+}
 pub struct MpInstance {
     engine: Instance,
     owner: ThreadId,
@@ -312,6 +458,12 @@ pub unsafe extern "C" fn mp_destroy(handle: *mut MpInstance) -> i32 {
     }
     if unsafe { (*handle).owner } != thread::current().id() {
         return -1;
+    }
+    #[cfg(target_os = "android")]
+    if unsafe { (*handle).engine.graphics.is_attached() } {
+        return call(handle, -1, |_| {
+            Err("Release GPU resources or report context loss before destroy".into())
+        });
     }
     let result = catch_unwind(AssertUnwindSafe(|| drop(unsafe { Box::from_raw(handle) })));
     if result.is_ok() { 0 } else { -1 }

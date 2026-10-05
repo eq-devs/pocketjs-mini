@@ -38,6 +38,19 @@ int32_t mp_frame_input(MpInstance*,const MpInput*);
 /* Logical coordinates; status is separate from the returned node ID. */
 int32_t mp_hit_test(MpInstance*,float x,float y,int32_t *output);
 int32_t mp_render(MpInstance*,MpFrame *out);
+/* Optional direct GLES2 backend (Android). Other platforms return -1.
+ * All calls use the instance owner thread. attach/render/release require the
+ * attached context current. Epochs are nonzero, strictly increasing binding
+ * IDs, never raw/reusable EGL pointers. lost asserts actual context destruction
+ * and makes no GL calls. Release while current, or report loss, BEFORE destroy.
+ * Destroy rejects a still-attached binding and preserves the instance handle.
+ * Failed attachment retains no binding. Initialize size exactly; coordinates
+ * describe an in-window top-left physical viewport. No borrowed pixel output. */
+typedef struct { uint32_t size; int32_t x,y,width,height,window_width,window_height; } MpGlesFrame;
+int32_t mp_gles_attach(MpInstance*,uint64_t epoch);
+int32_t mp_gles_render(MpInstance*,uint64_t epoch,const MpGlesFrame*);
+int32_t mp_gles_release(MpInstance*,uint64_t epoch);
+int32_t mp_gles_lost(MpInstance*,uint64_t epoch);
 /* Physical-pixel x,y,width,height regions for the persistent framebuffer.
  * Initialize size. First frame/full fallback covers the entire framebuffer;
  * count zero means unchanged pixels. A new/lost GPU texture requires uploading
@@ -83,6 +96,20 @@ MpPool *mp_pool_create(uint32_t capacity);
 int32_t mp_pool_activate(MpPool*,const uint8_t *id,size_t id_len,const MpConfig*,const uint8_t *js,size_t js_len,const uint8_t *pak,size_t pak_len,const uint8_t *launch,size_t launch_len);
 int32_t mp_pool_frame(MpPool*,const uint32_t *contacts,size_t count);
 int32_t mp_pool_render(MpPool*,MpFrame*);
+/* Android direct GLES: lazily attaches each foreground guest to the epoch.
+ * Once bound, ALL pool operations except last_error/lost require the shared
+ * original context current. Eviction/close/destroy release GPU names before
+ * identity retirement. Wrong-context mutations/destroy preserve the pool.
+ * lost validates every retained epoch before discarding names without GL.
+ * Host must report actual loss before any reused EGL handles can be accepted. */
+int32_t mp_pool_gles_render(MpPool*,uint64_t epoch,const MpGlesFrame*);
+int32_t mp_pool_gles_lost(MpPool*,uint64_t epoch);
+/* Release all retained driver objects while current, preserving guests.
+ * Rebinding requires a higher epoch even when the same context is retained. */
+int32_t mp_pool_gles_release(MpPool*,uint64_t epoch);
+/* Owner-thread binding query, also available without current EGL after a draw
+ * failure. Zero means unbound (or invalid handle/platform); no mutation. */
+uint64_t mp_pool_gles_epoch(MpPool*);
 int32_t mp_pool_frame_input(MpPool*,const MpInput*);
 int32_t mp_pool_hit_test(MpPool*,float x,float y,int32_t *output);
 int32_t mp_pool_render_damage(MpPool*,MpFrame*,MpDamage*);

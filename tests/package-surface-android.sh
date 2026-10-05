@@ -20,32 +20,21 @@ export CC_aarch64_linux_android="$NDK/aarch64-linux-android23-clang" AR_aarch64_
 export BINDGEN_EXTRA_CLANG_ARGS_aarch64_linux_android="--target=aarch64-linux-android23 --sysroot=$NDK/../sysroot"
 export LIBCLANG_PATH=/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib
 rustup run stable cargo build --offline --locked --release --manifest-path "$ROOT/core-ffi/Cargo.toml" --target aarch64-linux-android
-"$NDK/aarch64-linux-android23-clang" -Wall -Wextra -Werror -fPIC -shared -Wl,--gc-sections -Wl,--exclude-libs,ALL -Wl,--no-undefined -Wl,-z,max-page-size=16384 -I "$ROOT/core-ffi/include" "$ROOT/host/android/package_bridge.c" "$ROOT/host/android/pool_bridge.c" "$ROOT/host/android/store_bridge.c" "$ROOT/core-ffi/target/aarch64-linux-android/release/libmini_core_ffi.a" -ldl -lm -llog -o "$TEMP/libpocketjs.so"
-mkdir -p "$TEMP/assets" "$TEMP/staging/lib/arm64-v8a" "$TEMP/dex"
+"$NDK/aarch64-linux-android23-clang" -Wall -Wextra -Werror -fPIC -shared -Wl,--gc-sections -Wl,--exclude-libs,ALL -Wl,--no-undefined -Wl,-z,max-page-size=16384 -I "$ROOT/core-ffi/include" "$ROOT/host/android/package_bridge.c" "$ROOT/host/android/pool_bridge.c" "$ROOT/host/android/store_bridge.c" "$ROOT/core-ffi/target/aarch64-linux-android/release/libmini_core_ffi.a" -lEGL -lGLESv2 -ldl -lm -llog -o "$TEMP/libpocketjs.so"
+mkdir -p "$TEMP/assets"
 export PJM_SIGNED_TEST_TEMP="$TEMP"
 bun -e 'import {readFileSync,writeFileSync} from "node:fs";const root=process.env.PJM_SIGNED_TEST_TEMP!;const value=JSON.parse(readFileSync(root+"/cases.json","utf8")).find((entry:any)=>entry.valid);writeFileSync(root+"/assets/main.pocket",Buffer.from(value.payload,"base64"));writeFileSync(root+"/assets/manifest.json",JSON.stringify(value.manifest));writeFileSync(root+"/assets/publisher.key",Buffer.from(value.key,"base64"));'
 TEST_ACTIVITY=dev.pjm.android.InstalledActivity
-EXTRA_SOURCES=()
 EXPECTED_IDLE=255,0,0
 if [ "${PJM_HTTP_SURFACE_TEST:-}" = live ] || [ "${PJM_HTTP_SURFACE_TEST:-}" = resource ]; then EXPECTED_IDLE=0,255,0;fi
-if [ "${PJM_HTTP_SURFACE_TEST:-}" = 1 ] || [ "${PJM_HTTP_SURFACE_TEST:-}" = sdk-resource ] || [ "${PJM_HTTP_SURFACE_TEST:-}" = resource-large ]; then TEST_ACTIVITY=dev.pjm.android.HttpSurfaceActivity;EXTRA_SOURCES+=("$ROOT/tests/HttpSurfaceActivity.java");EXPECTED_IDLE=0,255,0;fi
-"$JAVA/bin/javac" -source 8 -target 8 -classpath "$SDK/platforms/android-34/android.jar:$ROOT/vendor/android-http/*" -d "$TEMP/classes" "$ROOT/host/android/PackageVerifier.java" "$ROOT/host/android/BoundedJson.java" "$ROOT/host/android/VerifiedPackage.java" "$ROOT/host/android/VerifiedContainer.java" "$ROOT/host/android/AppStorage.java" "$ROOT/host/android/VerifiedPresenter.java" "$ROOT/host/android/InstalledActivity.java" "$ROOT/host/android/PackageStore.java" "$ROOT/host/android/PackageFiles.java" "$ROOT/host/android/VerifiedHttp.java" "$ROOT/host/android/ManagedResources.java" ${EXTRA_SOURCES[@]+"${EXTRA_SOURCES[@]}"}
-"$JAVA/bin/jar" cf "$TEMP/check.jar" -C "$TEMP/classes" .
-JAVA_HOME="$JAVA" "$SDK/build-tools/36.0.0/d8" --min-api 26 --lib "$SDK/platforms/android-34/android.jar" --output "$TEMP/dex" "$TEMP/check.jar" "$ROOT"/vendor/android-http/*.jar
-cp "$ROOT/vendor/android-http/PublicSuffixDatabase.list" "$TEMP/assets/"
+if [ "${PJM_HTTP_SURFACE_TEST:-}" = 1 ] || [ "${PJM_HTTP_SURFACE_TEST:-}" = sdk-resource ] || [ "${PJM_HTTP_SURFACE_TEST:-}" = resource-large ]; then TEST_ACTIVITY=dev.pjm.android.HttpSurfaceActivity;EXPECTED_IDLE=0,255,0;fi
 BUNDLE="dev.pjm.signed.surface.$(basename "$TEMP" | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9')"
-cat > "$TEMP/AndroidManifest.xml" <<EOF
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="$BUNDLE"><uses-sdk android:minSdkVersion="26" android:targetSdkVersion="34"/><uses-permission android:name="android.permission.INTERNET"/><uses-feature android:glEsVersion="0x00020000" android:required="true"/><application android:label="Signed PocketJS Test" android:allowBackup="false" android:theme="@android:style/Theme.Material.NoActionBar"><activity android:name="${TEST_ACTIVITY}" android:exported="true" android:configChanges="orientation|screenSize|keyboardHidden"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity></application></manifest>
-EOF
-"$SDK/build-tools/36.0.0/aapt2" link -o "$TEMP/unsigned.apk" --manifest "$TEMP/AndroidManifest.xml" -I "$SDK/platforms/android-34/android.jar" -A "$TEMP/assets"
-cp "$TEMP/libpocketjs.so" "$TEMP/staging/lib/arm64-v8a/"
-cp "$TEMP"/dex/classes*.dex "$TEMP/staging/"
-(cd "$TEMP/staging" && zip -q -r "$TEMP/unsigned.apk" classes*.dex lib)
-"$SDK/build-tools/36.0.0/zipalign" -f -P 16 4 "$TEMP/unsigned.apk" "$TEMP/aligned.apk"
+bun "$ROOT/tests/package-surface-project.ts" "$TEMP" "$BUNDLE" "$TEST_ACTIVITY"
+ANDROID_SDK_ROOT="$SDK" JAVA_HOME="$JAVA" bash "$TEMP/project/build-apk.sh"
 "$JAVA/bin/keytool" -genkeypair -keystore "$TEMP/test.jks" -storepass android -keypass android -alias test -keyalg RSA -validity 1 -dname 'CN=Temporary PocketJS Test' >/dev/null 2>&1
-JAVA_HOME="$JAVA" "$SDK/build-tools/36.0.0/apksigner" sign --ks "$TEMP/test.jks" --ks-pass pass:android --out "$TEMP/test.apk" "$TEMP/aligned.apk"
+JAVA_HOME="$JAVA" "$SDK/build-tools/36.0.0/apksigner" sign --ks "$TEMP/test.jks" --ks-pass pass:android --out "$TEMP/test.apk" "$TEMP/project/build/Mini-unsigned.apk"
 "$ADB" -s "$SERIAL" install "$TEMP/test.apk"
-"$ADB" -s "$SERIAL" shell am start -n "$BUNDLE/${TEST_ACTIVITY}" --es pjm-url http://127.0.0.1:1/ > "$TEMP/launch.log"
+"$ADB" -s "$SERIAL" shell am start -n "$BUNDLE/${TEST_ACTIVITY}" --ez pjm-measure true --es pjm-url http://127.0.0.1:1/ > "$TEMP/launch.log"
 FOUND=0
 for ((attempt=0;attempt<30;attempt++)); do
   "$ADB" -s "$SERIAL" shell uiautomator dump "/data/local/tmp/$TOKEN.xml" >/dev/null 2>&1 || { sleep 1;continue; }
@@ -56,8 +45,12 @@ for ((attempt=0;attempt<30;attempt++)); do
 done
 EVIDENCE=${2:-$ROOT/build/android-validation/signed-surface-$(date -u +%Y%m%dT%H%M%SZ)}
 mkdir -p "$EVIDENCE"
-cp "$TEMP/launch.log" "$TEMP/screen.xml" "$EVIDENCE/"
-"$ADB" -s "$SERIAL" logcat -d -s PocketJS AndroidRuntime > "$EVIDENCE/runtime.log"
+cp "$TEMP/launch.log" "$EVIDENCE/"
+if [ -f "$TEMP/screen.xml" ]; then cp "$TEMP/screen.xml" "$EVIDENCE/";fi
+PID=$("$ADB" -s "$SERIAL" shell pidof "$BUNDLE" | tr -d '\r')
+case "$PID" in ''|*[!0-9]*) echo 'Owned test process is missing or ambiguous' >&2;exit 1;; esac
+"$ADB" -s "$SERIAL" logcat -d --pid="$PID" -s PocketJS AndroidRuntime > "$EVIDENCE/runtime.log"
+if [ "$FOUND" != 1 ]; then cat "$EVIDENCE/runtime.log";exit 1;fi
 "$ADB" -s "$SERIAL" shell screencap -p "/data/local/tmp/$TOKEN.png"
 "$ADB" -s "$SERIAL" pull "/data/local/tmp/$TOKEN.png" "$EVIDENCE/screen.png" >/dev/null 2>&1
 if [ "$EXPECTED_IDLE" = 0,255,0 ]; then
@@ -68,8 +61,15 @@ if [ "$EXPECTED_IDLE" = 0,255,0 ]; then
     "$ADB" -s "$SERIAL" pull "/data/local/tmp/$TOKEN.png" "$EVIDENCE/screen.png" >/dev/null 2>&1
   done
 fi
-CENTER=$(bun -e 'import {readFileSync} from "node:fs";const png=readFileSync(process.argv[1]);console.log(Math.floor(png.readUInt32BE(16)/2)+" "+Math.floor(png.readUInt32BE(20)/2))' "$EVIDENCE/screen.png")
-read -r CENTER_X CENTER_Y <<< "$CENTER"
+bun "$ROOT/tests/assert-frame-png.ts" "$EVIDENCE/screen.png" "$EXPECTED_IDLE"
+POINTS=$(bun "$ROOT/tests/surface-input-points.ts" "$EVIDENCE/screen.xml" "$BUNDLE")
+printf '%s\n' "$POINTS" > "$EVIDENCE/input-points.txt"
+read -r CENTER_X CENTER_Y OUTSIDE_X OUTSIDE_Y <<< "$POINTS"
+"$ADB" -s "$SERIAL" shell input tap "$OUTSIDE_X" "$OUTSIDE_Y"
+sleep 1
+"$ADB" -s "$SERIAL" shell screencap -p "/data/local/tmp/$TOKEN.png"
+"$ADB" -s "$SERIAL" pull "/data/local/tmp/$TOKEN.png" "$EVIDENCE/letterbox.png" >/dev/null 2>&1
+bun "$ROOT/tests/assert-frame-png.ts" "$EVIDENCE/letterbox.png" "$EXPECTED_IDLE"
 "$ADB" -s "$SERIAL" shell input tap "$CENTER_X" "$CENTER_Y"
 sleep 1
 "$ADB" -s "$SERIAL" shell screencap -p "/data/local/tmp/$TOKEN.png"
@@ -83,6 +83,7 @@ sleep 1
 bun "$ROOT/tests/assert-frame-png.ts" "$EVIDENCE/screen.png" "$EXPECTED_IDLE"
 bun "$ROOT/tests/assert-frame-png.ts" "$EVIDENCE/touch.png" 0,0,255
 bun "$ROOT/tests/assert-frame-png.ts" "$EVIDENCE/resumed.png" 0,0,255
+"$ADB" -s "$SERIAL" logcat -d --pid="$PID" -s PocketJS AndroidRuntime > "$EVIDENCE/warm-runtime.log"
 "$ADB" -s "$SERIAL" shell input keyevent KEYCODE_BACK
 sleep 1
 "$ADB" -s "$SERIAL" shell am start -n "$BUNDLE/${TEST_ACTIVITY}" >/dev/null
@@ -100,6 +101,6 @@ fi
 bun "$ROOT/tests/assert-frame-png.ts" "$EVIDENCE/cold.png" "$EXPECTED_IDLE"
 "$ADB" -s "$SERIAL" shell input keyevent KEYCODE_BACK
 sleep 1
-"$ADB" -s "$SERIAL" logcat -d -s PocketJS AndroidRuntime > "$EVIDENCE/runtime.log"
+"$ADB" -s "$SERIAL" logcat -d --pid="$PID" -s PocketJS AndroidRuntime > "$EVIDENCE/runtime.log"
 if [ "$FOUND" != 1 ]; then cat "$EVIDENCE/runtime.log";exit 1;fi
-printf 'Android authenticated installed Activity and GLES presentation passed\n'
+printf 'Android authenticated installed Activity, letterbox input rejection and GLES presentation passed\n'

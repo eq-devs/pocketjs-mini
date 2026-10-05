@@ -28,7 +28,7 @@ async function main(){
   const temporary=mkdtempSync(join(tmpdir(),"pjm-export-android-"));let created=false,complete=false;
   try{
     const library=join(temporary,"libpocketjs.so");
-    await run([clang,"-Wall","-Wextra","-Werror","-O2","-fPIC","-shared","-Wl,--gc-sections","-Wl,--exclude-libs,ALL","-Wl,--no-undefined","-Wl,-z,max-page-size=16384","-I",join(root,"core-ffi/include"),... ["package_bridge.c","pool_bridge.c","store_bridge.c"].map(name=>join(root,"host/android",name)),join(root,"core-ffi/target",target,"release/libmini_core_ffi.a"),"-ldl","-lm","-llog","-o",library]);
+    await run([clang,"-Wall","-Wextra","-Werror","-O2","-fPIC","-shared","-Wl,--gc-sections","-Wl,--exclude-libs,ALL","-Wl,--no-undefined","-Wl,-z,max-page-size=16384","-I",join(root,"core-ffi/include"),... ["package_bridge.c","pool_bridge.c","store_bridge.c"].map(name=>join(root,"host/android",name)),join(root,"core-ffi/target",target,"release/libmini_core_ffi.a"),"-lEGL","-lGLESv2","-ldl","-lm","-llog","-o",library]);
     mkdirSync(dirname(directory),{recursive:true});mkdirSync(directory,{recursive:false});created=true;
     const result=writeInstalledAndroidProject({...inputs,directory,library,bundle});complete=true;
     console.log(`Exported ${admitted.manifest.appId} ${admitted.manifest.version}: ${result.directory}. Run build-apk.sh there to build an unsigned APK.`);

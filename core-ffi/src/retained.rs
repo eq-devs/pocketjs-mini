@@ -11,6 +11,7 @@ pub struct RetainedEngine {
     pub(crate) completion_generation: u64,
     cleanup: Option<Box<dyn FnMut(&mut Instance)>>,
     retire: Option<Box<dyn FnMut()>>,
+    resources: Option<Box<dyn FnMut(&mut Instance)>>,
 }
 impl RetainedEngine {
     pub fn new(engine: Instance) -> Self {
@@ -23,6 +24,7 @@ impl RetainedEngine {
             completion_generation: 0,
             cleanup: None,
             retire: None,
+            resources: None,
         }
     }
     pub fn with_cleanup(mut self, cleanup: impl FnMut(&mut Instance) + 'static) -> Self {
@@ -31,6 +33,13 @@ impl RetainedEngine {
     }
     pub fn with_retirement(mut self, retire: impl FnMut() + 'static) -> Self {
         self.retire = Some(Box::new(retire));
+        self
+    }
+    /// Owner-thread resource retirement, independent of guest hook health.
+    /// Runs once after the final guest turn and before identity retirement.
+    /// A GPU adapter must ensure its original context is current or lost.
+    pub fn with_resource_retirement(mut self, retire: impl FnMut(&mut Instance) + 'static) -> Self {
+        self.resources = Some(Box::new(retire));
         self
     }
     /// Host-authenticated launch context, copied before first foreground entry.
@@ -48,6 +57,10 @@ impl RetainedEngine {
         self.engine
             .as_mut()
             .ok_or_else(|| "Guest was unloaded".into())
+    }
+    #[cfg(target_os = "android")]
+    pub(crate) fn resources(&mut self) -> Option<&mut Instance> {
+        self.engine.as_mut()
     }
     pub fn frame(
         &mut self,
@@ -127,6 +140,9 @@ impl RetainedGuest for RetainedEngine {
                 }
             }
             engine.stop();
+            if let Some(resources) = &mut self.resources {
+                resources(&mut engine);
+            }
             if let Some(retire) = &mut self.retire {
                 retire();
             }
@@ -145,6 +161,67 @@ impl RetainedGuest for RetainedEngine {
 mod tests {
     use super::*;
     use crate::pool::InstancePool;
+    use std::rc::Rc;
+    #[test]
+    fn resource_retirement_runs_once_even_after_guest_failure() {
+        for failing in [false, true] {
+            let events = Rc::new(std::cell::RefCell::new(Vec::new()));
+            let mut engine = Instance::new(32, 32, 1, 8 * 1024 * 1024, "pjm-android").unwrap();
+            engine
+                .boot(
+                    if failing {
+                        "globalThis.frame=()=>{throw Error('failed')}"
+                    } else {
+                        "globalThis.frame=()=>{}"
+                    },
+                    &[],
+                )
+                .unwrap();
+            let resource_events = events.clone();
+            let identity_events = events.clone();
+            let mut retained = RetainedEngine::new(engine)
+                .with_resource_retirement(move |engine| {
+                    assert!(!engine.ready);
+                    assert_eq!(engine.dimensions(), (32, 32));
+                    resource_events.borrow_mut().push("resources");
+                })
+                .with_retirement(move || identity_events.borrow_mut().push("identity"));
+            if failing {
+                assert!(retained.frame(&[], None, &[]).is_err());
+            }
+            retained.unload();
+            retained.unload();
+            assert_eq!(*events.borrow(), vec!["resources", "identity"]);
+            assert!(retained.engine().is_err());
+        }
+    }
+    #[test]
+    fn pool_eviction_pressure_close_and_drop_retire_owned_resources() {
+        let events = Rc::new(std::cell::RefCell::new(Vec::new()));
+        let make = |id: &'static str| {
+            let events = events.clone();
+            guest(id).map(|retained| {
+                retained.with_resource_retirement(move |engine| {
+                    assert!(!engine.ready);
+                    events.borrow_mut().push(id);
+                })
+            })
+        };
+        {
+            let mut pool = InstancePool::new(2);
+            pool.activate("a", || make("a")).unwrap();
+            pool.activate("b", || make("b")).unwrap();
+            pool.activate("c", || make("c")).unwrap();
+            assert_eq!(*events.borrow(), vec!["a"]);
+            pool.memory_warning();
+            assert_eq!(*events.borrow(), vec!["a", "b"]);
+            pool.close("c");
+            pool.close("c");
+            assert_eq!(*events.borrow(), vec!["a", "b", "c"]);
+            pool.activate("d", || make("d")).unwrap();
+        }
+        assert_eq!(*events.borrow(), vec!["a", "b", "c", "d"]);
+    }
     fn guest(id: &str) -> Result<RetainedEngine, String> {
         let mut engine = Instance::new(64, 64, 1, 24 * 1024 * 1024, "pjm-android")?;
         engine.boot(

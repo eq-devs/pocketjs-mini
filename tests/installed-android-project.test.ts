@@ -18,7 +18,12 @@ test("Android installed export preserves separate trust and portable signed-only
     expect(readFileSync(join(directory,"src/VerifiedClipboard.java"),"utf8")).toBe(readFileSync(join(import.meta.dir,"../host/android/VerifiedClipboard.java"),"utf8"));
     expect(readFileSync(join(directory,"src/InstalledActivity.java"),"utf8")).toContain('clipboard.start(admitted,generation');
     const script=join(directory,"build-apk.sh");expect(spawnSync("bash",["-n",script]).status).toBe(0);expect(readFileSync(script,"utf8")).not.toContain(root);expect(readFileSync(script,"utf8")).not.toContain("apksigner");
-    expect(manifest).toContain('android.permission.INTERNET');expect(readdirSync(join(directory,"deps")).filter(name=>name.endsWith(".jar")).length).toBe(7);expect(readFileSync(join(directory,"assets/PublicSuffixDatabase.list")).length).toBeGreaterThan(0);
+    expect(manifest).toContain('android.permission.INTERNET');expect(readdirSync(join(directory,"deps")).filter(name=>name.endsWith(".jar")).length).toBe(31);expect(readFileSync(join(directory,"assets/PublicSuffixDatabase.list")).length).toBeGreaterThan(0);
+    expect(manifest).toContain('android.permission.ACCESS_COARSE_LOCATION');expect(manifest).toContain('android.permission.ACCESS_FINE_LOCATION');expect(manifest).toContain('@integer/google_play_services_version');expect(manifest).toContain('GoogleApiActivity');
+    expect(readFileSync(join(directory,"src/InstalledActivity.java"),"utf8")).toContain('location.start(admitted,generation');
+    expect(readFileSync(join(directory,"src/LocationApproval.java"),"utf8")).toBe(readFileSync(join(import.meta.dir,"../host/android/LocationApproval.java"),"utf8"));
+    expect(existsSync(join(directory,"deps/annotations-13.0.jar"))).toBe(false);expect(existsSync(join(directory,"deps/annotations-23.0.0.jar"))).toBe(true);
+    expect(readFileSync(join(directory,"packages.txt"),"utf8")).toContain('com.google.android.gms.common');expect(existsSync(join(directory,"resources/play-services-basement-18.3.0/res/values/values.xml"))).toBe(true);
     writeFileSync(payload,"tampered");expect(()=>writeInstalledAndroidProject({...options,directory:join(root,"rejected")})).toThrow();expect(existsSync(join(root,"rejected"))).toBe(false);
   }finally{rmSync(root,{recursive:true,force:true});}
 });

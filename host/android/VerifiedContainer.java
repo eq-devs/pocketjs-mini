@@ -20,10 +20,15 @@ final class VerifiedContainer implements AutoCloseable {
   private static native long generation(long handle,byte[] identity);
   private static native void activate(long handle,byte[] identity,byte[] js,byte[] pak,byte[] launch,int width,int height,int density);
   private static native Frame advance(long handle,int[] contacts,int[] hits,byte[] cancelled);
+  private static native void draw(long handle,long epoch,int[] contacts,int[] hits,byte[] cancelled,int x,int y,int width,int height,int windowWidth,int windowHeight);
+  private static native void contextLost(long handle,long epoch);
+  private static native void releaseGpu(long handle,long epoch);
+  private static native long gpuEpoch(long handle);
   private static native int hitTest(long handle,float x,float y);
   private static native byte[] effects(long handle);
   private static native void post(long handle,byte[] identity,long generation,byte[] record);
   private static native void control(long handle,int operation,byte[] identity);
+  private static native void destroy(long handle,boolean[] consumed);
   VerifiedContainer(File storageRoot,Listener listener){if(storageRoot==null)throw new IllegalArgumentException("Host storage root required");this.storageRoot=storageRoot;if(listener==null)throw new IllegalArgumentException("Retirement listener required");this.listener=listener;handle=create();if(handle==0)throw new IllegalStateException("Native pool allocation failed");}
   private void enter(){if(Thread.currentThread()!=owner || busy || handle==0)throw new IllegalStateException("Container requires its idle live owner thread");busy=true;}
   private void leave(){busy=false;}
@@ -36,6 +41,10 @@ final class VerifiedContainer implements AutoCloseable {
     long current=generation(handle,id);if(current!=0){activeGeneration=current;if(previous==0){packages.put(current,bound);storages.put(current,storage);}}if(failure!=null){if(failure instanceof Error)throw (Error)failure;if(failure instanceof RuntimeException)throw (RuntimeException)failure;throw new IllegalStateException("Retirement callback failed",failure);}if(current==0)throw new IllegalStateException("Activation generation missing");return current;
   }finally{leave();}}
   Frame frame(int[] contacts,int[] hits,byte[] cancelled){enter();try{return advance(handle,contacts,hits,cancelled);}finally{leave();}}
+  void gpuFrame(long epoch,int[] contacts,int[] hits,byte[] cancelled,int x,int y,int width,int height,int windowWidth,int windowHeight){enter();try{draw(handle,epoch,contacts,hits,cancelled,x,y,width,height,windowWidth,windowHeight);}finally{leave();}}
+  void gpuContextLost(long epoch){enter();try{contextLost(handle,epoch);}finally{leave();}}
+  void releaseGpu(long epoch){enter();try{releaseGpu(handle,epoch);}finally{leave();}}
+  long gpuEpoch(){enter();try{return gpuEpoch(handle);}finally{leave();}}
   int hitTest(float x,float y){enter();try{if(Float.isNaN(x) || Float.isInfinite(x) || Float.isNaN(y) || Float.isInfinite(y))throw new IllegalArgumentException("Invalid touch coordinate");return hitTest(handle,x,y);}finally{leave();}}
   byte[] effects(){enter();try{
     byte[] records=effects(handle);ByteArrayOutputStream external=new ByteArrayOutputStream();int start=0;
@@ -70,5 +79,5 @@ final class VerifiedContainer implements AutoCloseable {
   private void operation(int operation,String identity){enter();try{control(handle,operation,identity==null?null:identity.getBytes(StandardCharsets.UTF_8));}finally{leave();}}
   private void onNativeCleanup(byte[] identity,long generation,byte[] record){VerifiedPackage bound=packages.get(generation);if(bound!=null && bound.identity.equals(new String(identity,StandardCharsets.UTF_8))){storageRecord(generation,record,true);listener.cleanup(bound,generation,record);}}
   private void onNativeRetired(byte[] identity,long generation){VerifiedPackage bound=packages.get(generation);try{if(bound!=null && bound.identity.equals(new String(identity,StandardCharsets.UTF_8)))listener.retired(bound,generation);}finally{packages.remove(generation);storages.remove(generation);if(activeGeneration==generation)activeGeneration=0;}}
-  public void close(){if(handle==0)return;enter();try{long owned=handle;try{control(owned,5,null);}finally{handle=0;activeGeneration=0;packages.clear();storages.clear();}}finally{leave();}}
+  public void close(){if(handle==0)return;enter();try{boolean[] consumed={false};try{destroy(handle,consumed);}finally{if(consumed[0]){handle=0;activeGeneration=0;packages.clear();storages.clear();}}}finally{leave();}}
 }

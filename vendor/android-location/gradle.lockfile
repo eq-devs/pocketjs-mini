@@ -1,0 +1,35 @@
+# This is a Gradle generated file for dependency locking.
+# Manual edits can break the build and are not advised.
+# This file is expected to be part of source control.
+androidx.activity:activity:1.0.0=locationRuntime
+androidx.annotation:annotation-jvm:1.10.0=locationRuntime
+androidx.annotation:annotation:1.10.0=locationRuntime
+androidx.arch.core:core-common:2.1.0=locationRuntime
+androidx.arch.core:core-runtime:2.0.0=locationRuntime
+androidx.collection:collection:1.1.0=locationRuntime
+androidx.core:core:1.2.0=locationRuntime
+androidx.customview:customview:1.0.0=locationRuntime
+androidx.fragment:fragment:1.1.0=locationRuntime
+androidx.lifecycle:lifecycle-common:2.1.0=locationRuntime
+androidx.lifecycle:lifecycle-livedata-core:2.0.0=locationRuntime
+androidx.lifecycle:lifecycle-livedata:2.0.0=locationRuntime
+androidx.lifecycle:lifecycle-runtime:2.1.0=locationRuntime
+androidx.lifecycle:lifecycle-viewmodel:2.1.0=locationRuntime
+androidx.loader:loader:1.0.0=locationRuntime
+androidx.savedstate:savedstate:1.0.0=locationRuntime
+androidx.versionedparcelable:versionedparcelable:1.1.0=locationRuntime
+androidx.viewpager:viewpager:1.0.0=locationRuntime
+com.google.android.gms:play-services-base:18.3.0=locationRuntime
+com.google.android.gms:play-services-basement:18.3.0=locationRuntime
+com.google.android.gms:play-services-location:21.2.0=locationRuntime
+com.google.android.gms:play-services-tasks:18.1.0=locationRuntime
+org.jetbrains.kotlin:kotlin-stdlib-common:2.1.21=locationRuntime
+org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.20=locationRuntime
+org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.20=locationRuntime
+org.jetbrains.kotlin:kotlin-stdlib:2.1.21=locationRuntime
+org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3=locationRuntime
+org.jetbrains.kotlinx:kotlinx-coroutines-bom:1.7.3=locationRuntime
+org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.7.3=locationRuntime
+org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3=locationRuntime
+org.jetbrains:annotations:23.0.0=locationRuntime
+empty=

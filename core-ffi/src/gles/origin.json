@@ -1,0 +1,14 @@
+{
+  "commit": "fe971ebb8e14724d2a98d4df6b34c065caf11132",
+  "files": [
+    {
+      "path": "engine/ui-cabi/src/gl/mod.rs",
+      "sha256": "11aab5be30677cfbc6dd27096783c74adecd29f7c6dda7350169f3ef86a29fde"
+    },
+    {
+      "path": "engine/ui-cabi/src/gl/es2.rs",
+      "sha256": "afac3bcc258677a98f7628aa7022d5c76404f156f34c11b4bf290fe60c59dc5f"
+    }
+  ],
+  "adaptation": "Instance-owned GLES2 renderer; singleton/trace globals and GLES1 entrypoints removed; explicit context-current destruction; not attached to the native host yet"
+}

@@ -5,13 +5,15 @@ import android.util.Base64;
 public final class NativePackageLoadTest {
   public static void main(String[] args)throws Exception{
     NativeJsonTest.verify();
-    JSONArray cases=new JSONArray(new String(Files.readAllBytes(Paths.get(args[0])),"UTF-8"));int count=0;boolean clipboardChecked=false;
+    JSONArray cases=new JSONArray(new String(Files.readAllBytes(Paths.get(args[0])),"UTF-8"));int count=0;boolean clipboardChecked=false,locationChecked=false,gpuChecked=false;
     for(int index=0;index<cases.length();index++){
       JSONObject item=cases.getJSONObject(index);byte[] payload=Base64.decode(item.getString("payload"),Base64.DEFAULT),key=Base64.decode(item.getString("key"),Base64.DEFAULT),envelope=item.getJSONObject("manifest").toString().getBytes("UTF-8");
       VerifiedPackage packageValue=null;try{packageValue=new VerifiedPackage(payload,envelope,key);}catch(Exception failure){if(item.getBoolean("valid"))throw failure;}
       if((packageValue!=null)!=item.getBoolean("valid"))throw new AssertionError("Admission mismatch case "+index);
       if(packageValue!=null){
+        if(!gpuChecked){NativeGpuCloseTest.verify(packageValue,new java.io.File(args[0]).getParentFile());gpuChecked=true;}
         if(!clipboardChecked){NativeClipboardTest.verify(packageValue);clipboardChecked=true;}
+        if(!locationChecked&&item.has("locationCase")){JSONObject locationCase=item.getJSONObject("locationCase");VerifiedPackage locationValue=new VerifiedPackage(Base64.decode(locationCase.getString("payload"),Base64.DEFAULT),locationCase.getJSONObject("manifest").toString().getBytes("UTF-8"),key);NativeLocationTest.verify(locationValue);locationChecked=true;}
         if(packageValue.width!=64 || packageValue.height!=64 || packageValue.density!=1)throw new AssertionError("Viewport mismatch");
         byte[] js=packageValue.javascript();byte initial=js[0];js[0]^=1;payload[0]^=1;
         if(packageValue.javascript()[0]!=initial)throw new AssertionError("Caller mutation changed admitted source");
@@ -69,6 +71,16 @@ public final class NativePackageLoadTest {
         if(!callbackFailed || failedRetirements[0]!=1)throw new AssertionError("Callback exception blocked retirement");
         failing.frame(new int[0],new int[0],new byte[0]);if(!new String(failing.effects(),"UTF-8").contains("verified:1:1"))throw new AssertionError("Committed guest lost after callback failure");
         failing.close();if(failedRetirements[0]!=4)throw new AssertionError("Committed policy missing after callback failure");
+        VerifiedContainer closing=new VerifiedContainer(new java.io.File(args[0]).getParentFile(),new VerifiedContainer.Listener(){
+          public void cleanup(VerifiedPackage bound,long gen,byte[] record){throw new IllegalStateException("expected final close failure");}
+          public void retired(VerifiedPackage bound,long gen){}
+        });
+        closing.activate(admitted,launch);boolean closeFailed=false;
+        try{closing.close();}catch(IllegalStateException expected){if(!"expected final close failure".equals(expected.getMessage()))throw expected;closeFailed=true;}
+        if(!closeFailed)throw new AssertionError("Final callback failure missing");
+        closing.close();boolean closedRejected=false;
+        try{closing.effects();}catch(IllegalStateException expected){closedRejected=true;}
+        if(!closedRejected)throw new AssertionError("Destroyed native handle retained after callback failure");
         packageValue.policy.authorizeUrl("https://example.com/path");
         boolean denied=false;try{packageValue.policy.authorizeUrl("https://other.com");}catch(Exception failure){denied=true;}if(!denied)throw new AssertionError("Policy bypass");
       }count++;

@@ -38,11 +38,40 @@ JNIEXPORT jobject JNICALL Java_dev_pjm_android_VerifiedContainer_advance(JNIEnv 
   if(cls)(*env)->DeleteLocalRef(env,cls);if(pixels)(*env)->DeleteLocalRef(env,pixels);if(regions)(*env)->DeleteLocalRef(env,regions);return result;
 }
 JNIEXPORT jbyteArray JNICALL Java_dev_pjm_android_VerifiedContainer_effects(JNIEnv *env,jclass type,jlong value){(void)type;Peer *p=peer(value);ptrdiff_t count=mp_pool_svc_take(p->pool,p->records,sizeof(p->records));if(count<0){error(env);return NULL;}return copy(env,p->records,(size_t)count);}
+JNIEXPORT void JNICALL Java_dev_pjm_android_VerifiedContainer_draw(JNIEnv *env,jclass type,jlong value,jlong epoch,jintArray contacts,jintArray hits,jbyteArray cancelled,jint x,jint y,jint width,jint height,jint window_width,jint window_height){
+  (void)type;Peer *p=peer(value);
+  if(!contacts || !hits || !cancelled || epoch<=0){error(env);return;}
+  jsize count=(*env)->GetArrayLength(env,contacts),hit_count=(*env)->GetArrayLength(env,hits),cancel_count=(*env)->GetArrayLength(env,cancelled);
+  if(count>8 || count!=hit_count || cancel_count>8){error(env);return;}
+  MpInput input={0};input.size=sizeof(input);input.count=(uint32_t)count;input.cancelled_count=(uint32_t)cancel_count;
+  (*env)->GetIntArrayRegion(env,contacts,0,count,(jint *)input.contacts);(*env)->GetIntArrayRegion(env,hits,0,count,(jint *)input.hits);(*env)->GetByteArrayRegion(env,cancelled,0,cancel_count,(jbyte *)input.cancelled);
+  if((*env)->ExceptionCheck(env))return;
+  MpGlesFrame frame={sizeof(frame),x,y,width,height,window_width,window_height};
+  if(mp_pool_frame_input(p->pool,&input)!=0 || mp_pool_gles_render(p->pool,(uint64_t)epoch,&frame)!=0)error(env);
+}
+JNIEXPORT void JNICALL Java_dev_pjm_android_VerifiedContainer_contextLost(JNIEnv *env,jclass type,jlong value,jlong epoch){
+  (void)type;if(epoch<=0 || mp_pool_gles_lost(peer(value)->pool,(uint64_t)epoch)!=0)error(env);
+}
+JNIEXPORT void JNICALL Java_dev_pjm_android_VerifiedContainer_releaseGpu(JNIEnv *env,jclass type,jlong value,jlong epoch){
+  (void)type;if(epoch<=0 || mp_pool_gles_release(peer(value)->pool,(uint64_t)epoch)!=0)error(env);
+}
+JNIEXPORT jlong JNICALL Java_dev_pjm_android_VerifiedContainer_gpuEpoch(JNIEnv *env,jclass type,jlong value){
+  (void)env;(void)type;return (jlong)mp_pool_gles_epoch(peer(value)->pool);
+}
 JNIEXPORT jint JNICALL Java_dev_pjm_android_VerifiedContainer_hitTest(JNIEnv *env,jclass type,jlong value,jfloat x,jfloat y){(void)type;int32_t hit=0;if(mp_pool_hit_test(peer(value)->pool,x,y,&hit)!=0)error(env);return hit;}
 JNIEXPORT void JNICALL Java_dev_pjm_android_VerifiedContainer_post(JNIEnv *env,jclass type,jlong value,jbyteArray identity,jlong generation,jbyteArray record){(void)type;jsize a=0,b=0;jbyte *id=bytes(env,identity,128,&a),*data=NULL;if(id)data=bytes(env,record,4096,&b);if(data && mp_pool_svc_post(peer(value)->pool,(uint8_t *)id,(size_t)a,(uint64_t)generation,(uint8_t *)data,(size_t)b)!=0)error(env);if(data)(*env)->ReleaseByteArrayElements(env,record,data,JNI_ABORT);if(id)(*env)->ReleaseByteArrayElements(env,identity,id,JNI_ABORT);}
 JNIEXPORT void JNICALL Java_dev_pjm_android_VerifiedContainer_control(JNIEnv *env,jclass type,jlong value,jint operation,jbyteArray identity){
   (void)type;Peer *p=peer(value);int status=-1;
   if(operation==1)status=mp_pool_background(p->pool);else if(operation==2)status=mp_pool_resume(p->pool);else if(operation==3)status=mp_pool_memory_warning(p->pool);else if(operation==4){jsize length=0;jbyte *id=bytes(env,identity,128,&length);if(id){status=mp_pool_close(p->pool,(uint8_t *)id,(size_t)length);(*env)->ReleaseByteArrayElements(env,identity,id,JNI_ABORT);}}
-  else if(operation==5){status=mp_pool_destroy(p->pool);finish(p,env);(*env)->DeleteGlobalRef(env,p->owner);free(p);if(status)error(env);return;}
   finish(p,env);if(status)error(env);
+}
+
+JNIEXPORT void JNICALL Java_dev_pjm_android_VerifiedContainer_destroy(JNIEnv *env,jclass type,jlong value,jbooleanArray consumed){
+  (void)type;Peer *p=peer(value);
+  if(!consumed || (*env)->GetArrayLength(env,consumed)!=1){error(env);return;}
+  if(mp_pool_destroy(p->pool)!=0){error(env);return;}
+  jboolean transferred=JNI_TRUE;
+  (*env)->SetBooleanArrayRegion(env,consumed,0,1,&transferred);
+  finish(p,env); /* Retirement exceptions are reported after ownership transfer. */
+  (*env)->DeleteGlobalRef(env,p->owner);free(p);
 }

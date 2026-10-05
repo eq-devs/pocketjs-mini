@@ -19,12 +19,14 @@ use std::{
 const RECORD_BYTES: usize = 4096;
 const RECORD_COUNT: usize = 32;
 pub mod ffi;
+#[cfg(any(target_os = "android", test))]
+mod gles;
+pub mod inspect;
 pub mod package_ffi;
 pub mod pool;
 pub mod pool_ffi;
-pub mod retained;
 pub mod replay;
-pub mod inspect;
+pub mod retained;
 #[derive(Default)]
 struct Mailbox {
     incoming: VecDeque<String>,
@@ -188,6 +190,8 @@ fn admit_boot_pack(pak: &[u8]) -> Result<(), String> {
 }
 
 pub struct Instance {
+    #[cfg(target_os = "android")]
+    graphics: gles::ContextState<gles::BoundRenderer>,
     // Drop the runtime before its interrupt handler's storage.
     guest: Guest,
     surface: UiSurface,
@@ -257,6 +261,8 @@ impl Instance {
         let surface = UiSurface::new_with_density((width as f32, height as f32), density);
         surface.set_identity(target, 7);
         Ok(Self {
+            #[cfg(target_os = "android")]
+            graphics: gles::ContextState::new(),
             guest,
             surface,
             mailbox: Rc::new(RefCell::new(Mailbox::default())),
@@ -787,6 +793,70 @@ impl Instance {
             }
         });
         Ok(&self.pixels)
+    }
+    /// The host must keep this instance on its GL owner thread and make the
+    /// original GLES2 context current. Epochs are nonzero and never reused.
+    #[cfg(target_os = "android")]
+    pub unsafe fn attach_gles(&mut self, epoch: u64) -> Result<(), String> {
+        self.graphics
+            .attach(epoch, || unsafe { gles::BoundRenderer::new() })
+            .map_err(str::to_owned)
+    }
+    /// Render the retained UI directly; coordinates use the host's top-left
+    /// physical viewport. The attached epoch's context must be current.
+    #[cfg(target_os = "android")]
+    pub unsafe fn render_gles(
+        &mut self,
+        epoch: u64,
+        viewport: [i32; 4],
+        window: [i32; 2],
+    ) -> Result<(), String> {
+        if !self.ready || self.suspended {
+            return Err("Guest is not running".into());
+        }
+        let [x, y, width, height] = viewport;
+        let [window_width, window_height] = window;
+        if x < 0
+            || y < 0
+            || width <= 0
+            || height <= 0
+            || window_width <= 0
+            || window_height <= 0
+            || x.checked_add(width)
+                .is_none_or(|right| right > window_width)
+            || y.checked_add(height)
+                .is_none_or(|bottom| bottom > window_height)
+        {
+            return Err("Invalid GPU viewport".into());
+        }
+        let renderer = self.graphics.current(epoch).map_err(str::to_owned)?;
+        renderer.require_current()?;
+        let rendered = self.surface.with_ui(|ui| unsafe {
+            renderer
+                .renderer
+                .render(ui, x, y, width, height, window_width, window_height, true)
+        });
+        if rendered {
+            Ok(())
+        } else {
+            Err("GPU rendering failed".into())
+        }
+    }
+    /// Release driver objects only with their original context current.
+    #[cfg(target_os = "android")]
+    pub unsafe fn release_gles(&mut self, epoch: u64) -> Result<(), String> {
+        self.graphics
+            .current(epoch)
+            .map_err(str::to_owned)?
+            .require_current()?;
+        self.graphics
+            .release(epoch, |renderer| unsafe { renderer.renderer.destroy() })
+            .map_err(str::to_owned)
+    }
+    /// The host asserts the original context was destroyed; no GL calls occur.
+    #[cfg(target_os = "android")]
+    pub fn lose_gles(&mut self, epoch: u64) -> Result<(), String> {
+        self.graphics.lost(epoch).map_err(str::to_owned)
     }
     pub fn damage(&self) -> &DamagePlan {
         &self.damage

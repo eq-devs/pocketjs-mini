@@ -13,6 +13,7 @@ final class LocationApproval {
   private static final java.util.concurrent.atomic.AtomicInteger nextCode=new java.util.concurrent.atomic.AtomicInteger(0x7000);
   private final Activity activity;
   private final PermissionGate permissions;
+  private final java.util.function.BooleanSupplier foreground;
   private Pending pending;
   // An OS dialog cannot be cancelled by the app. Keep this fence after task cleanup.
   private boolean osInFlight;
@@ -20,10 +21,13 @@ final class LocationApproval {
   private static final class Pending {
     final VerifiedPackage value;final LocationContract.Options options;
     final VerifiedLocation.Decision decision;
-    AlertDialog dialog;boolean done;
+    AlertDialog dialog;boolean done,osResultReady;
     Pending(VerifiedPackage value,LocationContract.Options options,VerifiedLocation.Decision decision){this.value=value;this.options=options;this.decision=decision;}
   }
-  LocationApproval(Activity activity,PermissionGate permissions){this.activity=Objects.requireNonNull(activity);this.permissions=Objects.requireNonNull(permissions);}
+  LocationApproval(Activity activity,PermissionGate permissions,java.util.function.BooleanSupplier foreground){this.activity=Objects.requireNonNull(activity);this.permissions=Objects.requireNonNull(permissions);this.foreground=Objects.requireNonNull(foreground);}
+  boolean awaitingOS(){owner();return osInFlight&&pending!=null;}
+  boolean active(){owner();return pending!=null||osInFlight;}
+  void resume(){owner();Pending request=pending;if(request!=null&&request.osResultReady&&foreground.getAsBoolean())finish(request,true);}
   private void owner(){if(Looper.myLooper()!=Looper.getMainLooper())throw new IllegalStateException("Location approval UI owner required");}
   private boolean osGranted(LocationContract.Options options){
     boolean fine=activity.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)==PackageManager.PERMISSION_GRANTED;
@@ -69,7 +73,7 @@ final class LocationApproval {
     if(!osInFlight)return true;
     osInFlight=false;osRequestCode=-1;Pending request=pending;
     // Preserve the app's positive consent even if Android denied its separate grant.
-    if(request!=null)finish(request,true);
+    if(request!=null){request.osResultReady=true;resume();}
     return true;
   }
   private void finish(Pending request,boolean approved){

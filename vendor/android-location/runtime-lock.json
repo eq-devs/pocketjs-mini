@@ -1,0 +1,2368 @@
+{
+  "schema": 1,
+  "purpose": "Pinned Android FusedLocation runtime resolved with Gradle 8.13; AndroidX resources and original manifests retained",
+  "artifacts": [
+    {
+      "group": "androidx.activity",
+      "name": "activity",
+      "version": "1.0.0",
+      "file": "activity-1.0.0.aar",
+      "url": "https://dl.google.com/dl/android/maven2/androidx/activity/activity/1.0.0/activity-1.0.0.aar",
+      "bytes": 13617,
+      "sha256": "d1bc9842455c2e534415d88c44df4d52413b478db9093a1ba36324f705f44c3d"
+    },
+    {
+      "group": "androidx.annotation",
+      "name": "annotation-jvm",
+      "version": "1.10.0",
+      "file": "annotation-jvm-1.10.0.jar",
+      "url": "https://dl.google.com/dl/android/maven2/androidx/annotation/annotation-jvm/1.10.0/annotation-jvm-1.10.0.jar",
+      "bytes": 62171,
+      "sha256": "ddd072ddbb553178e205517ce777b2f05aa9e412982d9ecb4eedc74f1212f697"
+    },
+    {
+      "group": "androidx.arch.core",
+      "name": "core-common",
+      "version": "2.1.0",
+      "file": "core-common-2.1.0.jar",
+      "url": "https://dl.google.com/dl/android/maven2/androidx/arch/core/core-common/2.1.0/core-common-2.1.0.jar",
+      "bytes": 11257,
+      "sha256": "fe1237bf029d063e7f29fe39aeaf73ef74c8b0a3658486fc29d3c54326653889"
+    },
+    {
+      "group": "androidx.arch.core",
+      "name": "core-runtime",
+      "version": "2.0.0",
+      "file": "core-runtime-2.0.0.aar",
+      "url": "https://dl.google.com/dl/android/maven2/androidx/arch/core/core-runtime/2.0.0/core-runtime-2.0.0.aar",
+      "bytes": 5475,
+      "sha256": "87e65fc767c712b437649c7cee2431ebb4bed6daef82e501d4125b3ed3f65f8e"
+    },
+    {
+      "group": "androidx.collection",
+      "name": "collection",
+      "version": "1.1.0",
+      "file": "collection-1.1.0.jar",
+      "url": "https://dl.google.com/dl/android/maven2/androidx/collection/collection/1.1.0/collection-1.1.0.jar",
+      "bytes": 42953,
+      "sha256": "632a0e5407461de774409352940e292a291037724207a787820c77daf7d33b72"
+    },
+    {
+      "group": "androidx.core",
+      "name": "core",
+      "version": "1.2.0",
+      "file": "core-1.2.0.aar",
+      "url": "https://dl.google.com/dl/android/maven2/androidx/core/core/1.2.0/core-1.2.0.aar",
+      "bytes": 706226,
+      "sha256": "524b8b88ceb6a74a7e44e6b567a135660f211799904cb218bfee5be1166820b2"
+    },
+    {
+      "group": "androidx.customview",
+      "name": "customview",
+      "version": "1.0.0",
+      "file": "customview-1.0.0.aar",
+      "url": "https://dl.google.com/dl/android/maven2/androidx/customview/customview/1.0.0/customview-1.0.0.aar",
+      "bytes": 33238,
+      "sha256": "20e5b8f6526a34595a604f56718da81167c0b40a7a94a57daa355663f2594df2"
+    },
+    {
+      "group": "androidx.fragment",
+      "name": "fragment",
+      "version": "1.1.0",
+      "file": "fragment-1.1.0.aar",
+      "url": "https://dl.google.com/dl/android/maven2/androidx/fragment/fragment/1.1.0/fragment-1.1.0.aar",
+      "bytes": 166608,
+      "sha256": "a14c8b8f2153f128e800fbd266a6beab1c283982a29ec570d2cc05d307d81496"
+    },
+    {
+      "group": "androidx.lifecycle",
+      "name": "lifecycle-common",
+      "version": "2.1.0",
+      "file": "lifecycle-common-2.1.0.jar",
+      "url": "https://dl.google.com/dl/android/maven2/androidx/lifecycle/lifecycle-common/2.1.0/lifecycle-common-2.1.0.jar",
+      "bytes": 21688,
+      "sha256": "76db6be533bd730fb361c2feb12a2c26d9952824746847da82601ef81f082643"
+    },
+    {
+      "group": "androidx.lifecycle",
+      "name": "lifecycle-livedata",
+      "version": "2.0.0",
+      "file": "lifecycle-livedata-2.0.0.aar",
+      "url": "https://dl.google.com/dl/android/maven2/androidx/lifecycle/lifecycle-livedata/2.0.0/lifecycle-livedata-2.0.0.aar",
+      "bytes": 9431,
+      "sha256": "c82609ced8c498f0a701a30fb6771bb7480860daee84d82e0a81ee86edf7ba39"
+    },
+    {
+      "group": "androidx.lifecycle",
+      "name": "lifecycle-livedata-core",
+      "version": "2.0.0",
+      "file": "lifecycle-livedata-core-2.0.0.aar",
+      "url": "https://dl.google.com/dl/android/maven2/androidx/lifecycle/lifecycle-livedata-core/2.0.0/lifecycle-livedata-core-2.0.0.aar",
+      "bytes": 8372,
+      "sha256": "fde334ec7e22744c0f5bfe7caf1a84c9d717327044400577bdf9bd921ec4f7bc"
+    },
+    {
+      "group": "androidx.lifecycle",
+      "name": "lifecycle-runtime",
+      "version": "2.1.0",
+      "file": "lifecycle-runtime-2.1.0.aar",
+      "url": "https://dl.google.com/dl/android/maven2/androidx/lifecycle/lifecycle-runtime/2.1.0/lifecycle-runtime-2.1.0.aar",
+      "bytes": 9160,
+      "sha256": "e5173897b965e870651e83d9d5af1742d3f532d58863223a390ce3a194c8312b"
+    },
+    {
+      "group": "androidx.lifecycle",
+      "name": "lifecycle-viewmodel",
+      "version": "2.1.0",
+      "file": "lifecycle-viewmodel-2.1.0.aar",
+      "url": "https://dl.google.com/dl/android/maven2/androidx/lifecycle/lifecycle-viewmodel/2.1.0/lifecycle-viewmodel-2.1.0.aar",
+      "bytes": 8647,
+      "sha256": "ba55fb7ac1b2828d5327cda8acf7085d990b2b4c43ef336caa67686249b8523d"
+    },
+    {
+      "group": "androidx.loader",
+      "name": "loader",
+      "version": "1.0.0",
+      "file": "loader-1.0.0.aar",
+      "url": "https://dl.google.com/dl/android/maven2/androidx/loader/loader/1.0.0/loader-1.0.0.aar",
+      "bytes": 33445,
+      "sha256": "11f735cb3b55c458d470bed9e25254375b518b4b1bad6926783a7026db0f5025"
+    },
+    {
+      "group": "androidx.savedstate",
+      "name": "savedstate",
+      "version": "1.0.0",
+      "file": "savedstate-1.0.0.aar",
+      "url": "https://dl.google.com/dl/android/maven2/androidx/savedstate/savedstate/1.0.0/savedstate-1.0.0.aar",
+      "bytes": 9768,
+      "sha256": "2510a5619c37579c9ce1a04574faaf323cd0ffe2fc4e20fa8f8f01e5bb402e83"
+    },
+    {
+      "group": "androidx.versionedparcelable",
+      "name": "versionedparcelable",
+      "version": "1.1.0",
+      "file": "versionedparcelable-1.1.0.aar",
+      "url": "https://dl.google.com/dl/android/maven2/androidx/versionedparcelable/versionedparcelable/1.1.0/versionedparcelable-1.1.0.aar",
+      "bytes": 31062,
+      "sha256": "9a1d77140ac222b7866b5054ee7d159bc1800987ed2d46dd6afdd145abb710c1"
+    },
+    {
+      "group": "androidx.viewpager",
+      "name": "viewpager",
+      "version": "1.0.0",
+      "file": "viewpager-1.0.0.aar",
+      "url": "https://dl.google.com/dl/android/maven2/androidx/viewpager/viewpager/1.0.0/viewpager-1.0.0.aar",
+      "bytes": 53513,
+      "sha256": "147af4e14a1984010d8f155e5e19d781f03c1d70dfed02a8e0d18428b8fc8682"
+    },
+    {
+      "group": "com.google.android.gms",
+      "name": "play-services-base",
+      "version": "18.3.0",
+      "file": "play-services-base-18.3.0.aar",
+      "url": "https://dl.google.com/dl/android/maven2/com/google/android/gms/play-services-base/18.3.0/play-services-base-18.3.0.aar",
+      "bytes": 604420,
+      "sha256": "94066a46047e3d593eb652383e7767e0630385ecd75133e68c21124aa96b8dc2"
+    },
+    {
+      "group": "com.google.android.gms",
+      "name": "play-services-basement",
+      "version": "18.3.0",
+      "file": "play-services-basement-18.3.0.aar",
+      "url": "https://dl.google.com/dl/android/maven2/com/google/android/gms/play-services-basement/18.3.0/play-services-basement-18.3.0.aar",
+      "bytes": 403997,
+      "sha256": "6c11ae3eb2dd7f17373f919c4c557a70e4cf891bc0c9b66926a0a6445d654352"
+    },
+    {
+      "group": "com.google.android.gms",
+      "name": "play-services-location",
+      "version": "21.2.0",
+      "file": "play-services-location-21.2.0.aar",
+      "url": "https://dl.google.com/dl/android/maven2/com/google/android/gms/play-services-location/21.2.0/play-services-location-21.2.0.aar",
+      "bytes": 304017,
+      "sha256": "bcb06d69ca8a44b358388e0c20e50fe15a58b593a4cb99c8cd24f6e0115baad6"
+    },
+    {
+      "group": "com.google.android.gms",
+      "name": "play-services-tasks",
+      "version": "18.1.0",
+      "file": "play-services-tasks-18.1.0.aar",
+      "url": "https://dl.google.com/dl/android/maven2/com/google/android/gms/play-services-tasks/18.1.0/play-services-tasks-18.1.0.aar",
+      "bytes": 96788,
+      "sha256": "d60575eae39350e6234858bc9d7d775375707ae82a684e6caf7f3e41a12e25a2"
+    },
+    {
+      "group": "org.jetbrains.kotlin",
+      "name": "kotlin-stdlib",
+      "version": "2.1.21",
+      "file": "kotlin-stdlib-2.1.21.jar",
+      "url": "https://repo.maven.apache.org/maven2/org/jetbrains/kotlin/kotlin-stdlib/2.1.21/kotlin-stdlib-2.1.21.jar",
+      "bytes": 1724058,
+      "sha256": "263bdc679e1f62012db7b091796279b6d71cf36f4797a98ff1ace05835f201c8"
+    },
+    {
+      "group": "org.jetbrains.kotlin",
+      "name": "kotlin-stdlib-jdk7",
+      "version": "1.8.20",
+      "file": "kotlin-stdlib-jdk7-1.8.20.jar",
+      "url": "https://repo.maven.apache.org/maven2/org/jetbrains/kotlin/kotlin-stdlib-jdk7/1.8.20/kotlin-stdlib-jdk7-1.8.20.jar",
+      "bytes": 963,
+      "sha256": "af1ec40c3b951afdcc0c2a0173c7b81763c5281c2d5bafbf0a8544a24c5dcc0c"
+    },
+    {
+      "group": "org.jetbrains.kotlin",
+      "name": "kotlin-stdlib-jdk8",
+      "version": "1.8.20",
+      "file": "kotlin-stdlib-jdk8-1.8.20.jar",
+      "url": "https://repo.maven.apache.org/maven2/org/jetbrains/kotlin/kotlin-stdlib-jdk8/1.8.20/kotlin-stdlib-jdk8-1.8.20.jar",
+      "bytes": 969,
+      "sha256": "e398b67977622718bf18ff99b739c7d9da060f33fb458a2e25203221c16af010"
+    },
+    {
+      "group": "org.jetbrains.kotlinx",
+      "name": "kotlinx-coroutines-android",
+      "version": "1.7.3",
+      "file": "kotlinx-coroutines-android-1.7.3.jar",
+      "url": "https://repo.maven.apache.org/maven2/org/jetbrains/kotlinx/kotlinx-coroutines-android/1.7.3/kotlinx-coroutines-android-1.7.3.jar",
+      "bytes": 20637,
+      "sha256": "59fffb26bee12c32dadcfa5d420c2a7db85d3253518128b170efda726613256d"
+    },
+    {
+      "group": "org.jetbrains.kotlinx",
+      "name": "kotlinx-coroutines-core-jvm",
+      "version": "1.7.3",
+      "file": "kotlinx-coroutines-core-jvm-1.7.3.jar",
+      "url": "https://repo.maven.apache.org/maven2/org/jetbrains/kotlinx/kotlinx-coroutines-core-jvm/1.7.3/kotlinx-coroutines-core-jvm-1.7.3.jar",
+      "bytes": 1551152,
+      "sha256": "1ab3acc38f3e7355c4f9d1ec62107a46fa73c899f3070d055e5d4373dfe67e12"
+    },
+    {
+      "group": "org.jetbrains",
+      "name": "annotations",
+      "version": "23.0.0",
+      "file": "annotations-23.0.0.jar",
+      "url": "https://repo.maven.apache.org/maven2/org/jetbrains/annotations/23.0.0/annotations-23.0.0.jar",
+      "bytes": 29371,
+      "sha256": "7b0f19724082cbfcbc66e5abea2b9bc92cf08a1ea11e191933ed43801eb3cd05"
+    }
+  ],
+  "files": [
+    {
+      "name": "jars/activity-1.0.0.jar",
+      "bytes": 13164,
+      "sha256": "13522a68c7a8a1acc1761e4f22d2647f510bd8a91f0694c1bbe73782c745c584"
+    },
+    {
+      "name": "resources/activity-1.0.0/R.txt",
+      "bytes": 8196,
+      "sha256": "15ed7d95a9ea643f83641ff89fcd0a54057380bf97875b95ebb09273a433f4e4"
+    },
+    {
+      "name": "resources/activity-1.0.0/AndroidManifest.xml",
+      "bytes": 873,
+      "sha256": "a1cf05f2d7ee82d6153e4d58f3a31bb7d1397bc983133c413528a40f60c17fb5"
+    },
+    {
+      "name": "jars/annotation-jvm-1.10.0.jar",
+      "bytes": 62171,
+      "sha256": "ddd072ddbb553178e205517ce777b2f05aa9e412982d9ecb4eedc74f1212f697"
+    },
+    {
+      "name": "jars/core-common-2.1.0.jar",
+      "bytes": 11257,
+      "sha256": "fe1237bf029d063e7f29fe39aeaf73ef74c8b0a3658486fc29d3c54326653889"
+    },
+    {
+      "name": "jars/core-runtime-2.0.0.jar",
+      "bytes": 5717,
+      "sha256": "cdb7378ed68dd9635d74d002830b8dadd5d76838ca84071cd0ecef14b5524b2f"
+    },
+    {
+      "name": "resources/core-runtime-2.0.0/AndroidManifest.xml",
+      "bytes": 835,
+      "sha256": "2519a51163ebba359e8a9a6562a7049d2a75ee8dd48f49baa49884abaad8b6ad"
+    },
+    {
+      "name": "resources/core-runtime-2.0.0/R.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "jars/collection-1.1.0.jar",
+      "bytes": 42953,
+      "sha256": "632a0e5407461de774409352940e292a291037724207a787820c77daf7d33b72"
+    },
+    {
+      "name": "jars/core-1.2.0.jar",
+      "bytes": 685344,
+      "sha256": "121f92b6870f3c618beba9ced5b3bffd1cc701238d615883e9d16660431e1fc4"
+    },
+    {
+      "name": "resources/core-1.2.0/R.txt",
+      "bytes": 7181,
+      "sha256": "d8769903e0bdfdce950565ca1fc263e0731859df8ab631ffb19d8acbb2186af6"
+    },
+    {
+      "name": "resources/core-1.2.0/AndroidManifest.xml",
+      "bytes": 963,
+      "sha256": "ee1e1afebf8eb9598025228538749e285a1e005a7b2b906ef1ad8e5ab7815975"
+    },
+    {
+      "name": "resources/core-1.2.0/res/drawable/notification_bg.xml",
+      "bytes": 1033,
+      "sha256": "8b6594750e9e26b708b3c82695ac713052a73472030acb646c4557abba2a0833"
+    },
+    {
+      "name": "resources/core-1.2.0/res/drawable/notification_bg_low.xml",
+      "bytes": 1027,
+      "sha256": "db22a0f7e3b0d6f27f9cfe91d25fc35693bb5b67ddeedd7f9fc60f964ea46d45"
+    },
+    {
+      "name": "resources/core-1.2.0/res/drawable/notification_icon_background.xml",
+      "bytes": 847,
+      "sha256": "6d9b1e23b7be4bbb05469c3888a976594b06395aab43da6ee2cf2d2e547e41e5"
+    },
+    {
+      "name": "resources/core-1.2.0/res/drawable/notification_tile_bg.xml",
+      "bytes": 841,
+      "sha256": "7a74142e179dadb058242221df7393aaf6d18509350f2b6da386086ab460e72b"
+    },
+    {
+      "name": "resources/core-1.2.0/res/drawable-hdpi-v4/notification_bg_low_normal.9.png",
+      "bytes": 176,
+      "sha256": "411e9d6397b6309ce4406125738d28df4f1177e68d968cb91457d1b0e2f626e2"
+    },
+    {
+      "name": "resources/core-1.2.0/res/drawable-hdpi-v4/notification_bg_low_pressed.9.png",
+      "bytes": 181,
+      "sha256": "1115b8c2c1fc0a2146bf6090ec8985273f5006a3e71a7eeeee9643ef1830f0bc"
+    },
+    {
+      "name": "resources/core-1.2.0/res/drawable-hdpi-v4/notification_bg_normal.9.png",
+      "bytes": 176,
+      "sha256": "d32ccdc822c8184e52ed2ee1808f6cff5592c7a4496cc32d60e927aa0d61bd77"
+    },
+    {
+      "name": "resources/core-1.2.0/res/drawable-hdpi-v4/notification_bg_normal_pressed.9.png",
+      "bytes": 180,
+      "sha256": "945f154bafd79223c8d62f86ad993c2fb8fe7c5f19b0f265f73e0746e28c007d"
+    },
+    {
+      "name": "resources/core-1.2.0/res/drawable-hdpi-v4/notify_panel_notification_icon_bg.png",
+      "bytes": 107,
+      "sha256": "8430ec003e003f3f2ba2f78d48fd150e25407667e530e82e87a7d4841c0fd676"
+    },
+    {
+      "name": "resources/core-1.2.0/res/drawable-mdpi-v4/notification_bg_low_normal.9.png",
+      "bytes": 165,
+      "sha256": "5289724662b65219a99e55c5f3a07890106375b2f5a0a046bdde9fb3f820fe19"
+    },
+    {
+      "name": "resources/core-1.2.0/res/drawable-mdpi-v4/notification_bg_low_pressed.9.png",
+      "bytes": 169,
+      "sha256": "ef694f46431e10636673c0758d90d33d291814fd41a0d8f960f85f69a69052fb"
+    },
+    {
+      "name": "resources/core-1.2.0/res/drawable-mdpi-v4/notification_bg_normal.9.png",
+      "bytes": 165,
+      "sha256": "c9bde6f6a6dde6ee8020bb78435d8b101519b9d98d22b901c65b916afa896be2"
+    },
+    {
+      "name": "resources/core-1.2.0/res/drawable-mdpi-v4/notification_bg_normal_pressed.9.png",
+      "bytes": 171,
+      "sha256": "07e584044ea7f191f4ddbc147da6db4fb7bbe50b444eee23317bcfd0aacf0995"
+    },
+    {
+      "name": "resources/core-1.2.0/res/drawable-mdpi-v4/notify_panel_notification_icon_bg.png",
+      "bytes": 98,
+      "sha256": "0d773e62c756422313262846c787e58f67e0ee87e45e1ae9942002e816c4cb9e"
+    },
+    {
+      "name": "resources/core-1.2.0/res/drawable-v21/notification_action_background.xml",
+      "bytes": 1844,
+      "sha256": "08b53dd3bc530247eb1d7f4545966b59660f18f961463b6249d509c73cbb7140"
+    },
+    {
+      "name": "resources/core-1.2.0/res/drawable-xhdpi-v4/notification_bg_low_normal.9.png",
+      "bytes": 200,
+      "sha256": "e90cdc6d0335ba0cc74e2d49f4553eb83f85bfe1c3d5629fa7c25a54f27c73a6"
+    },
+    {
+      "name": "resources/core-1.2.0/res/drawable-xhdpi-v4/notification_bg_low_pressed.9.png",
+      "bytes": 210,
+      "sha256": "b6eda6610fbc02b04e18c24317b17e66468980a236962df017855b6b71fdbf33"
+    },
+    {
+      "name": "resources/core-1.2.0/res/drawable-xhdpi-v4/notification_bg_normal.9.png",
+      "bytes": 200,
+      "sha256": "e4b12f752d3ab198937fb61284477a3a97724ccd0ecb2a5b56c14555acf530e5"
+    },
+    {
+      "name": "resources/core-1.2.0/res/drawable-xhdpi-v4/notification_bg_normal_pressed.9.png",
+      "bytes": 207,
+      "sha256": "1210208ebd68c08932a1b66f5a1314b2bbb5fbb2e7dd1a5cc756eec7f0bc4204"
+    },
+    {
+      "name": "resources/core-1.2.0/res/drawable-xhdpi-v4/notify_panel_notification_icon_bg.png",
+      "bytes": 138,
+      "sha256": "b44eeda34d7a529c2fe55719eb098fa29707caa91d18de06a7a775d6e6bcf973"
+    },
+    {
+      "name": "resources/core-1.2.0/res/layout/custom_dialog.xml",
+      "bytes": 458,
+      "sha256": "387d7fdf08e26a2ce95c9dad67e12cef717d37ea4918eac8c7b558af15ea897d"
+    },
+    {
+      "name": "resources/core-1.2.0/res/layout/notification_action.xml",
+      "bytes": 1787,
+      "sha256": "cad7f2c6d463d2cb805e5f66eab9e008d6bec20fb57cb4225e612d2445d854de"
+    },
+    {
+      "name": "resources/core-1.2.0/res/layout/notification_action_tombstone.xml",
+      "bytes": 1967,
+      "sha256": "1bfec92af06cd41bcb851229c140c8b501ec1871450015b4cfeec828073454b5"
+    },
+    {
+      "name": "resources/core-1.2.0/res/layout/notification_template_custom_big.xml",
+      "bytes": 3168,
+      "sha256": "985259f71a07054686d6fd577bd42a86d0d79b88c54d16613e796789d0928c40"
+    },
+    {
+      "name": "resources/core-1.2.0/res/layout/notification_template_icon_group.xml",
+      "bytes": 945,
+      "sha256": "10daad8713a08468c9c72b21de36ffa6084c7c9bf0f368ac74791c49cb2595f8"
+    },
+    {
+      "name": "resources/core-1.2.0/res/layout/notification_template_part_chronometer.xml",
+      "bytes": 972,
+      "sha256": "8fe062d357f4b61d9bf8834dc84b0d62bc7b30a6ada39778dbb3fd4e14796f81"
+    },
+    {
+      "name": "resources/core-1.2.0/res/layout/notification_template_part_time.xml",
+      "bytes": 966,
+      "sha256": "bb7044eff34763f6f348610b3c93cf58b7867278c6e66d006404b3f0c7a7c654"
+    },
+    {
+      "name": "resources/core-1.2.0/res/layout-v16/notification_template_custom_big.xml",
+      "bytes": 5706,
+      "sha256": "85e3d1b777538306ce5f2197533cb5e3abda53a0207c68be9dc9adb8b2879897"
+    },
+    {
+      "name": "resources/core-1.2.0/res/layout-v21/notification_action.xml",
+      "bytes": 1690,
+      "sha256": "19e2b1e26a36b8dc86b68a9b0f0833f8d2aee26549a090d573ba363622bd8338"
+    },
+    {
+      "name": "resources/core-1.2.0/res/layout-v21/notification_action_tombstone.xml",
+      "bytes": 1870,
+      "sha256": "e77dab13bd7623206f9bfa477fe4255fcbd6417afb3671f2533e1e0023542267"
+    },
+    {
+      "name": "resources/core-1.2.0/res/layout-v21/notification_template_custom_big.xml",
+      "bytes": 4089,
+      "sha256": "acfca5cc908fee2e705a80d8cf02952f0da10ec1aa8f9b667a7b36b9cdb4ad0c"
+    },
+    {
+      "name": "resources/core-1.2.0/res/layout-v21/notification_template_icon_group.xml",
+      "bytes": 1791,
+      "sha256": "143ef41185a25767bcf6da316e676c71bd6f51e5d938f47745a647868d9ab2b7"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values/values.xml",
+      "bytes": 12990,
+      "sha256": "ef0ea5c94817f5c0f04a27a9fdbec366a31961d6c530ba40d431b8fbf760d521"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-af/values-af.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-am/values-am.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-ar/values-ar.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-as/values-as.xml",
+      "bytes": 170,
+      "sha256": "b07cc908519f1381e8b2a15f65e16360ff6739c47785ffb117e645c7238c22c3"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-az/values-az.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-b+sr+Latn/values-b+sr+Latn.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-be/values-be.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-bg/values-bg.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-bn/values-bn.xml",
+      "bytes": 170,
+      "sha256": "b07cc908519f1381e8b2a15f65e16360ff6739c47785ffb117e645c7238c22c3"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-bs/values-bs.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-ca/values-ca.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-cs/values-cs.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-da/values-da.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-de/values-de.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-el/values-el.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-en-rAU/values-en-rAU.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-en-rCA/values-en-rCA.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-en-rGB/values-en-rGB.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-en-rIN/values-en-rIN.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-en-rXC/values-en-rXC.xml",
+      "bytes": 473,
+      "sha256": "57bf6577694f71bde14eb27f23e2952be56f370ba628dbffb8574a3fe25c1bbf"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-es/values-es.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-es-rUS/values-es-rUS.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-et/values-et.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-eu/values-eu.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-fa/values-fa.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-fi/values-fi.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-fr/values-fr.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-fr-rCA/values-fr-rCA.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-gl/values-gl.xml",
+      "bytes": 164,
+      "sha256": "484024bedb60cf6d0ff904d6cd8c2d6c21ae600eb2bee988f1d8eb93071579e5"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-gu/values-gu.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-hi/values-hi.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-hr/values-hr.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-hu/values-hu.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-hy/values-hy.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-in/values-in.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-is/values-is.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-it/values-it.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-iw/values-iw.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-ja/values-ja.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-ka/values-ka.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-kk/values-kk.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-km/values-km.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-kn/values-kn.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-ko/values-ko.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-ky/values-ky.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-lo/values-lo.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-lt/values-lt.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-lv/values-lv.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-mk/values-mk.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-ml/values-ml.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-mn/values-mn.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-mr/values-mr.xml",
+      "bytes": 170,
+      "sha256": "b1f3b711379e878a32956dd7c723df59b8db54f6742b8ba03819eae0d8f139de"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-ms/values-ms.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-my/values-my.xml",
+      "bytes": 170,
+      "sha256": "4d487e911cba638fddcc0cae824afa560c264a701e56800ddee44086b8deb004"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-nb/values-nb.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-ne/values-ne.xml",
+      "bytes": 170,
+      "sha256": "b1f3b711379e878a32956dd7c723df59b8db54f6742b8ba03819eae0d8f139de"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-nl/values-nl.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-or/values-or.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-pa/values-pa.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-pl/values-pl.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-pt/values-pt.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-pt-rBR/values-pt-rBR.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-pt-rPT/values-pt-rPT.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-ro/values-ro.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-ru/values-ru.xml",
+      "bytes": 164,
+      "sha256": "484024bedb60cf6d0ff904d6cd8c2d6c21ae600eb2bee988f1d8eb93071579e5"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-si/values-si.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-sk/values-sk.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-sl/values-sl.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-sq/values-sq.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-sr/values-sr.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-sv/values-sv.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-sw/values-sw.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-ta/values-ta.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-te/values-te.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-th/values-th.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-tl/values-tl.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-tr/values-tr.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-uk/values-uk.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-ur/values-ur.xml",
+      "bytes": 164,
+      "sha256": "cf81db3365e71f1ec20ffd8b12fccdaea8d98d493698fa429c64c78519f729ac"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-uz/values-uz.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-v16/values-v16.xml",
+      "bytes": 129,
+      "sha256": "f51435933281192c08eee45d492dc188fa033beae874c4b90bfceae5192e2754"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-v21/values-v21.xml",
+      "bytes": 1368,
+      "sha256": "6aa4579852fb688070d5b9f88b7c6fc74f698e85f78c72516f4df0f7d5a26a50"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-vi/values-vi.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-zh-rCN/values-zh-rCN.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-zh-rHK/values-zh-rHK.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-zh-rTW/values-zh-rTW.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "resources/core-1.2.0/res/values-zu/values-zu.xml",
+      "bytes": 164,
+      "sha256": "5a68396dadf955db8933bc312ce0b415ec9044f9a1eac01630e7a78d05897535"
+    },
+    {
+      "name": "jars/customview-1.0.0.jar",
+      "bytes": 33627,
+      "sha256": "319f904d5ee4b9fa9d4f0755fcc8549a0dd9a576510648e3e31afe10c2cf8fc0"
+    },
+    {
+      "name": "resources/customview-1.0.0/AndroidManifest.xml",
+      "bytes": 833,
+      "sha256": "d2b9d01dca583a16b369f047697c1845d16897addc00b5c52103890cdac9ad37"
+    },
+    {
+      "name": "resources/customview-1.0.0/R.txt",
+      "bytes": 6283,
+      "sha256": "6d21a0b45c6febbd655e3e56f1cdb865f9825a2e9ffc3f5de23d40bdc2e2d63e"
+    },
+    {
+      "name": "jars/fragment-1.1.0.jar",
+      "bytes": 175976,
+      "sha256": "0abd3506a9af49752d638c9b5b7eee8a247d43831be7e5d5c62c85848fd8445e"
+    },
+    {
+      "name": "resources/fragment-1.1.0/R.txt",
+      "bytes": 8196,
+      "sha256": "15ed7d95a9ea643f83641ff89fcd0a54057380bf97875b95ebb09273a433f4e4"
+    },
+    {
+      "name": "resources/fragment-1.1.0/AndroidManifest.xml",
+      "bytes": 877,
+      "sha256": "4c9030ff519e403e72e4e12ce74090762d280a4c3178b94f1fac3febc46508de"
+    },
+    {
+      "name": "jars/lifecycle-common-2.1.0.jar",
+      "bytes": 21688,
+      "sha256": "76db6be533bd730fb361c2feb12a2c26d9952824746847da82601ef81f082643"
+    },
+    {
+      "name": "jars/lifecycle-livedata-2.0.0.jar",
+      "bytes": 10245,
+      "sha256": "4b278b784d0718a33c677f18e9ff50b044ec0329a2e1d5d9f93a6d8a8f6fc767"
+    },
+    {
+      "name": "resources/lifecycle-livedata-2.0.0/AndroidManifest.xml",
+      "bytes": 840,
+      "sha256": "be7d00b36ad133e0f1ee7026ecd3efcf5bb3cf09b82ab350623c55d19b00f5b9"
+    },
+    {
+      "name": "resources/lifecycle-livedata-2.0.0/R.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "jars/lifecycle-livedata-core-2.0.0.jar",
+      "bytes": 8645,
+      "sha256": "50a4454f41fc0e23f8c729710eeb0bf48d427fc1bc0c131396ed624140952785"
+    },
+    {
+      "name": "resources/lifecycle-livedata-core-2.0.0/AndroidManifest.xml",
+      "bytes": 845,
+      "sha256": "4eb392b96fcd514b8eb55892b7d0c1f325795182b4ed9b59ad2630bcf0ad43a3"
+    },
+    {
+      "name": "resources/lifecycle-livedata-core-2.0.0/R.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "jars/lifecycle-runtime-2.1.0.jar",
+      "bytes": 9050,
+      "sha256": "9d3a4e227fe92f3b24b308013e4e58227f8a59b9b449c0a5a472df05cd805d4f"
+    },
+    {
+      "name": "resources/lifecycle-runtime-2.1.0/R.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "resources/lifecycle-runtime-2.1.0/AndroidManifest.xml",
+      "bytes": 835,
+      "sha256": "b1d0b57290a8e01240a42b94632822e572a28e6e2540d7303fd8619bc59de0d1"
+    },
+    {
+      "name": "jars/lifecycle-viewmodel-2.1.0.jar",
+      "bytes": 9126,
+      "sha256": "40312e65a88d9d2550d9a909680870d4523208c6ebc4a8be13226bc20bda1a77"
+    },
+    {
+      "name": "resources/lifecycle-viewmodel-2.1.0/R.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "resources/lifecycle-viewmodel-2.1.0/AndroidManifest.xml",
+      "bytes": 841,
+      "sha256": "84594f9bf05ae095ee42b603b15aabc2448f8a07d317e6677c5c2f129a2cdca2"
+    },
+    {
+      "name": "jars/loader-1.0.0.jar",
+      "bytes": 35177,
+      "sha256": "1f75b3cb79621362c3b9adba7d3f98eb81ccec3c9e0927bedbb97575c5537751"
+    },
+    {
+      "name": "resources/loader-1.0.0/AndroidManifest.xml",
+      "bytes": 829,
+      "sha256": "b840a690cfa21a9799a65e2d2986a52a6aa5c98a308dcf85f7567c19b30ac379"
+    },
+    {
+      "name": "resources/loader-1.0.0/R.txt",
+      "bytes": 6283,
+      "sha256": "6d21a0b45c6febbd655e3e56f1cdb865f9825a2e9ffc3f5de23d40bdc2e2d63e"
+    },
+    {
+      "name": "jars/savedstate-1.0.0.jar",
+      "bytes": 9744,
+      "sha256": "b177f6fa63518a40f8cd3a365230dc89f86db5777f9eda1413eece766102aefd"
+    },
+    {
+      "name": "resources/savedstate-1.0.0/R.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "resources/savedstate-1.0.0/AndroidManifest.xml",
+      "bytes": 875,
+      "sha256": "03b0488796d49d3a3ebc8eebfb0da8ea04ae500721d012e7752100e02e42f98d"
+    },
+    {
+      "name": "jars/versionedparcelable-1.1.0.jar",
+      "bytes": 31906,
+      "sha256": "23ab2138b5cce78bf6e93f941197ec150eba39c8ab143b1164ecbbf796157ac6"
+    },
+    {
+      "name": "resources/versionedparcelable-1.1.0/R.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "resources/versionedparcelable-1.1.0/AndroidManifest.xml",
+      "bytes": 926,
+      "sha256": "71da3e3c0bc0f6e1799d38924ba918e54aebb5684aa33b8b379a726ea4e5e5bc"
+    },
+    {
+      "name": "jars/viewpager-1.0.0.jar",
+      "bytes": 55298,
+      "sha256": "14f7429cff9f2f50421a36b237a1de35d8a2c8deffcbe1e0163c6e51a2defe56"
+    },
+    {
+      "name": "resources/viewpager-1.0.0/AndroidManifest.xml",
+      "bytes": 832,
+      "sha256": "4dd9c632baec9a5eb2a3a858cf5cb171b937c906a784f94ac06e6b6f6f6b05f2"
+    },
+    {
+      "name": "resources/viewpager-1.0.0/R.txt",
+      "bytes": 6283,
+      "sha256": "6d21a0b45c6febbd655e3e56f1cdb865f9825a2e9ffc3f5de23d40bdc2e2d63e"
+    },
+    {
+      "name": "jars/play-services-base-18.3.0.jar",
+      "bytes": 505386,
+      "sha256": "7fcfff9c7de6e5518c50c119706d1d2c01a7775ea2d2d9f3380b601b4580e35e"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/AndroidManifest.xml",
+      "bytes": 1088,
+      "sha256": "2a54927efbe3b778dbaff314e77ee6852c3913a7a0c195fd2cba05a788b51a43"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/R.txt",
+      "bytes": 3306,
+      "sha256": "da510cc11dc3d0b42277b2fc8b588976c12fbe6528fbc3374e18f339c1da32c8"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/color/common_google_signin_btn_text_dark.xml",
+      "bytes": 582,
+      "sha256": "72ab704c5455db0ab66627f4c6182c732623284aa95233645b4a40b49a3303fd"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/color/common_google_signin_btn_text_light.xml",
+      "bytes": 586,
+      "sha256": "b7ed838948eeaf651f702c932609f4c3e724d9066c57d776e2f73dc23387cb61"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/color/common_google_signin_btn_tint.xml",
+      "bytes": 259,
+      "sha256": "942c532af2a01338b228a880a74536a67910e106b4828f1d5adc7e0f015114d9"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/drawable-hdpi-v4/common_full_open_on_phone.png",
+      "bytes": 681,
+      "sha256": "e8e2fecfbf111cc5ef65dbb6c7395a5ae16a68f7e0922738d0c802b26e866e49"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/drawable-hdpi-v4/common_google_signin_btn_icon_dark_normal_background.9.png",
+      "bytes": 593,
+      "sha256": "8fc610ed1778d6ce4fe139dc57f2b96d91baa3d618bbcbd0038b832ad86db8db"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/drawable-hdpi-v4/common_google_signin_btn_icon_light_normal_background.9.png",
+      "bytes": 557,
+      "sha256": "8e94aed506ec1ae3f5784b06457d7b0faf012dea3eb5b636c9d15097ae895319"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/drawable-hdpi-v4/common_google_signin_btn_text_dark_normal_background.9.png",
+      "bytes": 740,
+      "sha256": "0643dec9ba7194972a5dc7aad74e820927201ba71c53e55132fef605809879fa"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/drawable-hdpi-v4/common_google_signin_btn_text_light_normal_background.9.png",
+      "bytes": 671,
+      "sha256": "dace4680ba345d8b991ba29e266e2ed391d587260b1e623770c356751eb01179"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/drawable-hdpi-v4/googleg_disabled_color_18.png",
+      "bytes": 410,
+      "sha256": "f73508090d3e6bbc3e39ba768e71855aad52ecaaaccda676d43a1860010cc557"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/drawable-hdpi-v4/googleg_standard_color_18.png",
+      "bytes": 808,
+      "sha256": "f221f962a62c954a11b1734e9631fc8531e34bee557665fea864aa4386e25e39"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/drawable-mdpi-v4/common_google_signin_btn_icon_dark_normal_background.9.png",
+      "bytes": 370,
+      "sha256": "54a6d569acf7fb90ee64568a82043b592c1f7d927a81992864a2736a974c1c1d"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/drawable-mdpi-v4/common_google_signin_btn_icon_light_normal_background.9.png",
+      "bytes": 333,
+      "sha256": "dd53df9d26bcb96a15eb6e43ac3082871b6c5a4908af826fef529340983ce914"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/drawable-mdpi-v4/common_google_signin_btn_text_dark_normal_background.9.png",
+      "bytes": 404,
+      "sha256": "dbfff8be1e9b55e588ead883de1913a160dae946a97a620354e033c8fcd3f13b"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/drawable-mdpi-v4/common_google_signin_btn_text_light_normal_background.9.png",
+      "bytes": 357,
+      "sha256": "446e97c5ed0289ee52070a0e6b5cc2af0f89799c6a86bd892196cfe87e808702"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/drawable-mdpi-v4/googleg_disabled_color_18.png",
+      "bytes": 281,
+      "sha256": "7c1e1629c95fb2603fbdeab93a8fbf30b9c80be11ef483d497f8a88e8f67bd6b"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/drawable-mdpi-v4/googleg_standard_color_18.png",
+      "bytes": 562,
+      "sha256": "788a3b9472e9a46e1b6b68d918cd1571914b732e93aab014d77f20be5374e9de"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/drawable-xhdpi-v4/common_full_open_on_phone.png",
+      "bytes": 489,
+      "sha256": "e816dc0998f4ee90d7b630f17e16fcc2e72d91078c5315adaac4bc2da4c226d7"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/drawable-xhdpi-v4/common_google_signin_btn_icon_dark_normal_background.9.png",
+      "bytes": 747,
+      "sha256": "b37785c921671435240f920b007879506e84e316ba1572e471203d00ff078ee5"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/drawable-xhdpi-v4/common_google_signin_btn_icon_light_normal_background.9.png",
+      "bytes": 689,
+      "sha256": "43400d4c048b0768500b6080c7cb38919aa7430610cd1fc028286653256bd95d"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/drawable-xhdpi-v4/common_google_signin_btn_text_dark_normal_background.9.png",
+      "bytes": 831,
+      "sha256": "e5ea0ce0d043beb543a2a6dc8ba7a7f21c15eba00bb30586b59b82cf5ada551f"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/drawable-xhdpi-v4/common_google_signin_btn_text_light_normal_background.9.png",
+      "bytes": 762,
+      "sha256": "9c516ffff5e1c1cc8d4522af1049a441789ee12c1ec9055274dcdfbdc0545607"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/drawable-xhdpi-v4/googleg_disabled_color_18.png",
+      "bytes": 516,
+      "sha256": "6083523032ab5df9e6cb82e4ff3d48af7738900a2e9b23d991beaa2eba7862e9"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/drawable-xhdpi-v4/googleg_standard_color_18.png",
+      "bytes": 982,
+      "sha256": "90c44675525e290332f7dba6adb97c7af3b8299e56cf5211e893d0e1dec41547"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/drawable-xxhdpi-v4/common_google_signin_btn_icon_dark_normal_background.9.png",
+      "bytes": 1104,
+      "sha256": "4add7788b9a43136809e940a493f4fe355de02da0d721d6f41cc893bc72986ad"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/drawable-xxhdpi-v4/common_google_signin_btn_icon_light_normal_background.9.png",
+      "bytes": 1052,
+      "sha256": "d26fc39f5a90d91018b444ba8e35c7c9bdd9ceeddec6d37ef25452b12444efdf"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/drawable-xxhdpi-v4/common_google_signin_btn_text_dark_normal_background.9.png",
+      "bytes": 1236,
+      "sha256": "90ce773c36f1f32a7d0cbde9d1d75912ed91a4c4502724c021f6fb85e0128764"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/drawable-xxhdpi-v4/common_google_signin_btn_text_light_normal_background.9.png",
+      "bytes": 1211,
+      "sha256": "a5324de7c8bcb4a808a856b87688f9713e5c2258ff3df9129b7770328b80e8f3"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/drawable-xxhdpi-v4/googleg_disabled_color_18.png",
+      "bytes": 727,
+      "sha256": "5db3ab4d30063b5e8fa63ae2993f83efd0af71d6526b3a1468f9e3bf891af587"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/drawable-xxhdpi-v4/googleg_standard_color_18.png",
+      "bytes": 1441,
+      "sha256": "549a81cda776769840f37f184d34eb673ff9e5c0671c67172818e91273753e1a"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/drawable/common_google_signin_btn_icon_dark.xml",
+      "bytes": 541,
+      "sha256": "3b48aaf7d51553b33dc3f117bcd0248ada6d3c4158961bcd19403a184300e872"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/drawable/common_google_signin_btn_icon_dark_focused.xml",
+      "bytes": 643,
+      "sha256": "2d162c664344c66401e407053fdcc342e4978b37333d0877186f9b2f05750326"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/drawable/common_google_signin_btn_icon_dark_normal.xml",
+      "bytes": 353,
+      "sha256": "3928d93b44b7a6a61f09e2973ea470edb05475cb4a10b8ec376bcdf39e3b36ee"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/drawable/common_google_signin_btn_icon_disabled.xml",
+      "bytes": 704,
+      "sha256": "50648f6bc26cc5aadeabf558491155fa666b681bd4fca44c16a1c3a2e3a8cb58"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/drawable/common_google_signin_btn_icon_light.xml",
+      "bytes": 543,
+      "sha256": "244c6c13b0160decf2ef2740673d854d2a967fae0939eb53418e603a21c33a44"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/drawable/common_google_signin_btn_icon_light_focused.xml",
+      "bytes": 644,
+      "sha256": "c6de96f5cf9534c21e5688336d5bbb858c049f30d9f8ab68e46beaa94315e534"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/drawable/common_google_signin_btn_icon_light_normal.xml",
+      "bytes": 354,
+      "sha256": "4fdcb3ee1be846eede03a4ba61cb572e8456813f4ef67f33ad55eb6522c46716"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/drawable/common_google_signin_btn_text_dark.xml",
+      "bytes": 652,
+      "sha256": "1ef8ead75969ab0e46e9b61285ba344a1fca3b9fc1c569034c8791ee46721334"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/drawable/common_google_signin_btn_text_dark_focused.xml",
+      "bytes": 643,
+      "sha256": "c4915ce580b3a821f6a9c78d3427693054e8e3a00b69b5b4ab17df572cf4d281"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/drawable/common_google_signin_btn_text_dark_normal.xml",
+      "bytes": 388,
+      "sha256": "7722940c20780722dd8977ac3269038e72f256ef4c3e26aaa6295a0316765bc0"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/drawable/common_google_signin_btn_text_disabled.xml",
+      "bytes": 741,
+      "sha256": "fa1c665312b005ed5d77ea9e3a273fb0b0207747930b4b75ea7cca6709dd3142"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/drawable/common_google_signin_btn_text_light.xml",
+      "bytes": 543,
+      "sha256": "2eb00da032986d40004b8c114598f96fb076d7350b7190f9f2e26f468f600b58"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/drawable/common_google_signin_btn_text_light_focused.xml",
+      "bytes": 644,
+      "sha256": "d4061a50bcac3c9dfef4f368dc08e9fe4d641d1c61e4d734b5a9e008c59f28ad"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/drawable/common_google_signin_btn_text_light_normal.xml",
+      "bytes": 389,
+      "sha256": "22f93c208510ca08cac307db874a0f9b74b0008baef000c09e7ef38e3bfc55bb"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-af/values.xml",
+      "bytes": 2190,
+      "sha256": "7a5a045bd66bd217bd216ef09534abc1a0933719aa4c03bdd0a307c8ae36385b"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-am/values.xml",
+      "bytes": 2551,
+      "sha256": "5df260c43149d58889a113501da8ce4b141ddd6d863f2e4880b612b9e805c1fa"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-ar/values.xml",
+      "bytes": 2450,
+      "sha256": "a9a52fe0dc7d0cec8f8056bac2e5a14812e6660c53915543f2101a3a160c9329"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-as/values.xml",
+      "bytes": 2923,
+      "sha256": "bbf65c45f7e9ce09b28ccb95fb384e803fb452db5e31f9f69d981dbb707b22ff"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-az/values.xml",
+      "bytes": 2320,
+      "sha256": "7668286cc23adc4cf520cdc3bd0994e8377e1b45987b141f2489b34e25e9cae9"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-b+sr+Latn/values.xml",
+      "bytes": 2207,
+      "sha256": "8776f79b5ef0dc156ebb941cd54676a3972c1d5a9d3f97fcbb9d504af8ad107b"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-be/values.xml",
+      "bytes": 2674,
+      "sha256": "53b4eb916d895ca0aaae5e1df1986bb9a864d47df24f25e7882772817c28b727"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-bg/values.xml",
+      "bytes": 2816,
+      "sha256": "20ec093d4b62d27a856f5a61bd07e0ae7617091c5d87be57868700712b165dbe"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-bn/values.xml",
+      "bytes": 2924,
+      "sha256": "fef3cdabf9934af58d58e1d4dd05551ebd34b463c627a3ebbe3ffa78005d5999"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-bs/values.xml",
+      "bytes": 2210,
+      "sha256": "6ffc4b5dcbab6b7b795574886a2f07c959c041ead3f44cb566f1dcac95f2a19e"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-ca/values.xml",
+      "bytes": 2266,
+      "sha256": "023bd89b17e7aa2f2678d17ae9f906c854735d8c2464a5fc5e47a5cdfa9add1c"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-cs/values.xml",
+      "bytes": 2307,
+      "sha256": "e0d8c8b02414ed6a5b83b7a23aae2cbe736b06df533647c78728d43f1944f30a"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-da/values.xml",
+      "bytes": 2227,
+      "sha256": "76e395d882ed705340c4b578b396a872d02944972b67d1a3d8e7b9e3f721511a"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-de/values.xml",
+      "bytes": 2352,
+      "sha256": "a634c07cc88db93928e676c655a0760ae7d93b5df7c13a8130521fc16056c914"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-el/values.xml",
+      "bytes": 2893,
+      "sha256": "fe7198edc1088569dff6089997b215de4b1fcf4fadea3a08a3d50ae7e8dd8ef1"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-en-rGB/values.xml",
+      "bytes": 2162,
+      "sha256": "0c231ceb22672e995a079c0ca040293dea3eeb055fae28339e2085c86c63851e"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-es-rUS/values.xml",
+      "bytes": 2342,
+      "sha256": "a107065c248952417f5c1e0f99eba69b1d1f45a739340ef8871e14aed491e82b"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-es/values.xml",
+      "bytes": 2326,
+      "sha256": "1cf352095f98727cdf10975741d9cad4b3a61fdd8d7bb576950f51c42dfdb581"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-et/values.xml",
+      "bytes": 2230,
+      "sha256": "30c7c1c024d33bb84e86154ac4bcaa753bbb1ef28862d0ef79cf272f2e45786e"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-eu/values.xml",
+      "bytes": 2269,
+      "sha256": "e33fae1b5f42685f90fef1cb6fe6f6038105e895bf962a0f0b70862222742617"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-fa/values.xml",
+      "bytes": 2667,
+      "sha256": "5b2e5f00c490bf19775e4cd0a30e3fc0814d0449777ff17cdc6a85d5fcea93aa"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-fi/values.xml",
+      "bytes": 2182,
+      "sha256": "bc72828dc8e796c77f28cb1b4f2433a86bffd6588aa1f71be8db97a87986156d"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-fr-rCA/values.xml",
+      "bytes": 2410,
+      "sha256": "7582343dd8ec824648fc0fc58392694d43019ad37bc3e7b3cd9f8af55601679e"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-fr/values.xml",
+      "bytes": 2398,
+      "sha256": "6756f285427da8892e793c6bffe430bd32a2a163be02c0cf696223c05e960ac3"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-gl/values.xml",
+      "bytes": 2296,
+      "sha256": "c78f3d515e76ac87cb0dd3b4252dca82615a4aeb7c5ddfa31bf5dfa5c0512212"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-gu/values.xml",
+      "bytes": 2928,
+      "sha256": "d6ca6668e89e2c5be0dc64b8762ecd3b7af71e15b2afcbb2f613fde37e2afa77"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-hi/values.xml",
+      "bytes": 3060,
+      "sha256": "987eca37719f8b12d9f3c7b0ebecb36b693d6a6ff11e358da334b530fdc03988"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-hr/values.xml",
+      "bytes": 2213,
+      "sha256": "2d28b6c41472db3e10e5517eac282a2618a7885d900b34f6548d9d3957a5340d"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-hu/values.xml",
+      "bytes": 2464,
+      "sha256": "98287f2cc00be48660d9c932e5fffc3a099997de08ba370dfef40dae2a25ea44"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-hy/values.xml",
+      "bytes": 2836,
+      "sha256": "7547b877a633d301ed618d2e8a9a649dab8fdb841ee4e1236bfc127a636606af"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-in/values.xml",
+      "bytes": 2206,
+      "sha256": "3990dd171d557c11554f96721d2eee755b9a0951093f1ff4f6fdda158c99ec20"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-is/values.xml",
+      "bytes": 2212,
+      "sha256": "c728a80d3836b4ef1aa4b5fffa7204075e4af056222410295e62e86f980fbbce"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-it/values.xml",
+      "bytes": 2231,
+      "sha256": "971d8690454fdaa74ca8f260b09dcb33e4d917a21413d42ee5f4d21e26063dc9"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-iw/values.xml",
+      "bytes": 2428,
+      "sha256": "72bfceaa6135a08fd200ed28362406c0d141dec90648b4c47eb404fcb3bfaa01"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-ja/values.xml",
+      "bytes": 2544,
+      "sha256": "1249bc2a4b4ca0906d98a08a1cd586c9bcb814e19c5ffc34b45aa6e091e1229b"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-ka/values.xml",
+      "bytes": 2954,
+      "sha256": "e57799f13d6dad2d658ac5d7e3b704b7f25af24225881ba9dbebb5fa89ad7388"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-kk/values.xml",
+      "bytes": 2631,
+      "sha256": "0f49811fec685e0794c36f41dd893920a95816dd8892a22cc6ea3a0fa096cbee"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-km/values.xml",
+      "bytes": 3217,
+      "sha256": "2f1101f1267d90d5274028bd5c547b6a5ddb64170592f987b8dd4ae0f1fc85dc"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-kn/values.xml",
+      "bytes": 3177,
+      "sha256": "fe1595c82fb0c000ccce3c162fae3787af8fd172768fa1c5b8f1dc58e170af56"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-ko/values.xml",
+      "bytes": 2353,
+      "sha256": "0812f04022a14968316aa751c24d2b1e0c2f1f422c9b3d6cd6fd9989895f9291"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-ky/values.xml",
+      "bytes": 2617,
+      "sha256": "b07d4710a2d2767619c4739d8cc9df1e2c9b979b41124671ea0f22281b748dea"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-lo/values.xml",
+      "bytes": 3333,
+      "sha256": "2ae8a1c4abd3a52ce53b7524200011cba795930fd2298986505b520159a49745"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-lt/values.xml",
+      "bytes": 2336,
+      "sha256": "4401b4e90ddd37f7c1093fad11993e193384c4cddd2c02313a344f416b4d5836"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-lv/values.xml",
+      "bytes": 2323,
+      "sha256": "8c5d21a42704b14313ce601f9ff595aa13d22ab0146c3901ff9d1475a1e78495"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-mk/values.xml",
+      "bytes": 2694,
+      "sha256": "c376112d252264bb18aac1570ff11777c61da4f68d711ba9a143d2c5210a15bc"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-ml/values.xml",
+      "bytes": 3514,
+      "sha256": "3f612eb58a0d9e1b4b7c947292d499186bc27bb5d9bdda4be79d7ffd8c48b42b"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-mn/values.xml",
+      "bytes": 2656,
+      "sha256": "e802da4ba7abf7b51e37c18b7e131d646be484a7447b833261376e44c016a216"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-mr/values.xml",
+      "bytes": 2919,
+      "sha256": "80de8b37f623899148cd663d4aea3fa161fd9dbfe22090781be0af2219748883"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-ms/values.xml",
+      "bytes": 2347,
+      "sha256": "d364f2c6ec060f3d8790cc28dc0079bc0e5bf8d888b7e4a970d2990928873dc9"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-my/values.xml",
+      "bytes": 3559,
+      "sha256": "4845665c78fdc765fbebbd5e8bcd25f840722dc10b873ce16fcbeafaddf908ae"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-nb/values.xml",
+      "bytes": 2238,
+      "sha256": "3586870c67e103e71f790e297f79336780e9f2e26fb8f4f5eb0b15c0f51e8b64"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-ne/values.xml",
+      "bytes": 3258,
+      "sha256": "586ed6ef879140c3a067fa99f2b97516e093b4adfa17c888f9c2980db9e1f88c"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-nl/values.xml",
+      "bytes": 2293,
+      "sha256": "0a957836c6bf98d6c3c5558c2aea0730769e089e009ecb38bbc8e40d8bc320c4"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-or/values.xml",
+      "bytes": 3283,
+      "sha256": "333fc064a5239b766c802055dc7521b38dc20ba2aeac26e0aba696c0365061b8"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-pa/values.xml",
+      "bytes": 3155,
+      "sha256": "38a43bd09b6a927ffa89e04aaf28b1b65316334fb58dbc8308e1f4cf29cfee3f"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-pl/values.xml",
+      "bytes": 2301,
+      "sha256": "25993b093b33bb6d474f7f16586ba4550b3824e4b1cef1fc002586906d4d872d"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-pt-rBR/values.xml",
+      "bytes": 2274,
+      "sha256": "a4ac8c573076d89f2c721344c7774e26f387b30d9c77f4ca7e1af6b665ba195a"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-pt-rPT/values.xml",
+      "bytes": 2365,
+      "sha256": "ad98e95dbf461ede5d63deb5a09db1edbe9750a7c44dadc0fb4bce99443d4b9b"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-ro/values.xml",
+      "bytes": 2281,
+      "sha256": "5fe5f9b4614f4644c4c9b6ed8492d58ac501eb1c10cf866abfc172864f75fbb8"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-ru/values.xml",
+      "bytes": 2732,
+      "sha256": "b3ae5f812a4e4f18e70155be2fc885046c734d9b389336b401d7f9c96d55276a"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-si/values.xml",
+      "bytes": 3010,
+      "sha256": "e818bb8f5a35a52f2a2c55bd0b13bb22ee24493106e22e8c683ab0d86dff5ed7"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-sk/values.xml",
+      "bytes": 2328,
+      "sha256": "6d65d3e889b3a7d657f388aab6feda6b287f226b76b8e0ca9d452a6b8d886e7f"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-sl/values.xml",
+      "bytes": 2229,
+      "sha256": "ed5f16c7e44a292966fc9b9279603185ff134d0dbe3e9202f57f2f2070f97a8f"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-sq/values.xml",
+      "bytes": 2397,
+      "sha256": "4a1d3431f9c162e6801df8c69c9a6977ccfb80f2acb5503cadff1fc845dfad76"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-sr/values.xml",
+      "bytes": 2581,
+      "sha256": "f949e6722e6c93a0a95dd1225b169bb3db702b07547e7ef5c0c22397dbd973e2"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-sv/values.xml",
+      "bytes": 2221,
+      "sha256": "95dd10c13700f1aceaff72939a317e4aa06cb3f361c1a3e5178a41a146af67ab"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-sw/values.xml",
+      "bytes": 2252,
+      "sha256": "912a32ef31db6187f292093b5ea2259b296200430f8bc880564ea5ac99355527"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-ta/values.xml",
+      "bytes": 3122,
+      "sha256": "13bf907ecf5b2d61af90bf83d839ad25399094ea6b448c4f463f42ef0b000da4"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-te/values.xml",
+      "bytes": 3043,
+      "sha256": "edde550596fbc4349b2588adebd7f10187f1cff02f2881fdc42f7b1082eac30b"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-th/values.xml",
+      "bytes": 2984,
+      "sha256": "f20fc4bd44ef2c585acce26bcf79ffdcef069f3b2bc6ed5082ba82c03cec8e7e"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-tl/values.xml",
+      "bytes": 2354,
+      "sha256": "88e1e1793ce51bf57e02e1f3603e7d9896099c878971f336d2aa88301952fdf9"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-tr/values.xml",
+      "bytes": 2284,
+      "sha256": "e362dad835515e89dc4b2f0d3b6e754358b7bb1a46d65417fc45c9b29bd78e65"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-uk/values.xml",
+      "bytes": 2666,
+      "sha256": "26fc53d19874210013357851337904ab7f2cfd1595f79745e3d1771e1c985844"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-ur/values.xml",
+      "bytes": 2653,
+      "sha256": "f90bd769e459ccc06393b35203468ac20ca111b26f3eafc73ac61999f4dd1cf4"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-uz/values.xml",
+      "bytes": 2238,
+      "sha256": "77c3f129ab4f169237e287848432977777dd4302f555009532e2de36479fcbf7"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-vi/values.xml",
+      "bytes": 2474,
+      "sha256": "30f26e1911c10e66b23fa4e64dfcd69e2072ddb1110e6ed2d0db265a9cdf2252"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-zh-rCN/values.xml",
+      "bytes": 2152,
+      "sha256": "b8619f7c56254ba1102c0f78687c399b93dbff63c0280984eb997964e4943845"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-zh-rHK/values.xml",
+      "bytes": 2157,
+      "sha256": "d6f05587e8b2507d7b70a6e7e9badd56ec9b7410e4c02b3a8448e3c3d36d25e1"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-zh-rTW/values.xml",
+      "bytes": 2151,
+      "sha256": "eda552f270ae4e6796e94a65bb9f1bf94fa844b21a12b051de6ec4019707f654"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values-zu/values.xml",
+      "bytes": 2290,
+      "sha256": "446606d46487c75c61e041558658f7a16202c342325cf307400b5281ec8aecb0"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/res/values/values.xml",
+      "bytes": 3900,
+      "sha256": "a2836f445aa5966e503932ead0bf253e1bd811846affc71e41e77bc050647592"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/third_party_licenses.json",
+      "bytes": 834,
+      "sha256": "f49b0d3754fe9430ca8e1d7578b98f9c74c912fa5182bee2db86f0c386ab7970"
+    },
+    {
+      "name": "resources/play-services-base-18.3.0/third_party_licenses.txt",
+      "bytes": 313001,
+      "sha256": "653d2e7a2bb02c79b897e826df9c3b2d8e8b1a3b2cef5e29585124fa455ddaf5"
+    },
+    {
+      "name": "jars/play-services-basement-18.3.0.jar",
+      "bytes": 356135,
+      "sha256": "d528f182e0b26751dbb35b4ac9b291b9b8249ba84262d5aeb50ec58ab241618b"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/AndroidManifest.xml",
+      "bytes": 1030,
+      "sha256": "560b38942f915c4ebc63c2bf8ac88a4695e0eaef67669bcd0af3a6bebcf31ca6"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/R.txt",
+      "bytes": 98,
+      "sha256": "aac54bfae4c0ff7a304752bc2204dd57c99d311449cf2d627766278a79d818a7"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-af/values.xml",
+      "bytes": 346,
+      "sha256": "2c5b28ac134e994ff61718b33dae08fd0b2f5c1796284b85b4f2baa1377c7a4e"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-am/values.xml",
+      "bytes": 409,
+      "sha256": "f5843c60051e414aefa7962f385a7596fddd88170f4fae6396ba1c2a7cc3b74e"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-ar/values.xml",
+      "bytes": 368,
+      "sha256": "752957c9a79c5368045ff585eaeb9f6b9e4c5ac144dec8e35dda57ed22081467"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-as/values.xml",
+      "bytes": 399,
+      "sha256": "8c98f86519ea5030ef42bd2c00afd4b1ee03968365bec10c387b6709ebb6d68a"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-az/values.xml",
+      "bytes": 372,
+      "sha256": "94a00de20a104496d9bfb54f46be04e0df67431c3d10c04ca571788304e28eab"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-b+sr+Latn/values.xml",
+      "bytes": 340,
+      "sha256": "2a734b72a4510d81f0ac190487d45c22a0276427bd5621af0f05a07cb440b2c0"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-be/values.xml",
+      "bytes": 398,
+      "sha256": "eebc8314968330fbe51f060252dad00b25d072c02b725f75430f6827574088b3"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-bg/values.xml",
+      "bytes": 381,
+      "sha256": "d44c84696ba5913501e7c614dc0d8b7e3a1b7b87ae259d9c8ff4644e7c429252"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-bn/values.xml",
+      "bytes": 465,
+      "sha256": "e569760039e6736a42c76c81d89f20e6706a0fa93a9792d82b594fee4289617d"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-bs/values.xml",
+      "bytes": 345,
+      "sha256": "da75a0b307946daf8210a24ff10794ab6895979d34ce8b14cfa92190059fa5a4"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-ca/values.xml",
+      "bytes": 339,
+      "sha256": "90d9fbaffa660b337077134953e6b6749de8e07fad8a4d7909d645e3c166a6b9"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-cs/values.xml",
+      "bytes": 351,
+      "sha256": "40855e29572a0ffa64fce3930139f805eddda38d42e50efe273c9e1fae3908e8"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-da/values.xml",
+      "bytes": 331,
+      "sha256": "f671b295402c8760a0d9f408072bb73f64bf026fa2d81dee3d731317feb2f2c0"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-de/values.xml",
+      "bytes": 348,
+      "sha256": "b066e1464eac68956dceadc40065866e90fa535f38a2a3491ae73aca9e9ac921"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-el/values.xml",
+      "bytes": 432,
+      "sha256": "5a827809c8b66a7c3c7efce0490731d5dd515edc7bb42218d28347332259d017"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-en-rGB/values.xml",
+      "bytes": 345,
+      "sha256": "5784272313e36925d02e4f1f56baa537b2ddddf9e8af833dccfc6c7c97196d83"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-es-rUS/values.xml",
+      "bytes": 353,
+      "sha256": "4ff158077dc3ad93dbe7a8cf29a4af217064693f9b2b0c1730a5c24e2687e6e0"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-es/values.xml",
+      "bytes": 364,
+      "sha256": "92999729329f58791d21d788f617e97d1ace9c987c6f41f86a682873119026f8"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-et/values.xml",
+      "bytes": 343,
+      "sha256": "bddba825b7ea2ac62157f34f4b5899d8cf371b197182671fae896c791a51d8ed"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-eu/values.xml",
+      "bytes": 346,
+      "sha256": "b1e474182cfb49d24749f2ae3885ebdd9d8119676b93805f9b6105300da2e914"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-fa/values.xml",
+      "bytes": 413,
+      "sha256": "28ff90d2b90dbe8ca8c5598eea026e4aa4b03f9b5e9cb099b2de0073260ab7f3"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-fi/values.xml",
+      "bytes": 354,
+      "sha256": "1f30b6782c6e040055c199c1178d8bc225c643195164272ba879aff66543c440"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-fr-rCA/values.xml",
+      "bytes": 372,
+      "sha256": "3fd1dfc204751c9840e6a05f874b128753e1bf84b0d316e6e08b68c737f7e69d"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-fr/values.xml",
+      "bytes": 371,
+      "sha256": "9c389348f022642f01c63ee36c10e0db9d3a5c25e6e8ffee36a8edae999e33ce"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-gl/values.xml",
+      "bytes": 338,
+      "sha256": "1643326477651394d4e2699a77abed0af4e3de5dc0b1c8cff7103cbb085784d0"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-gu/values.xml",
+      "bytes": 444,
+      "sha256": "5db545e1b074ceb3985ee645b09195110407df40b953229e4b7ca3bacbeebdcb"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-hi/values.xml",
+      "bytes": 437,
+      "sha256": "15ee6cba6247ef949fb478d1c5c357e98f5f93fb809f5813f0d48c38e0954b9a"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-hr/values.xml",
+      "bytes": 338,
+      "sha256": "6691aaaecd63287a6e94bf758550847e6aaf0dbedff5f83df5cf6bf899b03379"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-hu/values.xml",
+      "bytes": 393,
+      "sha256": "bc0b16b18b10431d9d90e3ad8f224caf618c60d34a6e451e1ba242e498746f56"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-hy/values.xml",
+      "bytes": 408,
+      "sha256": "9a39ec003386cd5842148f29ff59329618e8969d6f255bd16113182af14db26f"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-in/values.xml",
+      "bytes": 335,
+      "sha256": "d50218e82d7c4e5e264cce90ec7f0659a7d90af0ade9d80e47d6b4de3cf0fa88"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-is/values.xml",
+      "bytes": 339,
+      "sha256": "644526b111acc7befa86fad25556ff054cd9387c328b9d869f879edffd2efa8a"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-it/values.xml",
+      "bytes": 339,
+      "sha256": "eb5a191a234b342c7afc6a09f8f2c72bdff4e1c07c9259366595a0ad4fc3a52c"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-iw/values.xml",
+      "bytes": 346,
+      "sha256": "ee85767b0fc7e2fd9d30bf419c1663442a6da140922f9aba759e16a9bf326da0"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-ja/values.xml",
+      "bytes": 393,
+      "sha256": "6e2b418e443a4094be5bfeefcf68a475c1b66fd57e32583ea0a6cb4d4eb0d070"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-ka/values.xml",
+      "bytes": 420,
+      "sha256": "1d96c0307c06848aae63d5737b5e20d1daa13d37ff23f40177619fc5e511753d"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-kk/values.xml",
+      "bytes": 434,
+      "sha256": "1a3542da79e206797dc69124810f4abb7ff3073d584e20a38675ff74589bffa2"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-km/values.xml",
+      "bytes": 470,
+      "sha256": "c99cebcfbbfbbbc4f78376b320291b8f29f8455638587a9ed2f7d757f1b70cae"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-kn/values.xml",
+      "bytes": 451,
+      "sha256": "d0550b866b9326b4604e460b1f9a6ac7268f8d8d23558c8da5af804c1aa324d6"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-ko/values.xml",
+      "bytes": 374,
+      "sha256": "6ba7766a3893897ca8d74a599b989e9ce9705b5775318e237ae76f02cd2123b0"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-ky/values.xml",
+      "bytes": 422,
+      "sha256": "2b436345d570277b29ea20ef276555a03c5453c4346c3f56e912300d87ce4586"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-lo/values.xml",
+      "bytes": 417,
+      "sha256": "1dc7039d33bbdd3389676dd07fac22d03a84fd268d22cf03ef402691810f3640"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-lt/values.xml",
+      "bytes": 375,
+      "sha256": "2dca3afbf76d6ca49c7c460ef8f382e07433c457ff40d07d7b1685a4659b002c"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-lv/values.xml",
+      "bytes": 376,
+      "sha256": "9b21720934fc4948561db950c40641c43cd34bb18428a917e01d01e95734941b"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-mk/values.xml",
+      "bytes": 380,
+      "sha256": "66b1edea08bb4a61868f7e0a7ffa02a9e9d91d9490c0ef672e1b7b81d4ee2595"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-ml/values.xml",
+      "bytes": 493,
+      "sha256": "f5e0d8f226de2855970dfe7b8dd4e1380c3903d9f9a4f84a20ec49ffafc34c73"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-mn/values.xml",
+      "bytes": 405,
+      "sha256": "429035ee7896f116497ce4d7ec464a11c377f38c4796c63dc288685fed8de622"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-mr/values.xml",
+      "bytes": 436,
+      "sha256": "64e04b2f7ea2d2acdc0797b61ec7c70eb514690331aafecc668024ee3042a022"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-ms/values.xml",
+      "bytes": 349,
+      "sha256": "854880b3254e7d9b1924e178a3ae18cdf693857dd47b59e4739f4ced1293df4e"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-my/values.xml",
+      "bytes": 481,
+      "sha256": "3e68f1edd135303cdeb9427fd96d1ac6cb9078ab8e138b753095864b4871c6fc"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-nb/values.xml",
+      "bytes": 335,
+      "sha256": "2ba84cf8579919e0475289c140f6bbe66660ca8650eb97c553d00da30288eb6d"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-ne/values.xml",
+      "bytes": 481,
+      "sha256": "bc3d38fdbcb1b38225489c1bca084f5c0201223d54396281d2a700f0e3f3df93"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-nl/values.xml",
+      "bytes": 346,
+      "sha256": "9d11b49be5f046c9447da33078de0356ca8d74cda8af5c7305de9fa60104b9ea"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-or/values.xml",
+      "bytes": 431,
+      "sha256": "1a51d7e4ce53561353d4789148fb83578cf98af9be18d07dc7e9640d7d54a2b8"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-pa/values.xml",
+      "bytes": 458,
+      "sha256": "cd3efc85308313c3265fb17fc289840df7a63d64f5177169a49136cc09715fec"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-pl/values.xml",
+      "bytes": 346,
+      "sha256": "d6864b305f2837df3bc114e199be5c3f32eaaf5c632e081370353b4cf8c9ed4e"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-pt-rBR/values.xml",
+      "bytes": 353,
+      "sha256": "387957564d3bfb82538fa7a0e195bc155d558b8c3deac050dfc36e234391e920"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-pt-rPT/values.xml",
+      "bytes": 354,
+      "sha256": "838c7f2f94610cd75206eef0481acb140af6347611a8f5d60d478c876bbb8f07"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-ro/values.xml",
+      "bytes": 352,
+      "sha256": "c646fe24feb8697f29342eff123f6a891fa34a597b4be5d7cfcd183221125b41"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-ru/values.xml",
+      "bytes": 416,
+      "sha256": "e468e27c034c72535bd9293c443a9a33f1830bfd98a7f5c973eb01fc83bf7dc7"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-si/values.xml",
+      "bytes": 424,
+      "sha256": "12056506d38f3dc58dd6a6a250e81963560c182fae01e528759632077e180e8a"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-sk/values.xml",
+      "bytes": 347,
+      "sha256": "494ee282add04b1dd0d7a0005bcfda8976f629fc86c9069511a4a1bfde59cec8"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-sl/values.xml",
+      "bytes": 344,
+      "sha256": "66cd399091f9b7618674fa303c3a7809cd07ef5d0ff7c2d8544dc42046a9c421"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-sq/values.xml",
+      "bytes": 334,
+      "sha256": "7761f253c0c73b4fed9592141ecd98d07178d1a050090a9cfd6f4932601de467"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-sr/values.xml",
+      "bytes": 368,
+      "sha256": "6e68ccc03b37337ea2cb06884c93c906ff9ad50be38802838e58c9b43c083670"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-sv/values.xml",
+      "bytes": 355,
+      "sha256": "9d128c6489c6e3417ec8424ae97ea3730aa57aee3f0e256d5701ad95329d9c30"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-sw/values.xml",
+      "bytes": 349,
+      "sha256": "d71b6816a7e12f88aa26d620b416de5b1dbb8d6f711eb11c7e3b1dd6fe81ccca"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-ta/values.xml",
+      "bytes": 490,
+      "sha256": "f852caf2d61ad525bf5ab75c2eb1446a0b69034d9c6254300971daefbff1daff"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-te/values.xml",
+      "bytes": 423,
+      "sha256": "bb98fed79ee68d596dec7c80a9dcf9aa52e044c391826a0451a8c4472bcc0536"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-th/values.xml",
+      "bytes": 412,
+      "sha256": "992b1dafd4a1ef83a21a0aa64eb6c6c2865dd065bfdbd51406fbe502fbf2a063"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-tl/values.xml",
+      "bytes": 348,
+      "sha256": "2d89059b339636e2c14d39cf832271d65529e9ef75e838e598145def02c9c97e"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-tr/values.xml",
+      "bytes": 353,
+      "sha256": "fcb771c041ab90a6132962a0d738b3377ba7d6fc5309429a1d147e6de69b32f9"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-uk/values.xml",
+      "bytes": 398,
+      "sha256": "28c5c752d7a93a3c99a96eddd6de6c28fa6626772db980cf636179cdf0916585"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-ur/values.xml",
+      "bytes": 407,
+      "sha256": "ed9d7fb9101f73a8f1b297b9e7d070a74754f86d77421f8031b0d8e67abd3c20"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-uz/values.xml",
+      "bytes": 357,
+      "sha256": "32fb903a89c31d7334df24039a7322185f25be29215a47b456530bf1c9c92ca6"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-vi/values.xml",
+      "bytes": 349,
+      "sha256": "27a48321c535d273128ec3b05518184effb31c1a3c203803da6db09be4a3dfb5"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-zh-rCN/values.xml",
+      "bytes": 328,
+      "sha256": "80b748a60a3d5eb4796da019824ce8f7acc5f4732d77f164d04ac541305897a7"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-zh-rHK/values.xml",
+      "bytes": 355,
+      "sha256": "485bf0e683e3c733e33247a01c316aed79284e4d04a3a4d6d64e417619b70ed8"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-zh-rTW/values.xml",
+      "bytes": 340,
+      "sha256": "d02cf2cffa575c91101e163c992870d6e41e05defa431b9415bdd416b1760dba"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values-zu/values.xml",
+      "bytes": 335,
+      "sha256": "6a4df5c7836308965ae3701aa4970ff0d7be978f1d1a35e32f810799267158a3"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/res/values/values.xml",
+      "bytes": 585,
+      "sha256": "49bf6383d951cf81a9beea1f8616d1acc74415cb7b14fb1846d038ee786ef7a1"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/third_party_licenses.json",
+      "bytes": 834,
+      "sha256": "f49b0d3754fe9430ca8e1d7578b98f9c74c912fa5182bee2db86f0c386ab7970"
+    },
+    {
+      "name": "resources/play-services-basement-18.3.0/third_party_licenses.txt",
+      "bytes": 313001,
+      "sha256": "653d2e7a2bb02c79b897e826df9c3b2d8e8b1a3b2cef5e29585124fa455ddaf5"
+    },
+    {
+      "name": "jars/play-services-location-21.2.0.jar",
+      "bytes": 279376,
+      "sha256": "c23a5564db836db7752c78e8eeb56d9b8810be779083d44e7a6b9692275c1a06"
+    },
+    {
+      "name": "resources/play-services-location-21.2.0/AndroidManifest.xml",
+      "bytes": 234,
+      "sha256": "6b5e7467fc2ca68b47c997614b9b4c55d19ee8d7b744c80da0b42148231e3eb0"
+    },
+    {
+      "name": "resources/play-services-location-21.2.0/R.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "resources/play-services-location-21.2.0/third_party_licenses.json",
+      "bytes": 1086,
+      "sha256": "bd57872d0cffe691d76fb7f458c2674b9911093981086e1fd94d405e6ee75637"
+    },
+    {
+      "name": "resources/play-services-location-21.2.0/third_party_licenses.txt",
+      "bytes": 367213,
+      "sha256": "f452362efd095bdfafe7f0056aedfcc284146bf172f9c983f375b8b9012ee6a1"
+    },
+    {
+      "name": "jars/play-services-tasks-18.1.0.jar",
+      "bytes": 41316,
+      "sha256": "a576259c11eb1bf437d3292c30c84b1e19d9fae008685046435d4d98dec28a12"
+    },
+    {
+      "name": "resources/play-services-tasks-18.1.0/AndroidManifest.xml",
+      "bytes": 233,
+      "sha256": "a722b1ec26c254b282ca383ec53e0c5ce47e1f56d98d4081d96dbbc308b05084"
+    },
+    {
+      "name": "resources/play-services-tasks-18.1.0/R.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "resources/play-services-tasks-18.1.0/third_party_licenses.json",
+      "bytes": 834,
+      "sha256": "f49b0d3754fe9430ca8e1d7578b98f9c74c912fa5182bee2db86f0c386ab7970"
+    },
+    {
+      "name": "resources/play-services-tasks-18.1.0/third_party_licenses.txt",
+      "bytes": 313001,
+      "sha256": "653d2e7a2bb02c79b897e826df9c3b2d8e8b1a3b2cef5e29585124fa455ddaf5"
+    },
+    {
+      "name": "jars/kotlin-stdlib-2.1.21.jar",
+      "bytes": 1724058,
+      "sha256": "263bdc679e1f62012db7b091796279b6d71cf36f4797a98ff1ace05835f201c8"
+    },
+    {
+      "name": "jars/kotlin-stdlib-jdk7-1.8.20.jar",
+      "bytes": 963,
+      "sha256": "af1ec40c3b951afdcc0c2a0173c7b81763c5281c2d5bafbf0a8544a24c5dcc0c"
+    },
+    {
+      "name": "jars/kotlin-stdlib-jdk8-1.8.20.jar",
+      "bytes": 969,
+      "sha256": "e398b67977622718bf18ff99b739c7d9da060f33fb458a2e25203221c16af010"
+    },
+    {
+      "name": "jars/kotlinx-coroutines-android-1.7.3.jar",
+      "bytes": 20637,
+      "sha256": "59fffb26bee12c32dadcfa5d420c2a7db85d3253518128b170efda726613256d"
+    },
+    {
+      "name": "jars/kotlinx-coroutines-core-jvm-1.7.3.jar",
+      "bytes": 1551152,
+      "sha256": "1ab3acc38f3e7355c4f9d1ec62107a46fa73c899f3070d055e5d4373dfe67e12"
+    },
+    {
+      "name": "jars/annotations-23.0.0.jar",
+      "bytes": 29371,
+      "sha256": "7b0f19724082cbfcbc66e5abea2b9bc92cf08a1ea11e191933ed43801eb3cd05"
+    },
+    {
+      "name": "packages.txt",
+      "bytes": 401,
+      "sha256": "22b22799b7a5616e7ec7ab579b30f463b742ef483622a6bed52a1fb80e9b1aec"
+    },
+    {
+      "name": "metadata/activity-1.0.0.pom",
+      "bytes": 2512,
+      "sha256": "27a4be7462629c312da0b831a0978d2076fc34074145fb61dd4e86d7c8469b82"
+    },
+    {
+      "name": "metadata/annotation-jvm-1.10.0.pom",
+      "bytes": 2103,
+      "sha256": "5eece0903b4810aa1da85414dc4c2746046d878a543aa12dd4f1fe74171f7506"
+    },
+    {
+      "name": "metadata/core-common-2.1.0.pom",
+      "bytes": 1315,
+      "sha256": "83bbb3960eaabc600ac366c94cb59414e441532a1d6aa9388b0b8bfface5cf01"
+    },
+    {
+      "name": "metadata/core-runtime-2.0.0.pom",
+      "bytes": 1529,
+      "sha256": "e2007d41ddc69ee2a77fed7b5c1dc5a41e01122926ba59696aab7b18d2264411"
+    },
+    {
+      "name": "metadata/collection-1.1.0.pom",
+      "bytes": 1338,
+      "sha256": "67e9066ca4acfdc6e3cc508293c31ba0398057ff118e4f70b1e1813c9a3456d1"
+    },
+    {
+      "name": "metadata/core-1.2.0.pom",
+      "bytes": 2181,
+      "sha256": "3d1f4e37b77dd92353879a040ab4ce2f706798bcbdf066147491c3642b3f79a6"
+    },
+    {
+      "name": "metadata/customview-1.0.0.pom",
+      "bytes": 1795,
+      "sha256": "ce9e47b87184f5bd5e139e9becd5b26476d42d78c31bf2fdedc37acb41b9ad49"
+    },
+    {
+      "name": "metadata/fragment-1.1.0.pom",
+      "bytes": 3100,
+      "sha256": "ef78eb27ac02ddf3545d5f8a3857c73a2837a01853f8d5fcf77251011db52544"
+    },
+    {
+      "name": "metadata/lifecycle-common-2.1.0.pom",
+      "bytes": 1330,
+      "sha256": "692c2a60437a95220c8fbb6e8943196f255f535d1a7c58714e6c46530782f276"
+    },
+    {
+      "name": "metadata/lifecycle-livedata-2.0.0.pom",
+      "bytes": 1788,
+      "sha256": "a84842ffc0f14e518db75c05cc112680a8a4a164fa78395be32d88304a439423"
+    },
+    {
+      "name": "metadata/lifecycle-livedata-core-2.0.0.pom",
+      "bytes": 1773,
+      "sha256": "650fda1a232f5669742140571570ccad2f47a71225ab0f02179bc8d144b982c8"
+    },
+    {
+      "name": "metadata/lifecycle-runtime-2.1.0.pom",
+      "bytes": 1731,
+      "sha256": "af8dcf02db2d79bcd4b53d6be8dbf37d79a32b38a1dfcaebbbd8766e0d959fcb"
+    },
+    {
+      "name": "metadata/lifecycle-viewmodel-2.1.0.pom",
+      "bytes": 1368,
+      "sha256": "29aa72e339c3e227e74c973a4c85c7b79c926f0d37b61ed94f4d99a137c9a4b4"
+    },
+    {
+      "name": "metadata/loader-1.0.0.pom",
+      "bytes": 2207,
+      "sha256": "c978d550808b47434aa49a63164110a50b55b0bcc6160a93a2e37d5110df8c5e"
+    },
+    {
+      "name": "metadata/savedstate-1.0.0.pom",
+      "bytes": 2072,
+      "sha256": "844d7d22fcea798c78bf5559229daf88ec9cad8136f5eea0a29aa76b3f8fde7c"
+    },
+    {
+      "name": "metadata/versionedparcelable-1.1.0.pom",
+      "bytes": 1643,
+      "sha256": "c729c7be0cc06323bda829d460666e79dbd43b799a21089a44bd3b293dc253b5"
+    },
+    {
+      "name": "metadata/viewpager-1.0.0.pom",
+      "bytes": 1997,
+      "sha256": "1f72f836339d03c6eb013f65075e76ca87075a577578eb4f95f74a3a5d253128"
+    },
+    {
+      "name": "metadata/play-services-base-18.3.0.pom",
+      "bytes": 1767,
+      "sha256": "f6d2bf5e81d80cf9d1b07ea6950fb72d206336c52fab5ce605937e545867a034"
+    },
+    {
+      "name": "metadata/play-services-basement-18.3.0.pom",
+      "bytes": 1336,
+      "sha256": "9cef5dc9a6950ff09a85ff522b476f855eb7ef2373aa4c17339cb114ac5397e2"
+    },
+    {
+      "name": "metadata/play-services-location-21.2.0.pom",
+      "bytes": 2045,
+      "sha256": "f0488a672acbc2baa2333c89b0bad869f8c4559c6718692ec9cc178d8be64e7c"
+    },
+    {
+      "name": "metadata/play-services-tasks-18.1.0.pom",
+      "bytes": 952,
+      "sha256": "cf29ed846108d7a8f2c17d8ef5b63399735757c5a09bb663d7e784e02ad84bcd"
+    },
+    {
+      "name": "metadata/kotlin-stdlib-2.1.21.pom",
+      "bytes": 2322,
+      "sha256": "c5524086ca3e49a67986df8fdccd66037baf5f3c5a358b76f9dd609bee7bb638"
+    },
+    {
+      "name": "metadata/kotlin-stdlib-jdk7-1.8.20.pom",
+      "bytes": 1389,
+      "sha256": "3622d106578cddcc0a9ec20f8ce815f7f49ff542f640228d2141fcaf80616b06"
+    },
+    {
+      "name": "metadata/kotlin-stdlib-jdk8-1.8.20.pom",
+      "bytes": 1581,
+      "sha256": "3a462214a336e995687769531b1e37b0c81d8e10c9949cd5ea7ae1d7803a0232"
+    },
+    {
+      "name": "metadata/kotlinx-coroutines-android-1.7.3.pom",
+      "bytes": 2226,
+      "sha256": "020515246d19e176d5626eb118f80f97f7876d1accd8cec15b1a4159257d5054"
+    },
+    {
+      "name": "metadata/kotlinx-coroutines-core-jvm-1.7.3.pom",
+      "bytes": 2395,
+      "sha256": "753858753decbbb2397343e2b871f062f697812e9422e41c9ee46a66b93eee30"
+    },
+    {
+      "name": "metadata/annotations-23.0.0.pom",
+      "bytes": 1354,
+      "sha256": "c9490f655132328df2cfbcfdf743f53fc3916d6c1d10437175a6ca6e3a67771c"
+    }
+  ],
+  "sharedHttp": [
+    "annotation-jvm-1.10.0.jar",
+    "kotlin-stdlib-2.1.21.jar"
+  ],
+  "replaceHttp": [
+    "annotations-13.0.jar"
+  ]
+}

@@ -22,6 +22,10 @@ struct CleanupTarget {
     retire_context: *mut std::ffi::c_void,
 }
 pub struct MpPool {
+    #[cfg(target_os = "android")]
+    gles_epoch: Option<u64>,
+    #[cfg(target_os = "android")]
+    last_gles_epoch: u64,
     owner: ThreadId,
     pool: InstancePool<RetainedEngine>,
     error: CString,
@@ -51,6 +55,14 @@ fn call<T>(
     failed: T,
     action: impl FnOnce(&mut MpPool) -> Result<T, String>,
 ) -> T {
+    call_inner(handle, failed, true, action)
+}
+fn call_inner<T>(
+    handle: *mut MpPool,
+    failed: T,
+    verify_gpu: bool,
+    action: impl FnOnce(&mut MpPool) -> Result<T, String>,
+) -> T {
     // Reject reentry before dereferencing a handle already borrowed by the
     // outer call, including while destruction callbacks run.
     let Some(_guard) = CallGuard::enter(handle) else {
@@ -62,7 +74,15 @@ fn call<T>(
         return failed;
     }
     let state = unsafe { &mut *handle };
-    match catch_unwind(AssertUnwindSafe(|| action(state))) {
+    match catch_unwind(AssertUnwindSafe(|| {
+        #[cfg(target_os = "android")]
+        if verify_gpu {
+            check_gpu(state)?;
+        }
+        #[cfg(not(target_os = "android"))]
+        let _ = verify_gpu;
+        action(state)
+    })) {
         Ok(Ok(value)) => value,
         result => {
             let error = match result {
@@ -76,6 +96,21 @@ fn call<T>(
             failed
         }
     }
+}
+#[cfg(target_os = "android")]
+fn check_gpu(state: &mut MpPool) -> Result<(), String> {
+    state.pool.visit(|guest| {
+        if let Some(engine) = guest.resources() {
+            if let Some(epoch) = engine.graphics.epoch() {
+                engine
+                    .graphics
+                    .current(epoch)
+                    .map_err(str::to_owned)?
+                    .require_current()?;
+            }
+        }
+        Ok(())
+    })
 }
 unsafe fn bytes<'a>(data: *const u8, length: usize, limit: usize) -> Result<&'a [u8], String> {
     if length > limit || (length > 0 && data.is_null()) {
@@ -94,6 +129,10 @@ pub extern "C" fn mp_pool_create(capacity: u32) -> *mut MpPool {
     }
     catch_unwind(|| {
         Box::into_raw(Box::new(MpPool {
+            #[cfg(target_os = "android")]
+            gles_epoch: None,
+            #[cfg(target_os = "android")]
+            last_gles_epoch: 0,
             owner: thread::current().id(),
             pool: InstancePool::new(capacity as usize),
             error: CString::new("").unwrap(),
@@ -172,6 +211,19 @@ pub unsafe extern "C" fn mp_pool_activate(
                 guest.completion_generation = generation;
                 Ok::<_, String>(
                     guest
+                        .with_resource_retirement(|engine| {
+                            #[cfg(target_os = "android")]
+                            if let Some(epoch) = engine.graphics.epoch() {
+                                // Pool mutation checks every retained binding before guest turns.
+                                unsafe {
+                                    engine
+                                        .release_gles(epoch)
+                                        .expect("Pool EGL retirement invariant");
+                                }
+                            }
+                            #[cfg(not(target_os = "android"))]
+                            let _ = engine;
+                        })
                         .with_retirement(move || {
                             let target = retirement.borrow();
                             if let Some(callback) = target.retire {
@@ -320,7 +372,149 @@ pub extern "C" fn mp_pool_memory_warning(handle: *mut MpPool) -> i32 {
 }
 #[unsafe(no_mangle)]
 pub extern "C" fn mp_pool_last_error(handle: *mut MpPool) -> *const c_char {
-    call(handle, std::ptr::null(), |state| Ok(state.error.as_ptr()))
+    call_inner(handle, std::ptr::null(), false, |state| {
+        Ok(state.error.as_ptr())
+    })
+}
+
+/// Lazy per-guest binding; all retained bindings must use the same current context.
+#[unsafe(no_mangle)]
+pub extern "C" fn mp_pool_gles_epoch(handle: *mut MpPool) -> u64 {
+    call_inner(handle, 0, false, |state| {
+        #[cfg(target_os = "android")]
+        {
+            Ok(state.gles_epoch.unwrap_or(0))
+        }
+        #[cfg(not(target_os = "android"))]
+        {
+            let _ = state;
+            Ok(0)
+        }
+    })
+}
+/// Lazy per-guest binding; all retained bindings must use the same current context.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn mp_pool_gles_render(
+    handle: *mut MpPool,
+    epoch: u64,
+    frame: *const crate::ffi::MpGlesFrame,
+) -> i32 {
+    call(handle, -1, |state| {
+        if frame.is_null()
+            || unsafe { (*frame).size } != std::mem::size_of::<crate::ffi::MpGlesFrame>() as u32
+        {
+            return Err("Invalid GLES frame size".into());
+        }
+        #[cfg(target_os = "android")]
+        {
+            if epoch == 0
+                || match state.gles_epoch {
+                    Some(bound) => bound != epoch,
+                    None => epoch <= state.last_gles_epoch,
+                }
+            {
+                return Err("GPU context epoch mismatch".into());
+            }
+            state.pool.visit(|guest| {
+                if let Some(engine) = guest.resources() {
+                    if engine.graphics.epoch().is_some_and(|bound| bound != epoch) {
+                        return Err("GPU context epoch mismatch".into());
+                    }
+                }
+                Ok(())
+            })?;
+            let engine = state
+                .pool
+                .foreground()
+                .ok_or("No foreground guest")?
+                .engine()?;
+            if !engine.graphics.is_attached() {
+                unsafe {
+                    engine.attach_gles(epoch)?;
+                }
+            }
+            state.gles_epoch = Some(epoch);
+            state.last_gles_epoch = epoch;
+            let frame = unsafe { &*frame };
+            unsafe {
+                engine.render_gles(
+                    epoch,
+                    [frame.x, frame.y, frame.width, frame.height],
+                    [frame.window_width, frame.window_height],
+                )?;
+            }
+            Ok(0)
+        }
+        #[cfg(not(target_os = "android"))]
+        {
+            let _ = (state, epoch);
+            Err("GLES backend unavailable on this platform".into())
+        }
+    })
+}
+/// Release driver objects while preserving retained guest realms.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn mp_pool_gles_release(handle: *mut MpPool, epoch: u64) -> i32 {
+    call(handle, -1, |state| {
+        #[cfg(target_os = "android")]
+        {
+            if epoch == 0 || state.gles_epoch != Some(epoch) {
+                return Err("GPU context epoch mismatch".into());
+            }
+            state.pool.visit(|guest| {
+                if let Some(engine) = guest.resources() {
+                    if engine.graphics.is_attached() {
+                        unsafe {
+                            engine.release_gles(epoch)?;
+                        }
+                    }
+                }
+                Ok(())
+            })?;
+            state.gles_epoch = None;
+            Ok(0)
+        }
+        #[cfg(not(target_os = "android"))]
+        {
+            let _ = (state, epoch);
+            Err("GLES backend unavailable on this platform".into())
+        }
+    })
+}
+/// The host asserts the pool's original context was destroyed.
+#[unsafe(no_mangle)]
+pub extern "C" fn mp_pool_gles_lost(handle: *mut MpPool, epoch: u64) -> i32 {
+    call_inner(handle, -1, false, |state| {
+        #[cfg(target_os = "android")]
+        {
+            if epoch == 0 || state.gles_epoch != Some(epoch) {
+                return Err("GPU context epoch mismatch".into());
+            }
+            state.pool.visit(|guest| {
+                if let Some(engine) = guest.resources() {
+                    if engine.graphics.epoch().is_some_and(|bound| bound != epoch) {
+                        return Err("GPU context epoch mismatch".into());
+                    }
+                }
+                Ok(())
+            })?;
+            state.pool.visit(|guest| {
+                if let Some(engine) = guest.resources() {
+                    if engine.graphics.is_attached() {
+                        engine.lose_gles(epoch)?;
+                    }
+                }
+                Ok(())
+            })?;
+            state.gles_epoch = None;
+            Ok(0)
+        }
+        #[cfg(not(target_os = "android"))]
+        {
+            let _ = (state, epoch);
+            Err("GLES backend unavailable on this platform".into())
+        }
+    })
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn mp_pool_destroy(handle: *mut MpPool) -> i32 {
@@ -331,6 +525,13 @@ pub unsafe extern "C" fn mp_pool_destroy(handle: *mut MpPool) -> i32 {
         return -1;
     };
     if unsafe { std::ptr::addr_of!((*handle).owner).read() } != thread::current().id() {
+        return -1;
+    }
+    #[cfg(target_os = "android")]
+    if let Err(error) = check_gpu(unsafe { &mut *handle }) {
+        unsafe {
+            (*handle).error = CString::new(error).unwrap();
+        }
         return -1;
     }
     if catch_unwind(AssertUnwindSafe(|| drop(unsafe { Box::from_raw(handle) }))).is_ok() {

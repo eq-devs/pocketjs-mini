@@ -1,0 +1,11 @@
+import {readFileSync} from "node:fs";
+const xml=readFileSync(process.argv[2],"utf8");
+const nodes=xml.match(/<node\b[^>]*>/g)??[];
+const node=nodes.find(value=>value.includes('class="android.view.SurfaceView"')&&value.includes('package="dev.pjm.benchmark.validation"')&&value.includes('signed=dev.pjm.benchmark version=0.3.0 frames='));
+const bounds=node?.match(/bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"/);
+if(!bounds)throw Error("Authenticated benchmark surface missing");
+const [left,top,right,bottom]=bounds.slice(1).map(Number),width=right-left,height=bottom-top;
+if(width<1||height<1)throw Error("Invalid surface bounds");
+const scale=Math.min(width/390,height/844),x=left+(width-390*scale)/2,y=top+(height-844*scale)/2;
+const point=(lx:number,ly:number)=>[Math.round(x+lx*scale),Math.round(y+ly*scale)];
+console.log([...point(195,650),...point(195,200),...point(340,32)].join(" "));

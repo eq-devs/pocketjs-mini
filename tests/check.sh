@@ -4,6 +4,7 @@ ROOT=$(cd "$(dirname "$0")/.." && pwd)
 bash -n "$ROOT/bin/pjm"
 if [ "$(uname -s)" = Darwin ]; then bash "$ROOT/tests/ios-service-types.sh"; fi
 if [ "$(uname -s)" = Darwin ]; then bash "$ROOT/tests/location-contract-java.sh"; fi
+if [ "$(uname -s)" = Darwin ]; then bash "$ROOT/tests/frame-pacer-java.sh"; fi
 bun "$ROOT/tests/replay-typecheck.ts"
 bun "$ROOT/tests/sdk-typecheck.ts"
 bun test "$ROOT/tests/replay-cleanup.test.ts"
@@ -26,3 +27,4 @@ bun test "$ROOT/tests/build.test.ts"
 bun test "$ROOT/tests/installed-project.test.ts"
 bun test "$ROOT/tests/installed-android-project.test.ts"
 bun test "$ROOT/tests/android-http.node.test.ts"
+bun test "$ROOT/tests/android-location-runtime.test.ts"

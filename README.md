@@ -271,11 +271,13 @@ while repeated rotation acceptance timed out. That issue remains open; the
 iOS 18.5 pass does not establish iOS 26 rotation support or physical performance.
 
 Both native hosts now compose the pinned Rust Guest/UiSurface through Mini's
-shared C interface. Android presents full software frames through GLES2;
+shared C interface. Installed Android renders retained DrawLists directly through
+instance-owned GLES2; the development host still presents software frames.
 iOS uploads them through a Swift CAMetalLayer presenter. The shared rasterizer
 retains pixels and reports damage; Android uploads changed regions and Swift
 accumulates damage per texture, skipping unchanged presentations. Direct
-DrawList GPU rendering remains unfinished. Upstream tracked files stay unchanged.
+Metal DrawList rendering and broader GPU acceptance remain unfinished.
+Upstream tracked files stay unchanged.
 
 Both hosts limit each QuickJS heap to 24 MiB and release stack to 256 KiB.
 Startup execution has a two-second deadline; frame execution and its Promise
@@ -462,8 +464,13 @@ remain pending.
 
 Expanded Android signature and authenticated package admission checks also pass
 on a physical Pixel 8 Pro (API 36), including correctly signed malformed build
-plans, retained engine execution and store rollback/ownership. Physical rendering,
-performance and memory acceptance remain pending.
+plans, retained engine execution and store rollback/ownership. The current installed
+Activity also passes physical square-viewport rendering, letterbox input rejection,
+in-viewport touch, warm resume and cold restart checks through the production
+exporter. The latest run uses direct GLES DrawList rendering with per-guest
+resource retirement and pause/rebind epochs. Evidence is in
+`build/android-validation/signed-surface-20261005T115029Z`. Complex-page graphics,
+forced Activity context-loss, performance and memory acceptance remain pending.
 
 The replay command has a validation-only mode that checks tape syntax, package
 byte identity, and optional saved comparisons without loading native code:
@@ -475,8 +482,12 @@ pjm replay --package build/hello.pocket --tape recording.json --app-id dev.pjm.h
 Validation-only output explicitly reports that native admission was not run.
 The execution path uses the shared native core release library and supports
 `--assert golden.json` and `--output new-golden.json`. Output creation is atomic
-and refuses to overwrite existing files. Native execution of this command has
-not yet been verified; host recording hooks and the replay interface are pending.
+and refuses to overwrite existing files. Native execution of this command now
+passes an end-to-end headless regression against the current release core:
+three matching software frames, input/completion/lifecycle tape, PNG output,
+literal tree inspection and changed-golden rejection. Run it after building the
+release core with `bun tests/replay-native-cli.ts`. This does not establish mobile
+hardware acceptance; host recording hooks and the replay interface are pending.
 
 Replay has a 60-second total execution deadline, adjustable with
 `--timeout-ms 1..300000`. The monotonic deadline is checked between turns and
@@ -501,8 +512,12 @@ Lifecycle hooks have a separate listener pool with the same configured `maxListe
 
 Run `bash tests/reference-check.sh` with Bun on PATH and pinned upstream dependencies installed to check SDK, reference container, publication and devtools/replay TypeScript and regressions together. This gate does not invoke native builds or devices; it cannot substitute for `tests/check.sh`, compiler integration checks or physical acceptance measurements.
 
-`mini.location.get({timeoutMs, maximumAgeMs, highAccuracy})` defines the versioned SDK location contract. Replies contain latitude, longitude, accuracy in meters, and a Unix timestamp in milliseconds. This SDK contract is tested; native location permission/provider adapters and device acceptance are still pending, so it does not yet provide a working platform location service.
+`mini.location.get({timeoutMs, maximumAgeMs, highAccuracy})` defines the versioned SDK location contract. Replies contain latitude, longitude, accuracy in meters, and a Unix timestamp in milliseconds. The SDK contract is tested and the installed Android host wires native app/OS consent and FusedLocation with the original request ownership and frame-delivered replies. Android provider execution and device acceptance remain unverified; the iOS location adapter is still pending.
 
-`bash tests/fused-location-types.sh` checks the Android location provider against checksum-pinned cached Google API AARs. It requires those exact artifacts in the Gradle cache (or `GRADLE_USER_HOME`), Android API 34 and a JDK. Its compile-only lock is not a complete APK runtime dependency lock; platform location packaging and device acceptance remain pending.
+`bash tests/fused-location-types.sh` checks the Android location provider against checksum-pinned cached Google API AARs. It requires those exact artifacts in the Gradle cache (or `GRADLE_USER_HOME`), Android API 34 and a JDK. This separate compile-only check does not replace the bundled runtime lock, APK packaging check or pending device acceptance.
 
-Android `LocationApproval` supplies native app consent and coarse/fine OS permission requests. It separates saved app approval from current OS grants, retires cancelled callbacks and uses non-reused OS request codes. It is source-compiled by the Android service gate but is not yet wired into `InstalledActivity`; dialogs, permission callbacks and provider execution remain untested on a device.
+Android `LocationApproval` supplies native app consent and coarse/fine OS permission requests. It separates saved app approval from current OS grants, retires cancelled callbacks and uses non-reused OS request codes. It is wired into `InstalledActivity` and source-compiled by the Android service gate. OS results received while paused wait for foreground resume; an actual stop cancels pending work. Dialogs, permission callbacks and provider execution remain untested on a device.
+
+`bun tests/android-location-apk.ts` builds a relocated installed export with the pinned offline Google/AndroidX runtime, resources and generated resource classes. It verifies Java compilation, dex generation and unsigned APK packaging using a deliberately non-executable engine fixture; it does not run a native engine, install an app or test location. The runtime includes compatible shared Kotlin/annotation versions and checks every extracted dependency file before export. Distribution still needs review of the original dependency metadata and licenses retained under `vendor/android-location/metadata`.
+
+`tests/package-load-android.sh <serial>` runs signed package, retained-engine and location-wrapper checks in Android's framework runner. Current checks pass on a physical Pixel 8 Pro (API 36), including a separately authenticated location fixture with a controlled provider. The wrapper checks protocol rejection, cancellation/retirement, consent persistence guards, original reply ownership/backpressure, authorization revocation, suspend and close. They do not access the sensor, show OS/native consent dialogs or test timer expiry; those platform checks remain pending.
