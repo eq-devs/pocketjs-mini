@@ -1,18 +1,20 @@
-import {cpSync,lstatSync,readFileSync,mkdirSync,writeFileSync} from "node:fs";
+import {cpSync,mkdirSync,writeFileSync} from "node:fs";
+import {readBoundedFile} from '../container/bounded-file.ts';
 import {join,resolve} from "node:path";
 import {fileURLToPath} from "node:url";
 import {createPublicKey} from "node:crypto";
 import {verifyPackage,canonical,MAX_PACKAGE_BYTES} from "../container/package.ts";
+import {strictJson} from "../container/strict-json.ts";
 import {writeNativeProject} from "./native-project.ts";
 /** Produce a signed-only iOS host project. The caller supplies a trusted public
  * key separately from the envelope; private publisher keys are never bundled.
  * Native startup additionally verifies structure and admits the build plan. */
-export function verifyInstalledInputs(options:{payload:string;envelope:string;publicKey:string}) {
-  const read=(path:string,limit:number)=>{const info=lstatSync(path);if(!info.isFile() || info.isSymbolicLink() || info.size>limit)throw new Error("Installed host input must be a bounded regular file");return readFileSync(path);};
-  const payload=read(options.payload,MAX_PACKAGE_BYTES), envelope=JSON.parse(read(options.envelope,65536).toString("utf8")),key=read(options.publicKey,32);
+export function verifyInstalledInputs(options:{payload:string;envelope:string;publicKey:string},target="pjm-ios") {
+  const read=(path:string,limit:number)=>{try{return readBoundedFile(path,limit);}catch(cause){throw new Error("Installed host input must be a bounded regular file",{cause});}};
+  const payload=read(options.payload,MAX_PACKAGE_BYTES), envelope=strictJson(read(options.envelope,65536)),key=read(options.publicKey,32);
   if(key.length!==32)throw new Error("Installed host requires a trusted raw 32-byte Ed25519 public key");
   const publicKey=createPublicKey({key:Buffer.concat([Buffer.from("302a300506032b6570032100","hex"),key]),format:"der",type:"spki"});
-  const manifest=verifyPackage(payload,envelope,publicKey,{abi:7,target:"pjm-ios"});
+  const manifest=verifyPackage(payload,envelope,publicKey,{abi:7,target});
   return {payload,key,manifest};
 }
 export function writeInstalledProject(options:{directory:string;library:string;payload:string;envelope:string;publicKey:string;bundle?:string}) {

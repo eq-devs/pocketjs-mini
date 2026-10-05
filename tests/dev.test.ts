@@ -42,7 +42,21 @@ test("public run auto-compiles, watches, rejects stale revisions, recovers and s
     const session = await until(async () => JSON.parse(readFileSync(join(project, "build/session.json"), "utf8")), value => !!value.url);
     const state = () => fetch(`${session.url}state`).then(r => r.json()) as Promise<{ revision: number; error: string | null; window: WindowInfo; metadata: PackageMetadata | null }>;
     let ready = await until(state, value => value.revision > 0 && !value.error);
+    const panel=await fetch(`${session.url}devtools`);expect(panel.status).toBe(200);expect(panel.headers.get("content-security-policy")).toContain("frame-ancestors 'none'");expect(await panel.text()).toContain("PocketJS Mini DevTools");
+    expect((await fetch(session.url.replace(/\/[a-f0-9]{48}\//,"/wrong/")+"devtools")).status).toBe(404);
+    const panelCommand=await command(["devtools","--no-open"],project);expect(panelCommand.status).toBe(0);expect(panelCommand.stdout.trim()).toBe(`${session.url}devtools`);
+    expect((ready as any).builds.at(-1).outcome).toBe("published");expect((ready as any).builds.at(-1).durationMs).toBeGreaterThanOrEqual(0);
+    console.log("Compiler stage sample:",JSON.stringify((ready as any).builds.at(-1)));
+    expect((ready as any).builds.at(-1).stages.compilerMs).toBeGreaterThan(0);expect((ready as any).builds.at(-1).stages.resolveMs).toBeGreaterThanOrEqual(0);expect((ready as any).builds.at(-1).stages.typeCheckMs).toBeGreaterThan(0);
     expect(ready.metadata?.appId).toBe("dev.pjm.hello");
+    const deviceEvent=(body:string)=>fetch(`${session.url}device-event`,{method:"POST",body});
+    expect((await deviceEvent(JSON.stringify({revision:ready.revision,platform:"android",kind:"frame-ready"}))).status).toBe(200);
+    expect((await deviceEvent(JSON.stringify({revision:ready.revision,platform:"ios",kind:"log",level:"warn",message:"diagnostic 😀"}))).status).toBe(200);
+    const observed=await state();expect((observed as any).deviceEvents.at(-1).revision).toBe(ready.revision);expect((observed as any).deviceEvents.at(-1).message).toBe("diagnostic 😀");
+    expect((await deviceEvent(JSON.stringify({revision:ready.revision+1,platform:"android",kind:"frame-ready"}))).status).toBe(400);
+    expect((await deviceEvent("x".repeat(4097))).status).toBe(400);
+    expect((await deviceEvent(JSON.stringify({revision:ready.revision,platform:"web",kind:"frame-ready"}))).status).toBe(400);
+
     expect(existsSync(join(project, "build/hello.pocket"))).toBe(true);
     const manifestPath = join(project, "pocket.json");
     const manifest = {
@@ -113,6 +127,14 @@ test("public run auto-compiles, watches, rejects stale revisions, recovers and s
     expect((await (await fetch(`${session.url}${fixed.revision}/app.js`)).text()).includes("Saved edit")).toBe(true);
     writeFileSync(join(project, "assets/new.txt"), "asset change");
     const assets = await until(state, value => value.revision > fixed.revision && !value.error);
+    const dependency=join(project,"app/check-dependency.ts");writeFileSync(dependency,'export const label: string = "dependency";');
+    writeFileSync(sourcePath,'import {label} from "./check-dependency.ts"; const checkedLabel: string = label;\n'+original);
+    const imported=await until(state,value=>value.revision>assets.revision && !value.error);
+    writeFileSync(dependency,'export const label: number = 123;');
+    const dependencyError=await until(state,value=>!!value.error);expect(dependencyError.revision).toBe(imported.revision);expect(dependencyError.error).toContain("TS2322");
+    writeFileSync(dependency,'export const label: string = "repaired";');
+    const recoveredImport=await until(state,value=>value.revision>imported.revision && !value.error);
+    console.log("Warm compiler stage sample:",JSON.stringify((recoveredImport as any).builds.at(-1)));
     // Rapid saves must eventually publish the latest source, even if an earlier build finished.
     writeFileSync(sourcePath, original.replace("Hello PocketJS Mini", "Obsolete edit"));
     await sleep(50);

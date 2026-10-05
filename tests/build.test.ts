@@ -18,10 +18,11 @@ test("public check/build use actual compiler artifacts and authenticated release
     const cached = process.env.PJM_TEST_UPSTREAM ?? resolve(import.meta.dir, "../examples/hello/.pjm/pocketjs");
     if (existsSync(join(cached, ".git"))) {mkdirSync(join(project, ".pjm"));symlinkSync(resolve(cached), join(project, ".pjm/pocketjs"), "dir");}
     const check = await run(["check", "--device", "android"]);
+    if(check.status!==0)throw Error('Compiler check failed: '+check.error+'\n'+check.out);
     expect(check.status).toBe(0);expect(check.out).toContain("container declarations");
     const sourcePath=join(project,"app/main.tsx"), originalSource=readFileSync(sourcePath,"utf8");
     const originalConfig=readFileSync(join(project,"tsconfig.json"),"utf8");
-    writeFileSync(sourcePath,'import { connectMiniApp } from "@pocketjs/mini";\n'+originalSource+'\nconst mini = connectMiniApp(); mini.after(1, () => {});\n');
+    writeFileSync(sourcePath,'import { connectMiniApp, type HttpResponse, type ResourceChunk } from "@pocketjs/mini";\n'+originalSource+'\nconst mini = connectMiniApp(); mini.after(1, () => { mini.clipboard.read().promise.catch(() => {}); mini.storage.set("fixture", {ready: true}).promise.catch(() => {}); const work = mini.http({url: "https://api.example.com/"}); work.promise.then((response: HttpResponse) => response.status).catch(() => {}); const resource = mini.http({url: "https://api.example.com/", responseMode: "resource"}); resource.promise.then((response: HttpResponse) => { if (response.resource) { const handle = response.resource.handle; mini.resources.read({handle, offset: 0, count: 1536}).promise.then((chunk: ResourceChunk) => { if (chunk.eof) return mini.resources.release(handle).promise; }).catch(() => {}); } }).catch(() => {}); });\n');
     expect(readdirSync(join(project, "build"))).toEqual([]);
     const build = await run(["build", "--device", "android", "--width", "360", "--height", "598", "--density", "3"]);
     expect(build.status).toBe(0);
@@ -33,6 +34,13 @@ test("public check/build use actual compiler artifacts and authenticated release
     expect(js).toContain('globalThis.__pjmWindow={"width":360,"height":598,"density":3');
     expect(js.match(/globalThis\.__pjmWindow=/g)?.length).toBe(1);
     expect(js).toContain("device.info.v1");
+    expect(js).not.toContain("debug.log.v1");
+    expect(js).toContain("request.v1");
+    expect(js).toContain("resource.read.v1");
+    expect(js).toContain("resource.release.v1");
+    expect(js).toContain("clipboard.read.v1");
+    expect(js).toContain("storage.set.v1");
+    expect(js).toContain("Invalid strict JSON input");
     expect(readFileSync(join(project,"tsconfig.json"),"utf8")).toBe(originalConfig);
     expect((await run(["build", "--release"])).status).not.toBe(0);
     const keys = generateKeyPairSync("ed25519"), path = join(temp, "key.pem");
@@ -45,6 +53,8 @@ test("public check/build use actual compiler artifacts and authenticated release
     const payload = readFileSync(join(directory, "main.pocket")), manifest = JSON.parse(readFileSync(join(directory, "manifest.json"), "utf8"));
     expect(verifyPackage(payload, manifest, keys.publicKey, {abi:7,target:"pjm-android"}).permissions).toEqual(["media"]);
     expect(manifest.appId).toBe("dev.pjm.release-app");
+    const trustedKey=join(temp,"publisher.raw");writeFileSync(trustedKey,keys.publicKey.export({format:"der",type:"spki"}).subarray(-32));
+    const publication=await run(["publish","--package",directory,"--public-key",trustedKey,"--device","android","--dry-run"]);expect(publication.status).toBe(0);expect(JSON.parse(publication.out).sha256).toBe(manifest.sha256);
     expect((await run(["build", "--release", "--device", "android", "--key", path])).status).not.toBe(0);
     expect(readFileSync(join(directory, "main.pocket"))).toEqual(payload);
     writeFileSync(join(project, "container.json"), '{"permissions":["root"]}');

@@ -1,4 +1,5 @@
 #import "PackageStore.h"
+#import "Mini-Swift.h"
 #include <sys/file.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -8,6 +9,7 @@ static void failure(NSError **error,NSString *message){if(error)*error=[NSError 
 static BOOL matches(NSString *value,NSString *pattern){if(![value isKindOfClass:NSString.class])return NO;NSRange range=[value rangeOfString:pattern options:NSRegularExpressionSearch];return range.location==0 && range.length==value.length;}
 static BOOL identityValid(NSString *value){return value.length<=128 && matches(value,@"^[a-zA-Z][a-zA-Z0-9_-]*(?:\\.[a-zA-Z][a-zA-Z0-9_-]*)+$");}
 static BOOL slotValid(NSString *value){return value.length<=192 && matches(value,@"^[0-9]+\\.[0-9]+\\.[0-9]+-[a-f0-9]{64}$");}
+static BOOL permissionValid(NSString *value){return [value isKindOfClass:NSString.class] && [@[@"clipboard.read",@"media",@"location"] containsObject:value];}
 static int directory(int parent,NSString *name,BOOL create){
     if(create && mkdirat(parent,name.fileSystemRepresentation,0700)!=0 && errno!=EEXIST)return -1;
     return openat(parent,name.fileSystemRepresentation,O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC);
@@ -39,7 +41,7 @@ static BOOL writeAtomic(int parent,NSString *name,NSData *data){
 - (BOOL)lock:(NSError **)error {if(NSThread.isMainThread && _root>=0 && flock(_root,LOCK_EX|LOCK_NB)==0)return YES;failure(error,@"Package store unavailable or busy");return NO;}
 - (NSMutableDictionary *)state:(int)app error:(NSError **)error {
     NSData *bytes=readFile(app,@"state.json",2048);if(!bytes){if(errno==ENOENT)return [NSMutableDictionary dictionary];failure(error,@"Invalid package state file");return nil;}
-    id value=[NSJSONSerialization JSONObjectWithData:bytes options:NSJSONReadingMutableContainers error:error];if(![value isKindOfClass:NSDictionary.class]){failure(error,@"Invalid package state");return nil;}
+    id parsed=[MiniPackageVerifier parseStrictJSON:bytes error:error];if(![parsed isKindOfClass:NSDictionary.class]){failure(error,@"Invalid package state");return nil;}NSMutableDictionary *value=[parsed mutableCopy];
     for(id key in value)if(![@[@"current",@"previous",@"pending"] containsObject:key] || !slotValid(value[key])){failure(error,@"Invalid package slot reference");return nil;}
     return value;
 }
@@ -99,4 +101,42 @@ static BOOL writeAtomic(int parent,NSString *name,NSData *data){
     @finally {if(app>=0)close(app);flock(_root,LOCK_UN);}
 }
 - (void)dealloc {if(_root>=0)close(_root);}
+- (NSMutableDictionary *)permissionState:(int)app error:(NSError **)error {
+    NSData *bytes=readFile(app,@"permissions.json",1024);
+    if(!bytes){if(errno==ENOENT)return [NSMutableDictionary dictionary];failure(error,@"Invalid permission file");return nil;}
+    id state=[MiniPackageVerifier parseStrictJSON:bytes error:error];
+    if(![state isKindOfClass:NSDictionary.class] || [state count]!=2 || !state[@"format"] || !state[@"decisions"]){failure(error,@"Invalid permission state");return nil;}
+    id format=state[@"format"],decisions=state[@"decisions"];
+    if(![format isKindOfClass:NSNumber.class] || CFGetTypeID((__bridge CFTypeRef)format)==CFBooleanGetTypeID() || [format doubleValue]!=1 || ![decisions isKindOfClass:NSDictionary.class]){failure(error,@"Invalid permission schema");return nil;}
+    for(id name in decisions){id value=decisions[name];if(!permissionValid(name) || ![value isKindOfClass:NSNumber.class] || CFGetTypeID((__bridge CFTypeRef)value)!=CFBooleanGetTypeID()){failure(error,@"Invalid permission decision");return nil;}}
+    return [decisions mutableCopy];
+}
+- (NSNumber *)permissionDecision:(NSString *)permission identity:(NSString *)identity error:(NSError **)error {
+    if(error)*error=nil;
+    if(!identityValid(identity) || !permissionValid(permission)){failure(error,@"Invalid permission identity/name");return nil;}if(![self lock:error])return nil;int app=-1;
+    @try{app=directory(_root,identity,YES);if(app<0){failure(error,@"Invalid permission directory");return nil;}NSDictionary *decisions=[self permissionState:app error:error];return decisions[permission];}
+    @finally{if(app>=0)close(app);flock(_root,LOCK_UN);}
+}
+- (BOOL)setPermissionDecision:(BOOL)granted permission:(NSString *)permission identity:(NSString *)identity error:(NSError **)error {
+    if(!identityValid(identity) || !permissionValid(permission)){failure(error,@"Invalid permission identity/name");return NO;}if(![self lock:error])return NO;int app=-1;
+    @try{app=directory(_root,identity,YES);if(app<0){failure(error,@"Invalid permission directory");return NO;}NSMutableDictionary *decisions=[self permissionState:app error:error];if(!decisions)return NO;decisions[permission]=@(granted);
+        NSData *bytes=[NSJSONSerialization dataWithJSONObject:@{@"format":@1,@"decisions":decisions} options:0 error:error];if(!bytes || !writeAtomic(app,@"permissions.json",bytes)){failure(error,@"Permission commit failed");return NO;}return YES;}
+    @finally{if(app>=0)close(app);flock(_root,LOCK_UN);}
+}
+- (MiniPermissionStatus)permissionStatus:(NSString *)permission package:(MiniVerifiedPackage *)package osGranted:(BOOL)osGranted error:(NSError **)error {
+    if(error)*error=nil;
+    if(!NSThread.isMainThread || !package || !permissionValid(permission)){failure(error,@"Invalid permission gate owner/input");return MiniPermissionUnavailable;}
+    if(![package authorizePermission:permission hostGranted:YES error:error])return MiniPermissionDenied;
+    NSError *readError=nil;NSNumber *approved=[self permissionDecision:permission identity:package.metadata[@"appId"] error:&readError];
+    if(readError){if(error)*error=readError;return MiniPermissionUnavailable;}
+    if(!approved)return MiniPermissionPrompt;
+    return approved.boolValue && osGranted?MiniPermissionGranted:MiniPermissionDenied;
+}
+- (MiniPermissionStatus)recordPermissionApproval:(BOOL)approved permission:(NSString *)permission package:(MiniVerifiedPackage *)package osGranted:(BOOL)osGranted error:(NSError **)error {
+    if(error)*error=nil;
+    if(!NSThread.isMainThread || !package || !permissionValid(permission)){failure(error,@"Invalid permission gate owner/input");return MiniPermissionUnavailable;}
+    if(![package authorizePermission:permission hostGranted:YES error:error])return MiniPermissionDenied;
+    if(![self setPermissionDecision:approved permission:permission identity:package.metadata[@"appId"] error:error])return MiniPermissionUnavailable;
+    return [self permissionStatus:permission package:package osGranted:osGranted error:error];
+}
 @end

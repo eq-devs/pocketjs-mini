@@ -38,6 +38,8 @@ public class MiniActivity extends Activity {
   private GLSurfaceView surface;
   private TextView message;
   private ScheduledExecutorService network;
+  private int reportedRevision;
+  private final java.util.concurrent.atomic.AtomicInteger pendingLogs=new java.util.concurrent.atomic.AtomicInteger();
   private String base;
   private volatile int width,height,density,top,bottom,left,right,revision,failedRevision;
   private volatile boolean loading,paused=true,closed;
@@ -80,6 +82,7 @@ public class MiniActivity extends Activity {
         if(paused || loading) return;
         String error=frame();
         if(!error.isEmpty()) {failedRevision=revision;show(error);}
+        if(error.isEmpty() && revision>0 && revision!=reportedRevision && network!=null && !closed){final int presented=revision;reportedRevision=presented;try{network.execute(()->{try{request("device-event",new JSONObject().put("revision",presented).put("platform","android").put("kind","frame-ready").toString());}catch(Exception ignored){}});}catch(java.util.concurrent.RejectedExecutionException stopped){}}
         dispatchServices();
         if(revision>0) {
           long[] data=receipt();data[4]=testActions;data[5]=testValue;
@@ -140,7 +143,12 @@ public class MiniActivity extends Activity {
       for(String line:batch.split("\n")) {
         if(line.isEmpty())continue;
         JSONObject request;
-        try {request=new JSONObject(line);}catch(Exception malformed){continue;}
+        try {request=BoundedJson.object(line.getBytes("UTF-8"),4096);}catch(Exception malformed){continue;}
+        if(request.optInt("v",0)==1 && request.optString("kind","").equals("debug.log.v1")){
+          JSONObject args=request.optJSONObject("args");if(args==null || args.length()!=2 || !(args.opt("message") instanceof String) || !java.util.Arrays.asList("debug","info","warn","error").contains(args.opt("level")) || args.getString("message").getBytes("UTF-8").length>2048 || revision<1 || network==null || closed || pendingLogs.get()>=8)continue;
+          final String event=new JSONObject().put("revision",revision).put("platform","android").put("kind","log").put("level",args.getString("level")).put("message",args.getString("message")).toString();pendingLogs.incrementAndGet();
+          try{network.execute(()->{try{request("device-event",event);}catch(Exception ignored){}finally{pendingLogs.decrementAndGet();}});}catch(java.util.concurrent.RejectedExecutionException stopped){pendingLogs.decrementAndGet();}continue;
+        }
         Object identifier=request.opt("id");
         if(!(identifier instanceof Number))continue;
         double number=((Number)identifier).doubleValue();

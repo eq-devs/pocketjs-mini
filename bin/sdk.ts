@@ -20,7 +20,7 @@ export function installSdk(project: string): void {
   }catch(error:any){if(error.code!=="ENOENT")throw error;missing=true;}
   const source=fileURLToPath(new URL("../sdk/",import.meta.url));
   const files:Record<string,string>={"package.json":JSON.stringify({name:"@pocketjs/mini",version:"0.3.0",type:"module",types:"./index.ts",exports:"./index.ts"})};
-  for(const name of ["index.ts","native.ts","runtime.ts","navigation.ts"])files[name]=readFileSync(join(source,name),"utf8");
+  for(const name of ["index.ts","native.ts","runtime.ts","navigation.ts","http.ts","json.ts","location.ts"])files[name]=readFileSync(join(source,name),"utf8");
   for(const [name,contents] of Object.entries(files)) {
     const path=join(destination,name);
     try {const stat=lstatSync(path);if(!stat.isFile() || stat.isSymbolicLink())throw new Error(`Invalid generated SDK file: ${path}`);if(readFileSync(path,"utf8")===contents)continue;}

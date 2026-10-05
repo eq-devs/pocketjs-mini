@@ -1,3 +1,6 @@
+import {DeviceEvents,boundedEvent} from "./device-events.ts";
+import {BuildHistory} from "./build-history.ts";
+import {devtoolsPanel} from "./devtools-panel.ts";
 // Official PocketJS compiler/package APIs + a native UIKit host.
 import { defaultWindow, readWindow, type WindowInfo } from "./profile.ts";
 import { compileApplication } from "./compiler.ts";
@@ -42,6 +45,7 @@ function fingerprint(): string {
 }
 
 
+const buildHistory=new BuildHistory(),deviceEvents=new DeviceEvents();
 let active = 0, sequence = 0, error: string | null = null;
 let publishedWindow: WindowInfo = { ...defaultWindow };
 let publishedMetadata: PackageMetadata | null = null;
@@ -57,6 +61,7 @@ const server = Bun.serve({ hostname: host, port: Number(process.env.PJM_PORT ?? 
     const path = new URL(request.url).pathname;
     if (!path.startsWith(`/${token}/`)) return new Response("Not found", { status: 404 });
     const route = path.slice(token.length + 2);
+    if(route === "devtools" && request.method === "GET")return new Response(devtoolsPanel,{headers:{"Content-Type":"text/html; charset=utf-8","Cache-Control":"no-store","Content-Security-Policy":"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'"}});
     if (process.env.PJM_NATIVE_TEST === "1" && route.startsWith("test/") && request.method === "POST") {
       const action = route.slice(5);
       const content = action === "saved" ? originalSource.replace("Hello PocketJS Mini", "Saved edit")
@@ -164,11 +169,12 @@ const storageMini=connectMiniApp();
       if (content === null) return new Response("Unknown fixture action", { status: 404 });
       writeFileSync("app/main.tsx", content); return new Response("ok");
     }
+    if(route === "device-event" && request.method === "POST"){try{deviceEvents.accept(await boundedEvent(request),active);return new Response("ok");}catch{return new Response("Invalid device event",{status:400});}}
     if (route === "window" && request.method === "POST") {
       try { window = readWindow(await request.json()); wanted = fingerprint(); void rebuild(); return Response.json(window); }
       catch (failure) { return new Response(String(failure), { status: 400 }); }
     }
-    if (route === "state") return Response.json({ revision: active, error, window: publishedWindow, metadata: publishedMetadata }, { headers: { "Cache-Control": "no-store" } });
+    if (route === "state") return Response.json({ revision: active, error, window: publishedWindow, metadata: publishedMetadata, compiling, builds:buildHistory.snapshot(),deviceEvents:deviceEvents.snapshot() }, { headers: { "Cache-Control": "no-store" } });
     const match = /^(\d+)\/(app\.(?:js|pak))$/.exec(route);
     if (!match || Number(match[1]) > active) return new Response("Not found", { status: 404 });
     const file = Bun.file(resolve(`build/revisions/${match[1]}/${match[2]}`));
@@ -183,23 +189,25 @@ console.log(`PocketJS Mini: ${url}`);
 async function rebuild() {
   if (compiling || stopping || wanted === completed) return;
   compiling = true;
-  const snapshot = wanted;
+  const snapshot = wanted;const started=performance.now(),revision=++sequence;let outcome:"published"|"superseded"|"failed"|"stopped"="superseded",diagnostic:string|undefined,stages:Readonly<Record<string,number>>|undefined;
   try {
-    const result = await compileApplication({ upstream: upstream!, project: process.cwd(), directory: resolve(`build/revisions/${++sequence}`),
-      window: { ...window }, platform, child: child => { compileChild = child; } });
+    const result = await compileApplication({ upstream: upstream!, project: process.cwd(), directory: resolve(`build/revisions/${revision}`),
+      window: { ...window }, platform, development:true, child: child => { compileChild = child; } });
+    stages=result.timings;
     wanted = fingerprint();
     if (!stopping && snapshot === wanted) {
       const artifact = join(result.directory,"artifact.pocket");
       writeFileSync(artifact,result.packed);renameSync(artifact,`build/${result.name}.pocket`);
-      active = sequence; error = null; publishedWindow = result.metrics; publishedMetadata = result.metadata;
+      outcome="published";active = revision; error = null; publishedWindow = result.metrics; publishedMetadata = result.metadata;
       console.log(`Ready revision ${active}`);
     }
   } catch (failure) {
     if (!stopping && snapshot === wanted) {
-      error = failure instanceof Error ? failure.message : String(failure);
+      outcome="failed";error = failure instanceof Error ? failure.message : String(failure);diagnostic=error;
       console.error(error);
     }
   } finally {
+    buildHistory.record(revision,stopping?"stopped":outcome,performance.now()-started,diagnostic,stages);
     completed = snapshot; compiling = false;
     if (!stopping && wanted !== completed) void rebuild();
   }

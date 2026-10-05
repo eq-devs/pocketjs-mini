@@ -98,6 +98,17 @@ int main(int argc,char **argv){@autoreleasepool{
             MiniPackageStore *store=[[MiniPackageStore alloc] initWithRoot:root trustedKey:key error:&error];assert(store && !error);
             assert([store stagePayload:package.payload envelope:envelope error:&error]);
             MiniVerifiedPackage *first=[store coldStart:package.metadata[@"appId"] error:&error];assert(first && [first.metadata[@"version"] isEqual:@"1.0.0"]);
+            NSString *identity=package.metadata[@"appId"];error=nil;assert(![store permissionDecision:@"media" identity:identity error:&error] && !error);
+            assert([store permissionStatus:@"media" package:first osGranted:YES error:&error]==MiniPermissionPrompt);
+            assert([store recordPermissionApproval:YES permission:@"clipboard.read" package:first osGranted:YES error:&error]==MiniPermissionDenied);error=nil;assert(![store permissionDecision:@"clipboard.read" identity:identity error:&error] && !error);
+            assert([store setPermissionDecision:YES permission:@"media" identity:identity error:&error]);assert([store setPermissionDecision:NO permission:@"location" identity:identity error:&error]);
+            assert([store permissionStatus:@"media" package:first osGranted:YES error:&error]==MiniPermissionGranted);assert([store permissionStatus:@"media" package:first osGranted:NO error:&error]==MiniPermissionDenied);
+            MiniPackageStore *permissionReopened=[[MiniPackageStore alloc] initWithRoot:root trustedKey:key error:&error];assert([[permissionReopened permissionDecision:@"media" identity:identity error:&error] isEqual:@YES]);assert([[permissionReopened permissionDecision:@"location" identity:identity error:&error] isEqual:@NO]);
+            error=nil;assert(![permissionReopened permissionDecision:@"media" identity:@"dev.pjm.other" error:&error] && !error);
+            assert([permissionReopened setPermissionDecision:NO permission:@"media" identity:identity error:&error]);assert([[store permissionDecision:@"media" identity:identity error:&error] isEqual:@NO]);
+            assert([store permissionStatus:@"media" package:first osGranted:YES error:&error]==MiniPermissionDenied);
+            error=nil;assert(![store setPermissionDecision:YES permission:@"camera" identity:identity error:&error] && error);
+            NSString *permissionPath=[[root stringByAppendingPathComponent:identity] stringByAppendingPathComponent:@"permissions.json"];NSData *permissionSaved=[NSData dataWithContentsOfFile:permissionPath],*ambiguous=[@"{\"format\":1,\"decisions\":{\"media\":false,\"media\":true}}" dataUsingEncoding:NSUTF8StringEncoding];assert([ambiguous writeToFile:permissionPath atomically:NO]);error=nil;assert(![store permissionDecision:@"media" identity:identity error:&error] && error);error=nil;assert(![store setPermissionDecision:YES permission:@"media" identity:identity error:&error] && error);assert([[NSData dataWithContentsOfFile:permissionPath] isEqual:ambiguous]);assert([permissionSaved writeToFile:permissionPath atomically:NO]);error=nil;
             NSDictionary *update=item[@"update"];NSData *updated=[[NSData alloc] initWithBase64EncodedString:update[@"payload"] options:0];NSData *updatedEnvelope=[NSJSONSerialization dataWithJSONObject:update[@"manifest"] options:0 error:&error];
             assert([store stagePayload:updated envelope:updatedEnvelope error:&error]);
             assert([store seedPayload:package.payload envelope:envelope error:&error]);

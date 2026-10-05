@@ -1,6 +1,8 @@
-import { lstatSync, readFileSync, writeFileSync, renameSync, mkdirSync, rmSync } from "node:fs";
+import {strictJson} from "./strict-json.ts";
+import {readBoundedFile} from './bounded-file.ts';
+import { mkdirSync, rmSync } from "node:fs";
+import {writeAtomicFile} from './atomic-file.ts';
 import { join } from "node:path";
-import { randomBytes } from "node:crypto";
 import { PackageStore } from "./store.ts";
 import { canonical } from "./package.ts";
 
@@ -19,18 +21,17 @@ export class AppStorage {
   }
   private key(key: string): void {
     if (typeof key !== "string" || !key.length || Buffer.byteLength(key,"utf8") > 128) throw new Error("Storage key must contain 1..128 UTF-8 bytes");
+    strictJson(Buffer.from(JSON.stringify(key)));
   }
   private read(): Record<string,unknown> {
     this.validateDirectory();
     const path=join(this.directory,"storage.json");
     try {
-      const stat=lstatSync(path);
-      if (!stat.isFile() || stat.isSymbolicLink() || stat.size>STORAGE_BYTES) throw new Error("Invalid storage file");
-      const value=JSON.parse(readFileSync(path,"utf8"));
+      const value=strictJson(readBoundedFile(path,STORAGE_BYTES));
       if (!value || typeof value!=="object" || Array.isArray(value) || Object.keys(value).length>STORAGE_KEYS) throw new Error("Invalid storage contents");
       for (const [key,item] of Object.entries(value)) {this.key(key);if(Buffer.byteLength(canonical(item),"utf8")>VALUE_BYTES)throw new Error("Invalid stored value");}
-      return value;
-    }catch(error:any){if(error.code==="ENOENT")return Object.create(null);throw error;}
+      return value as Record<string,unknown>;
+    }catch(error:any){if(error.code==="ENOENT")return Object.create(null);if(error.code==="ELOOP")throw new Error("Invalid storage file",{cause:error});throw error;}
   }
   get(key:string): unknown {
     this.key(key);const values=this.read();
@@ -40,19 +41,18 @@ export class AppStorage {
     this.key(key);
     const encoded=canonical(value);
     if(Buffer.byteLength(encoded,"utf8")>VALUE_BYTES)throw new Error("Storage value exceeds quota");
-    this.mutate(values=>{Object.defineProperty(values,key,{value:JSON.parse(encoded),enumerable:true,writable:true,configurable:true});});
+    this.mutate(values=>{Object.defineProperty(values,key,{value:strictJson(Buffer.from(encoded)),enumerable:true,writable:true,configurable:true});});
   }
   remove(key:string): void {this.key(key);this.mutate(values=>{delete values[key];});}
   private mutate(operation:(values:Record<string,unknown>)=>void): void {
     this.validateDirectory();
     const lock=join(this.directory,".storage-lock");
     try{mkdirSync(lock,{mode:0o700});}catch(error:any){if(error.code==="EEXIST")throw new Error("Storage is busy; interrupted locks require host recovery");throw error;}
-    const temporary=join(this.directory,`.storage-${randomBytes(12).toString("hex")}`);
     try {
       const values=this.read();operation(values);
       const encoded=canonical(values);
       if(Object.keys(values).length>STORAGE_KEYS || Buffer.byteLength(encoded,"utf8")>STORAGE_BYTES)throw new Error("Application storage quota exceeded");
-      writeFileSync(temporary,encoded,{flag:"wx",mode:0o600});renameSync(temporary,join(this.directory,"storage.json"));
-    }finally{rmSync(temporary,{force:true});rmSync(lock,{recursive:true});}
+      writeAtomicFile(this.directory,'storage.json',encoded);
+    }finally{rmSync(lock,{recursive:true});}
   }
 }

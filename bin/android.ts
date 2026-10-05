@@ -1,4 +1,6 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync, cpSync, rmSync, lstatSync } from "node:fs";
+import {requireAndroidLaunch} from "./android-launch.ts";
+import {androidHttpFiles} from "./android-http.ts";
+import { existsSync, mkdirSync, readFileSync, writeFileSync, cpSync, rmSync, lstatSync, readdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { homedir, tmpdir } from "node:os";
 import { createHash } from "node:crypto";
@@ -30,12 +32,12 @@ export async function selectAndroid(requested = ""): Promise<AndroidDevice> {
 type Child = ReturnType<typeof Bun.spawn>;
 export async function launchAndroid(options: { root: string; upstream: string; device: AndroidDevice; url: string;
   stopping(): boolean; child(child: Child | undefined): void; cleanup(callback: () => Promise<void>): void; stopped(status?: number): void; }) {
-  const sdk = androidSdk(), build = resolve(".pjm/android"), tools = join(sdk, "build-tools/35.0.0");
+  const sdk = androidSdk(), build = resolve(".pjm/android"), tools = join(sdk, "build-tools/36.0.0");
   const ndk = join(sdk, "ndk/28.2.13676358/toolchains/llvm/prebuilt", process.platform === "darwin" ? "darwin-x86_64" : "linux-x86_64", "bin");
   const clang = join(ndk, "aarch64-linux-android23-clang"), androidJar = join(sdk, "platforms/android-34/android.jar");
   const java = process.env.JAVA_HOME ?? (process.platform === "darwin" ? "/Library/Java/JavaVirtualMachines/jdk-17.jdk/Contents/Home" : "");
   for (const path of [clang, androidJar, join(tools, "aapt2"), join(tools, "d8"), join(java, "bin/javac")])
-    if (!existsSync(path)) throw new Error(`Android toolchain missing: ${path}. Install API 34, build-tools 35.0.0, NDK 28.2.13676358 and JDK 17; set ANDROID_HOME/JAVA_HOME`);
+    if (!existsSync(path)) throw new Error(`Android toolchain missing: ${path}. Install API 34, build-tools 36.0.0, NDK 28.2.13676358 and JDK 17; set ANDROID_HOME/JAVA_HOME`);
   const env: NodeJS.ProcessEnv = { ...process.env, JAVA_HOME: java, CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER: clang };
   async function run(args: string[], cwd = process.cwd(), capture = false): Promise<string> {
     if (options.stopping()) throw new Error("Session stopped");
@@ -91,13 +93,14 @@ export async function launchAndroid(options: { root: string; upstream: string; d
   await compile(join(options.root,"host/android/store_bridge.c"),"mini_store",["-Wall","-Wextra","-Werror"]);
   await run([clang, "-shared", "-Wl,--gc-sections", "-Wl,--exclude-libs,ALL", "-Wl,--no-undefined", "-Wl,-z,max-page-size=16384", ...compiled,
     join(rustBuild, "aarch64-linux-android/release/libmini_core_ffi.a"), "-o", join(staging, "lib/arm64-v8a/libpocketjs.so"), "-lGLESv2", "-llog", "-ldl", "-lm"]);
-  await run([join(java, "bin/javac"), "-encoding", "UTF-8", "-source", "8", "-target", "8", "-classpath", androidJar, "-d", classes, join(options.root, "host/android/MiniActivity.java"), join(options.root, "host/android/AppStorage.java"), join(options.root, "host/android/PackageVerifier.java"), join(options.root,"host/android/VerifiedPackage.java"),join(options.root,"host/android/VerifiedContainer.java"),join(options.root,"host/android/VerifiedPresenter.java"),join(options.root,"host/android/InstalledActivity.java"),join(options.root,"host/android/PackageStore.java"),join(options.root,"host/android/PackageFiles.java")]);
+  await run([join(java, "bin/javac"), "-encoding", "UTF-8", "-source", "8", "-target", "8", "-classpath", [androidJar,...Array.from(androidHttpFiles().files.keys()).filter(name=>name.endsWith(".jar")).map(name=>join(options.root,"vendor/android-http",name))].join(":"), "-d", classes, join(options.root, "host/android/MiniActivity.java"), join(options.root, "host/android/AppStorage.java"), join(options.root, "host/android/PackageVerifier.java"), join(options.root,"host/android/VerifiedPackage.java"),join(options.root,"host/android/VerifiedContainer.java"),join(options.root,"host/android/VerifiedPresenter.java"),join(options.root,"host/android/InstalledActivity.java"),join(options.root,"host/android/PackageStore.java"),join(options.root,"host/android/PackageFiles.java"),join(options.root,"host/android/BoundedJson.java"),join(options.root,"host/android/VerifiedHttp.java"),join(options.root,"host/android/ManagedResources.java")]);
   await run([join(java, "bin/jar"), "cf", join(build, "classes.jar"), "-C", classes, "."]);
-  await run([join(tools, "d8"), "--min-api", "23", "--lib", androidJar, "--output", dex, join(build, "classes.jar")]);
-  cpSync(join(dex, "classes.dex"), join(staging, "classes.dex"));
+  await run([join(tools, "d8"), "--min-api", "23", "--lib", androidJar, "--output", dex, join(build, "classes.jar"),...Array.from(androidHttpFiles().files.keys()).filter(name=>name.endsWith(".jar")).map(name=>join(options.root,"vendor/android-http",name))]);
+  for(const name of readdirSync(dex))if(/^classes[0-9]*\.dex$/.test(name))cpSync(join(dex,name),join(staging,name));
+  mkdirSync(join(staging,"assets"),{recursive:true});cpSync(join(options.root,"vendor/android-http/PublicSuffixDatabase.list"),join(staging,"assets/PublicSuffixDatabase.list"));
   const unsigned = join(build, "unsigned.apk"), aligned = join(build, "aligned.apk"), apk = join(build, "Mini.apk");
   await run([join(tools, "aapt2"), "link", "-o", unsigned, "--manifest", join(options.root, "host/android/AndroidManifest.xml"), "-I", androidJar]);
-  await run(["zip", "-q", "-r", unsigned, "classes.dex", "lib"], staging);
+  await run(["zip", "-q", "-r", unsigned, ...readdirSync(dex).filter(name=>/^classes[0-9]*\.dex$/.test(name)), "lib", "assets"], staging);
   await run([join(tools, "zipalign"), "-f", "-P", "16", "4", unsigned, aligned]);
   // One SDK-owned key keeps the shared development container installable
   // when switching projects. Never uninstall an existing app to bypass signing.
@@ -109,8 +112,8 @@ export async function launchAndroid(options: { root: string; upstream: string; d
   await run([join(tools, "apksigner"), "verify", apk]);
   await run(adb("reverse", `tcp:${port}`, `tcp:${port}`)); forwarded = true;
   await run(adb("install", "-r", apk));
-  await run(adb("shell", "am", "start", "-W", "-S", "-n", "dev.pjm.android/.MiniActivity", "--es", "pjm-url", options.url,
-    ...(process.env.PJM_ANDROID_TEST === "1" ? ["--ez", "pjm-test", "true"] : []))); launched = true;
+  const launchOutput=await run(adb("shell", "am", "start", "-W", "-S", "-n", "dev.pjm.android/.MiniActivity", "--es", "pjm-url", options.url,
+    ...(process.env.PJM_ANDROID_TEST === "1" ? ["--ez", "pjm-test", "true"] : [])));requireAndroidLaunch(launchOutput); launched = true;
   console.log(`Running PocketJS on ${options.device.name}. Save TSX to restart; Ctrl+C stops the session.`);
   const child = Bun.spawn(adb("logcat", "-v", "brief", "PocketJS:V", "AndroidRuntime:E", "*:S"), { stdout: "inherit", stderr: "inherit", detached: true });
   options.child(child); const status = await child.exited; options.child(undefined); options.stopped(status);

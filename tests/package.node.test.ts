@@ -5,6 +5,14 @@ import { signPackage, verifyPackage, authorizeUrl, authorizePermission, canonica
 const keys = generateKeyPairSync("ed25519");
 const metadata: PackageMetadata = { appId: "com.example.todo", version: "1.0.0", minHostAbi: 7, entry: "main.pocket", pages: ["/", "/detail"], permissions: ["media"], domains: ["api.example.com"], targets: ["pjm-ios", "pjm-android"] };
 const payload = Buffer.from("package fixture"), host = { abi: 7, target: "pjm-android" as const };
+test('verification returns the exact metadata snapshot whose signature was checked',()=>{
+ const signed=signPackage(payload,metadata,keys.privateKey),candidate={...signed};let reads=0;
+ Object.defineProperty(candidate,'domains',{enumerable:true,get(){reads++;return reads===1?signed.domains:['attacker.example.com'];}});
+ const verified=verifyPackage(payload,candidate,keys.publicKey,host);
+ assert.equal(reads,1);assert.deepEqual(verified.domains,['api.example.com']);
+ signed.domains[0]='changed.example.com';assert.deepEqual(verified.domains,['api.example.com']);
+ assert.throws(()=>verifyPackage(payload,{...candidate,extra:'x'.repeat(65536)},keys.publicKey,host),/size limit/);
+});
 test("Ed25519 authenticates both package bytes and all capability metadata", () => {
   const manifest = signPackage(payload, metadata, keys.privateKey);
   assert.deepEqual(verifyPackage(payload, manifest, keys.publicKey, host), manifest);

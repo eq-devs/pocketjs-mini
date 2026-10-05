@@ -1,5 +1,8 @@
 import { FrameRuntime, ServiceError, utf8Bytes, type Limits } from "./runtime.ts";
 import { Navigation } from "./navigation.ts";
+import {strictJsonEncode,strictJsonText} from './json.ts';
+import {checkedLocationOptions,checkedLocationPosition,type LocationOptions} from './location.ts';
+import { checkedHttpRequest, checkedHttpResponse, checkedResourceRead, checkedResourceChunk, checkedResourceHandle, type ResourceRead, type HttpRequest } from "./http.ts";
 
 export interface NativeMailbox {
   svcOpen?(namespace: string): boolean;
@@ -12,6 +15,33 @@ export interface FrameHost { frame?: (...args: any[]) => unknown; ui?: NativeMai
 export interface DeviceInfo {
   platform: "ios" | "android"; model: string; width: number; height: number; density: number;
   safeTop: number; safeBottom: number; safeLeft: number; safeRight: number;
+}
+function checkedClipboardText(value:unknown):string {
+  if(typeof value!=='string'||utf8Bytes(value)>2048||utf8Bytes(JSON.stringify(value))>3072)throw new ServiceError('PROTOCOL','Clipboard text exceeds record limit');
+  for(let index=0;index<value.length;index++){
+    const code=value.charCodeAt(index);
+    if(code>=0xd800&&code<=0xdbff){const low=value.charCodeAt(++index);if(!(low>=0xdc00&&low<=0xdfff))throw new ServiceError('PROTOCOL','Invalid clipboard Unicode');}
+    else if(code>=0xdc00&&code<=0xdfff)throw new ServiceError('PROTOCOL','Invalid clipboard Unicode');
+  }
+  return value;
+}
+function checkedStorageKey(key:string):string {
+  if(typeof key!=='string'||!key.length||utf8Bytes(key)>128)throw new ServiceError('PROTOCOL','Storage key exceeds limit');
+  try{strictJsonEncode(key);}catch{throw new ServiceError('PROTOCOL','Invalid storage key');}return key;
+}
+function checkedStorageValue(value:unknown):unknown {
+  try{const encoded=strictJsonEncode(value);if(utf8Bytes(encoded)>2048)throw Error('Value limit');return strictJsonText(encoded);}
+  catch{throw new ServiceError('PROTOCOL','Invalid storage value or value exceeds limit');}
+}
+function checkedDeviceInfo(value: unknown): DeviceInfo {
+  if(!value || typeof value!=="object" || Array.isArray(value))throw new ServiceError("PROTOCOL","Invalid native device info");
+  const data=value as Record<string,unknown>;
+  if((data.platform!=="ios" && data.platform!=="android") || typeof data.model!=="string" || utf8Bytes(data.model)>256)throw new ServiceError("PROTOCOL","Invalid native device identity");
+  for(const key of ["width","height","density"]){const number=data[key];if(typeof number!=="number" || !Number.isInteger(number) || number<1 || number>(key==="density"?4:1024))throw new ServiceError("PROTOCOL","Invalid native device viewport");}
+  if((data.width as number)*(data.height as number)*(data.density as number)**2*4>16*1024*1024)throw new ServiceError("PROTOCOL","Native device viewport exceeds surface limit");
+  for(const key of ["safeTop","safeBottom","safeLeft","safeRight"]){const number=data[key];if(typeof number!=="number" || !Number.isFinite(number) || number<0)throw new ServiceError("PROTOCOL","Invalid native safe area");}
+  if((data.safeTop as number)+(data.safeBottom as number)>(data.height as number) || (data.safeLeft as number)+(data.safeRight as number)>(data.width as number))throw new ServiceError("PROTOCOL","Native safe area exceeds viewport");
+  return Object.freeze({platform:data.platform,model:data.model,width:data.width as number,height:data.height as number,density:data.density as number,safeTop:data.safeTop as number,safeBottom:data.safeBottom as number,safeLeft:data.safeLeft as number,safeRight:data.safeRight as number});
 }
 const owners = new WeakSet<object>();
 const identifiers = new WeakMap<object,{ next: number }>();
@@ -43,7 +73,7 @@ export function connectMiniApp(options: { host?: FrameHost; pages?: readonly str
     mailbox = true;
     ops.svcSend(line);
   } }, { maxMessageBytes: 4096, maxPending: 32, maxQueued: 32, ...options.limits }, () => sequence.next++);
-  if (runtime.limits.maxMessageBytes > 4096 || runtime.limits.maxPending > 32) throw new ServiceError("PROTOCOL", "SDK limits exceed the native mailbox contract");
+  if (runtime.limits.maxMessageBytes > 4096 || runtime.limits.maxPending > 32 || runtime.limits.maxQueued > 32 || runtime.limits.maxTimers>256 || runtime.limits.maxListeners>256) throw new ServiceError("PROTOCOL", "SDK limits exceed the native mailbox contract");
   let closed = false;
   const lifecycleListeners = new Map<LifecycleEvent, Set<(data: LaunchOptions | undefined) => void>>();
   let launchOptions: LaunchOptions | undefined=state.launch;
@@ -66,13 +96,17 @@ export function connectMiniApp(options: { host?: FrameHost; pages?: readonly str
       navigation.reset(path,{...snapshot.query});
     }
     previousLifecycle?.call(host,event,data);
-    for(const listener of [...(lifecycleListeners.get(event) ?? [])])listener(event==="launch"?launchOptions:undefined);
+    for(const listener of [...(lifecycleListeners.get(event) ?? [])]){if(closed)break;listener(event==="launch"?launchOptions:undefined);}
   };
   host.__miniLifecycle=lifecycle;
   const pump = () => {
     if (!closed) {
       const lines = mailbox ? ops?.svcPoll?.() ?? "" : "";
-      for (const line of lines.split("\n")) if (line) runtime.enqueue(line);
+      const maximum=32*(4096+1);
+      if(typeof lines!=='string'||lines.length>maximum||utf8Bytes(lines)>maximum)throw new ServiceError('PROTOCOL','Native completion batch exceeds byte limit');
+      const records=lines.split('\n').filter(Boolean);
+      if(records.length>runtime.limits.maxQueued)throw new ServiceError('BUSY','Native completion batch exceeds record limit');
+      runtime.enqueueBatch(records);
       runtime.beginFrame();
     }
   };
@@ -83,11 +117,21 @@ export function connectMiniApp(options: { host?: FrameHost; pages?: readonly str
   guestStates.set(host,state);
   return {
     runtime, navigation,
-    deviceInfo: () => runtime.request<DeviceInfo>("device.info.v1"),
+    http: (options: HttpRequest) => {const args=checkedHttpRequest(options),request=runtime.request<unknown>("request.v1",args);return {promise:request.promise.then(value=>checkedHttpResponse(value,args.responseMode)),cancel:request.cancel};},
+    resources: {
+      read: (options: ResourceRead) => {const args=checkedResourceRead(options),request=runtime.request<unknown>("resource.read.v1",args);return {promise:request.promise.then(value=>checkedResourceChunk(value,args)),cancel:request.cancel};},
+      release: (handle: string) => {const request=runtime.request<unknown>("resource.release.v1",{handle:checkedResourceHandle(handle)});return {promise:request.promise.then(value=>{if(value!==null)throw new ServiceError("PROTOCOL","Invalid resource release reply");return null;}),cancel:request.cancel};},
+    },
+    deviceInfo: () => {const request=runtime.request<unknown>("device.info.v1");return {promise:request.promise.then(checkedDeviceInfo),cancel:request.cancel};},
+    location: {get:(options:LocationOptions={})=>{const work=runtime.request<unknown>('location.get.v1',checkedLocationOptions(options));return {promise:work.promise.then(checkedLocationPosition),cancel:work.cancel};}},
+    clipboard: {
+      read:()=>{const request=runtime.request<unknown>('clipboard.read.v1');return {promise:request.promise.then(value=>{if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).join(',')!=='text')throw new ServiceError('PROTOCOL','Invalid clipboard reply');return checkedClipboardText((value as {text:unknown}).text);}),cancel:request.cancel};},
+      write:(text:string)=>{const request=runtime.request<unknown>('clipboard.write.v1',{text:checkedClipboardText(text)});return {promise:request.promise.then(value=>{if(value!==null)throw new ServiceError('PROTOCOL','Invalid clipboard write reply');return null;}),cancel:request.cancel};},
+    },
     storage: {
-      get: <T = unknown>(key: string) => runtime.request<T | null>("storage.get.v1", { key }),
-      set: (key: string, value: unknown) => runtime.request<null>("storage.set.v1", { key, value }),
-      remove: (key: string) => runtime.request<null>("storage.remove.v1", { key }),
+      get: <T = unknown>(key: string) => {const work=runtime.request<unknown>('storage.get.v1',{key:checkedStorageKey(key)});return {promise:work.promise.then(value=>checkedStorageValue(value) as T|null),cancel:work.cancel};},
+      set: (key: string, value: unknown) => {const work=runtime.request<unknown>('storage.set.v1',{key:checkedStorageKey(key),value:checkedStorageValue(value)});return {promise:work.promise.then(value=>{if(value!==null)throw new ServiceError('PROTOCOL','Invalid storage acknowledgement');return null;}),cancel:work.cancel};},
+      remove: (key: string) => {const work=runtime.request<unknown>('storage.remove.v1',{key:checkedStorageKey(key)});return {promise:work.promise.then(value=>{if(value!==null)throw new ServiceError('PROTOCOL','Invalid storage acknowledgement');return null;}),cancel:work.cancel};},
     },
     request: runtime.request.bind(runtime),
     after: runtime.after.bind(runtime),
@@ -95,10 +139,11 @@ export function connectMiniApp(options: { host?: FrameHost; pages?: readonly str
     get launchOptions() { return launchOptions; },
     onLifecycle(event: LifecycleEvent, listener: (data: LaunchOptions | undefined) => void) {
       if(closed)throw new ServiceError("CLOSED","Runtime destroyed");
-      if(!["launch","show","hide","unload","memoryWarning"].includes(event))throw new ServiceError("PROTOCOL","Invalid lifecycle event");
+      if(!["launch","show","hide","unload","memoryWarning"].includes(event)||typeof listener!=='function')throw new ServiceError("PROTOCOL","Invalid lifecycle event or listener");
       const listeners=lifecycleListeners.get(event) ?? new Set<(data: LaunchOptions | undefined) => void>();
+      if(!listeners.has(listener)){let count=0;for(const registered of lifecycleListeners.values())count+=registered.size;if(count>=runtime.limits.maxListeners)throw new ServiceError('BUSY','Too many lifecycle listeners');}
       lifecycleListeners.set(event,listeners);listeners.add(listener);
-      return ()=>{listeners.delete(listener);if(!listeners.size)lifecycleListeners.delete(event);};
+      return ()=>{listeners.delete(listener);if(!listeners.size && lifecycleListeners.get(event)===listeners)lifecycleListeners.delete(event);};
     },
     dispose() {
       if (closed) return;

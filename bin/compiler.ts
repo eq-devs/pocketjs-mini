@@ -1,3 +1,5 @@
+import {developmentConsole} from "./development-console.ts";
+import {verifyPocketHash} from "./package-hash.ts";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve, join } from "node:path";
 import { miniContracts, type WindowInfo } from "./profile.ts";
@@ -7,9 +9,10 @@ import { validatePackageMetadata, type PackageMetadata } from "../container/pack
 export interface CompileOptions {
   upstream: string; project: string; directory: string;
   window: WindowInfo; platform: "ios" | "android";
+  development?:boolean;
   child?(child: ReturnType<typeof Bun.spawn> | undefined): void;
 }
-export async function resolveApplication(options: CompileOptions) {
+export async function resolveApplication(options: CompileOptions, deferTypeCheck = false) {
   const { project, upstream, window, platform } = options;
   installSdk(project);
   const load = (path: string) => import(resolve(upstream, path));
@@ -39,17 +42,22 @@ export async function resolveApplication(options: CompileOptions) {
   const metadata: PackageMetadata = {appId:plan.app.id,version:plan.app.version,minHostAbi:plan.target.hostAbi,entry:"main.pocket",
     pages:config.pages??["/"],permissions:config.permissions??[],domains:config.domains??[],targets:[plan.target.id]};
   validatePackageMetadata(metadata);
+  const checkTypes=()=>{
   const checked = checkAppTypes({ entry: resolve(project, plan.app.entry),
     tsconfigPath: join(project, "tsconfig.json"), declarationFiles: [join(upstream, "framework/src/jsx.d.ts")] });
   if (!checked.ok) throw new Error(checked.diagnostics.filter((d: any) => d.category === "error")
     .map((d: any) => `${d.file ?? "TypeScript"}:${d.line ?? 0} TS${d.code}: ${d.message}`).join("\n"));
-  return { plan, manifest, metadata };
+  };
+  if(!deferTypeCheck)checkTypes();
+  return { plan, manifest, metadata, checkTypes };
 }
 
 /** One compiler path for interactive runs, checks, and signed release builds. */
 export async function compileApplication(options: CompileOptions) {
   const { upstream, project, directory, window } = options;
-  const { plan, manifest, metadata } = await resolveApplication(options);
+  const started=performance.now();
+  const { plan, manifest, metadata, checkTypes } = await resolveApplication(options,true);
+  const resolvedAt=performance.now();
   const name = plan.app.output;
   const load = (path: string) => import(resolve(upstream, path));
   const [{ makeVariant }, { encodePocketPackage, decodePocketPackage, POCKET_SECTION }, { canonicalJson }] = await Promise.all([
@@ -59,26 +67,38 @@ export async function compileApplication(options: CompileOptions) {
   mkdirSync(directory, { recursive: true });
   const planPath = join(directory, "plan.json");
   writeFileSync(planPath, JSON.stringify(plan));
+  const compilerStarted=performance.now();
   const child = Bun.spawn([process.execPath, join(upstream, "tools/build.ts"),
     `--plan=${planPath}`, `--project-root=${project}`, `--outdir=${directory}`],
     { cwd: project, stdout: "pipe", stderr: "pipe", detached: true });
   options.child?.(child);
-  let stdout: string, stderr: string, status: number;
-  try { [stdout, stderr, status] = await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text(), child.exited]); }
+  let stdout: string, stderr: string, status: number;let typeFailure:unknown,typeCheckMs=0;
+  try {
+    // Begin draining pipes before checking; the isolated compiler process runs
+    // concurrently with synchronous TypeScript checking in this process.
+    const output=Promise.all([new Response(child.stdout).text(),new Response(child.stderr).text(),child.exited] as const);
+    const typeCheckStarted=performance.now();
+    try{checkTypes();}catch(failure){typeFailure=failure;}finally{typeCheckMs=Math.round(performance.now()-typeCheckStarted);}
+    [stdout,stderr,status]=await output;
+  }
   finally { options.child?.(undefined); }
   if (stdout) process.stdout.write(stdout);
   if (stderr) process.stderr.write(stderr);
+  if(typeFailure)throw typeFailure;
   if (status !== 0) throw new Error(stderr || `PocketJS compiler exited ${status}`);
-  const environment = `globalThis.__pjmWindow=${JSON.stringify(metrics)};\n`;
+  const compilerFinished=performance.now();
+  const environment = `globalThis.__pjmWindow=${JSON.stringify(metrics)};\n`+(options.development?developmentConsole:"");
   const variant = makeVariant({ target: plan.target.id, hostAbi: plan.target.hostAbi,
     planJson: canonicalJson(plan), identity: { output: name, id: plan.app.id, title: plan.app.title },
-    js: new Uint8Array(Buffer.concat([Buffer.from(environment), readFileSync(join(directory, `${name}.js`))])),
-    pak: new Uint8Array(readFileSync(join(directory, `${name}.pak`))) });
+    js: Buffer.concat([Buffer.from(environment), readFileSync(join(directory, `${name}.js`))]),
+    pak: readFileSync(join(directory, `${name}.pak`)) });
   const packed = encodePocketPackage({ manifest: new TextEncoder().encode(JSON.stringify(manifest)), variants: [variant] });
-  const decoded = decodePocketPackage(packed);
+  verifyPocketHash(packed);
+  const decoded = decodePocketPackage(packed,{skipHashCheck:true});
   const section = (kind: number) => decoded.variants[0].sections.find((s: any) => s.kind === kind)!.bytes as Uint8Array;
   const js = section(POCKET_SECTION.js);
   writeFileSync(join(directory, "app.js"), js.subarray(0, js.length - 1));
   writeFileSync(join(directory, "app.pak"), section(POCKET_SECTION.pak));
-  return { directory, packed, name, metrics, plan, manifest, metadata };
+  const timings=Object.freeze({resolveMs:Math.round(resolvedAt-started),typeCheckMs,prepareMs:Math.round(compilerStarted-resolvedAt),compilerMs:Math.round(compilerFinished-compilerStarted),packageMs:Math.round(performance.now()-compilerFinished)});
+  return { directory, packed, name, metrics, plan, manifest, metadata, timings };
 }

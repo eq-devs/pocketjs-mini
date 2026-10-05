@@ -20,7 +20,7 @@ final class VerifiedPackage {
     JSONObject metadata=PackageVerifier.verify(source,manifestBytes,trusted,7,"pjm-android");
     identity=metadata.getString("appId");version=metadata.getString("version");policy=PackageVerifier.verifyPolicy(source,manifestBytes,trusted,7,"pjm-android");
     byte[][] parts=selectPackage(source,identity.getBytes(StandardCharsets.UTF_8));require(parts!=null && parts.length==3,"Native package selection rejected");
-    JSONObject plan=new JSONObject(StandardCharsets.UTF_8.newDecoder().onMalformedInput(java.nio.charset.CodingErrorAction.REPORT).onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT).decode(java.nio.ByteBuffer.wrap(parts[2])).toString());String expected=plan.getString("planHash");plan.remove("planHash");
+    JSONObject plan=BoundedJson.object(parts[2],1024*1024);String expected=plan.getString("planHash");plan.remove("planHash");
     byte[] hash=MessageDigest.getInstance("SHA-256").digest(PackageVerifier.canonical(plan).getBytes(StandardCharsets.UTF_8));StringBuilder digest=new StringBuilder("sha256:");for(byte value:hash)digest.append(String.format(java.util.Locale.ROOT,"%02x",value&255));require(expected.equals(digest.toString()),"Build plan hash mismatch");
     JSONObject app=plan.getJSONObject("app"),target=plan.getJSONObject("target"),viewport=plan.getJSONObject("viewport");
     require(identity.equals(app.getString("id")) && version.equals(app.getString("version")) && "pjm-android".equals(target.getString("id")) && integer(target.get("hostAbi"),7)==7,"Plan package identity or target mismatch");

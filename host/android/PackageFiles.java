@@ -12,6 +12,7 @@ final class PackageFiles {
   static native void sync(byte[] path)throws IOException;
   static native void rename(byte[] source,byte[] destination)throws IOException;
   static native void remove(byte[] path,boolean directory)throws IOException;
-  static native int lock(byte[] root)throws IOException;
+  static int lock(byte[] root)throws IOException{return lockFile(root,".package-lock".getBytes(StandardCharsets.UTF_8));}
+  static native int lockFile(byte[] root,byte[] name)throws IOException;
   static native void unlock(int descriptor)throws IOException;
 }

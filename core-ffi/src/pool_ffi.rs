@@ -1,14 +1,14 @@
 //! C entry points for the shared owner-thread retained engine container.
 use crate::{
+    Instance,
     ffi::{MpConfig, MpFrame},
     pool::InstancePool,
     retained::RetainedEngine,
-    Instance,
 };
 use std::{
     cell::RefCell,
-    ffi::{c_char, CString},
-    panic::{catch_unwind, AssertUnwindSafe},
+    ffi::{CString, c_char},
+    panic::{AssertUnwindSafe, catch_unwind},
     rc::Rc,
     slice,
     thread::{self, ThreadId},
@@ -36,11 +36,7 @@ impl CallGuard {
     fn enter(handle: *mut MpPool) -> Option<Self> {
         let key = handle as usize;
         let inserted = ACTIVE_POOLS.with(|active| active.borrow_mut().insert(key));
-        if inserted {
-            Some(Self(key))
-        } else {
-            None
-        }
+        if inserted { Some(Self(key)) } else { None }
     }
 }
 impl Drop for CallGuard {

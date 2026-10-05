@@ -1,3 +1,4 @@
+#import "Mini-Swift.h"
 #import <UIKit/UIKit.h>
 #import "PocketSurfaceView.h"
 #import "Config.h"
@@ -15,7 +16,7 @@
 @property NSDictionary *metrics;
 @property NSUInteger revision, failedRevision;
 @property BOOL fetching, reporting;
-@property NSUInteger touches;
+@property NSUInteger touches, pendingLogs;
 @property NSUInteger queuedServiceReplies, sdkReceipt;
 @end
 
@@ -57,9 +58,14 @@
 }
 - (void)processService:(NSString *)line surface:(PocketSurfaceView *)surface metrics:(NSDictionary *)metrics storage:(MiniAppStorage *)storage {
   if(!surface || surface!=self.surface || [line lengthOfBytesUsingEncoding:NSUTF8StringEncoding]>4096)return;
-    id parsed = [NSJSONSerialization JSONObjectWithData:[line dataUsingEncoding:NSUTF8StringEncoding] options:0 error:nil];
+    id parsed = [MiniPackageVerifier parseStrictJSON:[line dataUsingEncoding:NSUTF8StringEncoding] error:nil];
     if (![parsed isKindOfClass:NSDictionary.class]) return;
     NSDictionary *request = parsed; id identifier = request[@"id"], version = request[@"v"], kind = request[@"kind"];
+    if([version isEqual:@1] && [kind isEqual:@"debug.log.v1"]){
+      id args=request[@"args"];if(![args isKindOfClass:NSDictionary.class] || [args count]!=2 || ![args[@"message"] isKindOfClass:NSString.class] || [args[@"message"] lengthOfBytesUsingEncoding:NSUTF8StringEncoding]>2048 || ![@[@"debug",@"info",@"warn",@"error"] containsObject:args[@"level"]] || self.revision<1 || self.pendingLogs>=8)return;
+      NSData *event=[NSJSONSerialization dataWithJSONObject:@{@"revision":@(self.revision),@"platform":@"ios",@"kind":@"log",@"level":args[@"level"],@"message":args[@"message"]} options:0 error:nil];self.pendingLogs++;
+      [self request:@"device-event" body:event completion:^(NSData *data,NSError *error){(void)data;(void)error;self.pendingLogs--;}];return;
+    }
     if (![identifier isKindOfClass:NSNumber.class] || CFGetTypeID((__bridge CFTypeRef)identifier) == CFBooleanGetTypeID()) return;
     double number = [identifier doubleValue];
     if (!isfinite(number) || number < 1 || number > 9007199254740991.0 || floor(number) != number) return;
@@ -177,8 +183,10 @@
         self.message.hidden = YES;
         replacement.onError = ^(NSString *message) { [weak showError:message]; };
         __weak PocketSurfaceView *weakSurface = replacement;
+        __block BOOL reportedFrame=NO;
         replacement.onFrame = ^(uint64_t frame, NSUInteger touchCount) {
           MiniController *self = weak; if (!self) return;
+          if(!reportedFrame){reportedFrame=YES;NSData *event=[NSJSONSerialization dataWithJSONObject:@{@"revision":@(next),@"platform":@"ios",@"kind":@"frame-ready"} options:0 error:nil];[self request:@"device-event" body:event completion:^(NSData *data,NSError *error){(void)data;(void)error;}];}
           if (touchCount) self.touches++;
           PocketSurfaceView *replacement = weakSurface; if (!replacement) return;
           // Test-only receipt observes native pixels; it never changes guest state.

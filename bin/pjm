@@ -3,11 +3,27 @@ set -eu
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 REV=fe971ebb8e14724d2a98d4df6b34c065caf11132
 fail() { echo "pjm: $*" >&2; exit 1; }
-usage() { fail 'usage: pjm doctor | create <appname> | run | check | build [--release --key file] | export-ios --package dir --public-key file --output dir [--target simulator|device] | clean (use --device ios|android to select a platform)'; }
+usage() { fail 'usage: pjm doctor | create <appname> | run | check | build [--release --key file] | export-ios --package dir --public-key file --output dir [--target simulator|device] | export-android --package dir --public-key file --output dir | publish --package dir --public-key file --device ios|android --endpoint HTTPS-url [--dry-run] | replay --package file --tape file --app-id id --version version | devtools [--no-open] | clean (use --device ios|android to select a platform)'; }
 [ "$#" -gt 0 ] || usage
 command=$1
 shift
 case "$command" in
+  replay)
+    command -v bun >/dev/null 2>&1 || fail 'Bun is required'
+    exec bun "$ROOT/bin/replay.ts" "$@"
+    ;;
+  publish)
+    command -v bun >/dev/null 2>&1 || fail 'Bun is required'
+    exec bun "$ROOT/bin/publish.ts" "$@"
+    ;;
+  devtools)
+    command -v bun >/dev/null 2>&1 || fail 'Bun is required'
+    exec bun "$ROOT/bin/devtools.ts" "$@"
+    ;;
+  export-android)
+    command -v bun >/dev/null 2>&1 || fail 'Bun is required'
+    exec bun "$ROOT/bin/export-android.ts" "$@"
+    ;;
   export-ios)
     command -v bun >/dev/null 2>&1 || fail 'Bun is required'
     exec bun "$ROOT/bin/export-ios.ts" "$@"

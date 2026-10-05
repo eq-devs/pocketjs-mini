@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { generateKeyPairSync } from "node:crypto";
-import { mkdtempSync, rmSync, readdirSync, writeFileSync, readFileSync, symlinkSync, mkdirSync } from "node:fs";
+import { mkdtempSync, rmSync, readdirSync, writeFileSync, readFileSync, symlinkSync, mkdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { signPackage, type PackageMetadata } from "../container/package.ts";
 import { PackageStore } from "../container/store.ts";
@@ -17,6 +17,25 @@ function stage(store: PackageStore, version: string, appId = metadata.appId) {
   const signed = signPackage(payload, { ...metadata, appId, version }, keys.privateKey);
   store.stage(payload, signed); return { payload, signed };
 }
+test('staging authenticates and installs a private snapshot of caller-owned bytes',()=>{
+ const f=fixture();try{
+  const payload=Buffer.from('original signed bytes'),expected=Buffer.from(payload),signed=signPackage(payload,metadata,keys.privateKey);
+  const candidate={...signed};Object.defineProperty(candidate,'appId',{enumerable:true,get(){payload.fill(0);return metadata.appId;}});
+  f.store.stage(payload,candidate);
+  assert.deepEqual(f.store.coldStart(metadata.appId).payload,expected);assert.deepEqual(payload,Buffer.alloc(payload.length));
+  assert.throws(()=>f.store.stage(new Uint8Array(),signed),/size/);
+ }finally{f.close();}
+});
+test('restaging an authenticated existing slot preserves immutable package files',()=>{
+  const f=fixture();try{
+    const original=stage(f.store,'1.0.0'),slot=join(f.root,metadata.appId,`${original.signed.version}-${original.signed.sha256}`);
+    const files=['main.pocket','manifest.json'].map(name=>({name,inode:statSync(join(slot,name)).ino,bytes:readFileSync(join(slot,name))}));
+    const reopened=new PackageStore(f.root,keys.publicKey,host);reopened.stage(original.payload,original.signed);
+    for(const file of files){assert.equal(statSync(join(slot,file.name)).ino,file.inode);assert.deepEqual(readFileSync(join(slot,file.name)),file.bytes);}
+    assert.deepEqual(readdirSync(slot).sort(),['main.pocket','manifest.json']);
+    assert.deepEqual(reopened.coldStart(metadata.appId).payload,original.payload);
+  }finally{f.close();}
+});
 test("updates and rollback activate only on cold start, retaining current and previous", () => {
   const f = fixture();
   try {
@@ -67,4 +86,17 @@ test("app data is isolated, traversal and symlinked paths fail closed", () => {
     mkdirSync(join(f.root, metadata.appId, ".lock"));
     assert.throws(() => stage(f.store, "2.0.0"), /busy/);
   } finally { f.close(); rmSync(outside, { recursive: true, force: true }); }
+});
+test("ambiguous persisted selection state fails without rewriting or pruning packages",()=>{
+ const f=fixture();try{
+  const original=stage(f.store,"1.0.0");f.store.coldStart(metadata.appId);stage(f.store,"2.0.0");
+  const path=join(f.root,metadata.appId,"state.json"),state=readFileSync(path,'utf8'),slot=`${original.signed.version}-${original.signed.sha256}`;
+  const malformed=[state.replace('{',`{"current":"${slot}",`),state.replace('{',`{"\\u0063urrent":"${slot}",`),'\ufeff'+state,Buffer.from([0xff,0xfe]),state+' trailing'];
+  for(const contents of malformed){
+   writeFileSync(path,contents);const before=readFileSync(path),entries=readdirSync(join(f.root,metadata.appId)).sort();
+   for(const action of [()=>f.store.coldStart(metadata.appId),()=>f.store.rollback(metadata.appId),()=>f.store.discardUpdate(metadata.appId),()=>stage(f.store,'3.0.0')]){
+    assert.throws(action);assert.deepEqual(readFileSync(path),before);assert.deepEqual(readdirSync(join(f.root,metadata.appId)).sort(),entries);
+   }
+  }
+ }finally{f.close();}
 });

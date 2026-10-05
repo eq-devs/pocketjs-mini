@@ -4,12 +4,14 @@ import java.nio.file.*;
 import android.util.Base64;
 public final class NativePackageLoadTest {
   public static void main(String[] args)throws Exception{
-    JSONArray cases=new JSONArray(new String(Files.readAllBytes(Paths.get(args[0])),"UTF-8"));int count=0;
+    NativeJsonTest.verify();
+    JSONArray cases=new JSONArray(new String(Files.readAllBytes(Paths.get(args[0])),"UTF-8"));int count=0;boolean clipboardChecked=false;
     for(int index=0;index<cases.length();index++){
       JSONObject item=cases.getJSONObject(index);byte[] payload=Base64.decode(item.getString("payload"),Base64.DEFAULT),key=Base64.decode(item.getString("key"),Base64.DEFAULT),envelope=item.getJSONObject("manifest").toString().getBytes("UTF-8");
       VerifiedPackage packageValue=null;try{packageValue=new VerifiedPackage(payload,envelope,key);}catch(Exception failure){if(item.getBoolean("valid"))throw failure;}
       if((packageValue!=null)!=item.getBoolean("valid"))throw new AssertionError("Admission mismatch case "+index);
       if(packageValue!=null){
+        if(!clipboardChecked){NativeClipboardTest.verify(packageValue);clipboardChecked=true;}
         if(packageValue.width!=64 || packageValue.height!=64 || packageValue.density!=1)throw new AssertionError("Viewport mismatch");
         byte[] js=packageValue.javascript();byte initial=js[0];js[0]^=1;payload[0]^=1;
         if(packageValue.javascript()[0]!=initial)throw new AssertionError("Caller mutation changed admitted source");
@@ -21,6 +23,11 @@ public final class NativePackageLoadTest {
         owner[0]=pool;byte[] launch="{\"source\":\"test\",\"query\":{}}".getBytes("UTF-8");long generation=pool.activate(admitted,launch);
         VerifiedContainer.Frame frame=pool.frame(new int[0],new int[0],new byte[0]);if(frame.width!=64 || frame.height!=64 || frame.stride!=256 || frame.pixels.length!=16384 || frame.damage.length!=4)throw new AssertionError("Native frame mismatch");
         if(!new String(pool.effects(),"UTF-8").equals("verified:1:1\n"))throw new AssertionError("Launch/frame mismatch");
+        byte[] ambiguous="{\"v\":1,\"id\":124,\"kind\":\"storage.set.v1\",\"args\":{\"key\":\"forbidden\",\"value\":\"first\",\"value\":\"last\"}}".getBytes("UTF-8");
+        if(pool.dispatchStorageRecord(admitted.identity,generation,ambiguous))throw new AssertionError("Ambiguous storage request dispatched");
+        if(new AppStorage(new java.io.File(args[0]).getParentFile(),admitted.identity).dispatch("storage.get.v1",new JSONObject().put("key","forbidden"))!=JSONObject.NULL)throw new AssertionError("Rejected request changed storage");
+        String duplicate="{\"appId\":\"dev.pjm.fixture\","+new String(envelope,"UTF-8").substring(1);boolean duplicateDenied=false;
+        byte[] restored=payload.clone();restored[0]^=1;try{new VerifiedPackage(restored,duplicate.getBytes("UTF-8"),key);}catch(Exception expected){duplicateDenied=true;}if(!duplicateDenied)throw new AssertionError("Ambiguous signed envelope admitted");
         byte[] storageRequest=new JSONObject().put("v",1).put("id",123).put("kind","storage.set.v1").put("args",new JSONObject().put("key","live-proof").put("value","live")).toString().getBytes("UTF-8");
         pool.background();if(!pool.dispatchStorageRecord(admitted.identity,generation,storageRequest))throw new AssertionError("Storage dispatch skipped");pool.post(admitted.identity,generation,"completion".getBytes("UTF-8"));
         payload[0]^=1;NativePackageStoreTest.verify(new java.io.File(new java.io.File(args[0]).getParentFile(),"packages-"+index),payload,envelope,key,item);VerifiedPackage fresh=new VerifiedPackage(payload,envelope,key);if(pool.activate(fresh,launch)!=generation)throw new AssertionError("Warm generation changed");

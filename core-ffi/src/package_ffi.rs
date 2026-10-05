@@ -1,10 +1,45 @@
 //! Structural admission only: native hosts must authenticate the full payload
 //! and provisioned publisher key before selecting borrowed engine inputs.
-use pocketjs_core::package::{select_guest, Package};
+use pocketjs_core::package::{Package, select_guest};
 use std::{
-    panic::{catch_unwind, AssertUnwindSafe},
+    panic::{AssertUnwindSafe, catch_unwind},
     slice,
 };
+const MAX_VARIANTS: usize = 128;
+const MAX_SECTION_VISITS: usize = 262_144;
+
+// Bound repeated/shared section table work before the pinned parser traverses
+// every variant. This is a preflight, not checksum/structure authentication.
+fn admission_work_bounded(bytes: &[u8]) -> bool {
+    let check = || -> Option<()> {
+        let end = bytes.len().checked_sub(8)?;
+        let read = |offset: usize| -> Option<usize> {
+            let word: [u8; 4] = bytes.get(offset..offset.checked_add(4)?)?.try_into().ok()?;
+            Some(u32::from_le_bytes(word) as usize)
+        };
+        if bytes.len() < 24 {
+            return None;
+        }
+        let manifest_end = 16usize.checked_add(read(8)?)?;
+        let table = manifest_end.checked_add(15)? & !15;
+        let count = read(12)?;
+        if manifest_end > end || table > end || count > MAX_VARIANTS || count > (end - table) / 40 {
+            return None;
+        }
+        let mut visits = 0usize;
+        for index in 0..count {
+            let entry = table + index * 40;
+            let sections = read(entry + 20)?;
+            let offset = read(entry + 24)?;
+            visits = visits.checked_add(sections)?;
+            if visits > MAX_SECTION_VISITS || offset > end || sections > (end - offset) / 16 {
+                return None;
+            }
+        }
+        Some(())
+    };
+    check().is_some()
+}
 #[repr(C)]
 pub struct MpPackageInputs {
     pub size: u32,
@@ -19,7 +54,7 @@ pub struct MpPackageInputs {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pocketjs_core::package::{fnv1a64, section, MAGIC, VERSION};
+    use pocketjs_core::package::{MAGIC, VERSION, fnv1a64, section};
     fn put(bytes: &mut [u8], offset: usize, value: u32) {
         bytes[offset..offset + 4].copy_from_slice(&value.to_le_bytes());
     }
@@ -73,6 +108,28 @@ mod tests {
             plan: std::ptr::null(),
             plan_len: 0,
         }
+    }
+    #[test]
+    fn repeated_tables_have_a_total_work_bound() {
+        let offset = 32 + 65 * 40;
+        let mut bytes = vec![0; offset + 4096 * 16 + 8];
+        put(&mut bytes, 8, 2);
+        put(&mut bytes, 12, 65);
+        for index in 0..65 {
+            let entry = 32 + index * 40;
+            put(&mut bytes, entry + 20, 4096);
+            put(&mut bytes, entry + 24, offset as u32);
+        }
+        assert!(bytes.len() < 70_000);
+        assert!(!admission_work_bounded(&bytes));
+        put(&mut bytes, 12, 64);
+        assert!(admission_work_bounded(&bytes));
+        put(&mut bytes, 56, u32::MAX);
+        assert!(!admission_work_bounded(&bytes));
+        for length in 0..24 {
+            assert!(!admission_work_bounded(&bytes[..length]));
+        }
+        assert!(admission_work_bounded(&fixture("pjm-ios", 7, true)));
     }
     fn select(bytes: &[u8], target: u32, id: &[u8], out: &mut MpPackageInputs) -> i32 {
         unsafe {
@@ -176,6 +233,9 @@ pub unsafe extern "C" fn mp_package_select(
             _ => return -1,
         };
         let bytes = unsafe { slice::from_raw_parts(payload, length) };
+        if !admission_work_bounded(bytes) {
+            return -1;
+        }
         let Ok(identity) =
             std::str::from_utf8(unsafe { slice::from_raw_parts(identity, identity_len) })
         else {

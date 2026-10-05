@@ -1,7 +1,7 @@
 use crate::Instance;
 use std::{
-    ffi::{c_char, CString},
-    panic::{catch_unwind, AssertUnwindSafe},
+    ffi::{CString, c_char},
+    panic::{AssertUnwindSafe, catch_unwind},
     slice,
     thread::{self, ThreadId},
 };
@@ -314,11 +314,7 @@ pub unsafe extern "C" fn mp_destroy(handle: *mut MpInstance) -> i32 {
         return -1;
     }
     let result = catch_unwind(AssertUnwindSafe(|| drop(unsafe { Box::from_raw(handle) })));
-    if result.is_ok() {
-        0
-    } else {
-        -1
-    }
+    if result.is_ok() { 0 } else { -1 }
 }
 
 #[unsafe(no_mangle)]
@@ -358,5 +354,25 @@ pub unsafe extern "C" fn mp_launch(handle: *mut MpInstance, data: *const u8, len
         let payload = std::str::from_utf8(payload).map_err(|_| "Launch data is not UTF-8")?;
         state.engine.lifecycle_data("launch", payload)?;
         Ok(0)
+    })
+}
+
+/// Development inspector snapshot. No guest evaluation or debug highlight mutation.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn mp_debug_tree(
+    handle: *mut MpInstance,
+    output: *mut u8,
+    capacity: usize,
+) -> isize {
+    call(handle, -1, |state| {
+        if output.is_null() || capacity > 4 * 1024 * 1024 {
+            return Err("Invalid inspector output buffer".into());
+        }
+        let snapshot = state.engine.debug_tree_json()?;
+        if snapshot.len() > capacity {
+            return Err("Inspector output buffer too small".into());
+        }
+        unsafe { std::ptr::copy_nonoverlapping(snapshot.as_ptr(), output, snapshot.len()) };
+        Ok(snapshot.len() as isize)
     })
 }

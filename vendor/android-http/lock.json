@@ -1,0 +1,94 @@
+{
+  "schema": 1,
+  "artifacts": [
+    {
+      "artifact": "okhttp-android-5.5.0.aar",
+      "url": "https://repo.maven.apache.org/maven2/com/squareup/okhttp3/okhttp-android/5.5.0/okhttp-android-5.5.0.aar",
+      "sha256": "6c7fd12f092e64ca2eae0b8a8023900c0d7ffec57888cf8abc8085c6f42e1dcc",
+      "files": [
+        {
+          "name": "okhttp-android-5.5.0.jar",
+          "sha256": "fe81821b0df9ebf0c5bf5235a6b17b8311c5d0189bdb8b82ef7275cb6969364d",
+          "bytes": 949455
+        },
+        {
+          "name": "PublicSuffixDatabase.list",
+          "sha256": "c75ab827afd7ffff59a51b14729c25dbfc3b45237eb40ccf02bec7b7d44304a4",
+          "bytes": 132737
+        }
+      ]
+    },
+    {
+      "artifact": "okio-jvm-3.18.1.jar",
+      "url": "https://repo.maven.apache.org/maven2/com/squareup/okio/okio-jvm/3.18.1/okio-jvm-3.18.1.jar",
+      "sha256": "b97b640557a650d15411f2be29aef558c4e422a83653cb18ba494311dbed18be",
+      "files": [
+        {
+          "name": "okio-jvm-3.18.1.jar",
+          "sha256": "b97b640557a650d15411f2be29aef558c4e422a83653cb18ba494311dbed18be",
+          "bytes": 392463
+        }
+      ]
+    },
+    {
+      "artifact": "kotlin-stdlib-2.1.21.jar",
+      "url": "https://repo.maven.apache.org/maven2/org/jetbrains/kotlin/kotlin-stdlib/2.1.21/kotlin-stdlib-2.1.21.jar",
+      "sha256": "263bdc679e1f62012db7b091796279b6d71cf36f4797a98ff1ace05835f201c8",
+      "files": [
+        {
+          "name": "kotlin-stdlib-2.1.21.jar",
+          "sha256": "263bdc679e1f62012db7b091796279b6d71cf36f4797a98ff1ace05835f201c8",
+          "bytes": 1724058
+        }
+      ]
+    },
+    {
+      "artifact": "annotations-13.0.jar",
+      "url": "https://repo.maven.apache.org/maven2/org/jetbrains/annotations/13.0/annotations-13.0.jar",
+      "sha256": "ace2a10dc8e2d5fd34925ecac03e4988b2c0f851650c94b8cef49ba1bd111478",
+      "files": [
+        {
+          "name": "annotations-13.0.jar",
+          "sha256": "ace2a10dc8e2d5fd34925ecac03e4988b2c0f851650c94b8cef49ba1bd111478",
+          "bytes": 17536
+        }
+      ]
+    },
+    {
+      "artifact": "annotation-jvm-1.10.0.jar",
+      "url": "https://dl.google.com/dl/android/maven2/androidx/annotation/annotation-jvm/1.10.0/annotation-jvm-1.10.0.jar",
+      "sha256": "ddd072ddbb553178e205517ce777b2f05aa9e412982d9ecb4eedc74f1212f697",
+      "files": [
+        {
+          "name": "annotation-jvm-1.10.0.jar",
+          "sha256": "ddd072ddbb553178e205517ce777b2f05aa9e412982d9ecb4eedc74f1212f697",
+          "bytes": 62171
+        }
+      ]
+    },
+    {
+      "artifact": "startup-runtime-1.2.0.aar",
+      "url": "https://dl.google.com/dl/android/maven2/androidx/startup/startup-runtime/1.2.0/startup-runtime-1.2.0.aar",
+      "sha256": "f51d361d17b30b09cfb9e2aebf301d113f99437cbf462a066092795fb60eddd2",
+      "files": [
+        {
+          "name": "startup-runtime-1.2.0.jar",
+          "sha256": "c7049a3503ba8b9d68de20719a045b5dcc11f2a9086edb1d1b6cd9487d7cc5e6",
+          "bytes": 7428
+        }
+      ]
+    },
+    {
+      "artifact": "tracing-1.0.0.aar",
+      "url": "https://dl.google.com/dl/android/maven2/androidx/tracing/tracing/1.0.0/tracing-1.0.0.aar",
+      "sha256": "07b8b6139665b884a162eccf97891ca50f7f56831233bf25168ae04f7b568612",
+      "files": [
+        {
+          "name": "tracing-1.0.0.jar",
+          "sha256": "f14fa7864f1a61bb9a6e2fe9ffaf1f911f03a44ff5d06172b1ef84b3ec30a2d9",
+          "bytes": 3696
+        }
+      ]
+    }
+  ]
+}

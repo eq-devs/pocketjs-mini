@@ -30,6 +30,13 @@ int main(void) {@autoreleasepool {
   assert(![first dispatch:@"storage.set.v1" arguments:@{@"key":@"overflow",@"value":@0} error:&error]);assert([error.domain isEqual:@"MiniProtocol"]);
   assert([[second dispatch:@"storage.get.v1" arguments:@{@"key":@"second"} error:&error] isEqual:@2]);
   NSString *file=[directory stringByAppendingPathComponent:@"storage.json"];
+  for(NSString *malformed in @[@"{\"second\":2,\"second\":3}",@"{\"second\":2,\"\\u0073econd\":3}",@"{\"second\":1e999}",@"{\"second\":\"\\ud800\"}",@"{\"second\":2,}"]) {
+    NSData *bytes=[malformed dataUsingEncoding:NSUTF8StringEncoding];assert([bytes writeToFile:file atomically:YES]);error=nil;
+    assert(![first dispatch:@"storage.set.v1" arguments:@{@"key":@"second",@"value":@4} error:&error]);
+    assert([[NSData dataWithContentsOfFile:file] isEqual:bytes]);
+  }
+  const uint8_t invalidUTF8[]={123,34,120,34,58,34,255,34,125};NSData *invalidBytes=[NSData dataWithBytes:invalidUTF8 length:sizeof(invalidUTF8)];assert([invalidBytes writeToFile:file atomically:YES]);
+  assert(![first dispatch:@"storage.get.v1" arguments:@{@"key":@"x"} error:&error]);assert([[NSData dataWithContentsOfFile:file] isEqual:invalidBytes]);
   assert([@"invalid" writeToFile:file atomically:YES encoding:NSUTF8StringEncoding error:&error]);
   assert(![first dispatch:@"storage.set.v1" arguments:@{@"key":@"second",@"value":@3} error:&error]);
   assert([[NSString stringWithContentsOfFile:file encoding:NSUTF8StringEncoding error:&error] isEqual:@"invalid"]);
@@ -37,5 +44,5 @@ int main(void) {@autoreleasepool {
   assert(symlink(file.fileSystemRepresentation,lockPath.fileSystemRepresentation)==0);
   assert(![second dispatch:@"storage.get.v1" arguments:@{@"key":@"second"} error:&error]);
   assert([NSFileManager.defaultManager removeItemAtPath:root error:&error]);
-  puts("Native iOS storage: competing providers, busy isolation, lock release, quotas, corruption and symbolic links passed");
+  puts("Native iOS storage: competing providers, busy isolation, lock release, quotas, strict JSON corruption preservation and symbolic links passed");
 }return 0;}

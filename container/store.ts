@@ -1,10 +1,15 @@
-import { mkdirSync, lstatSync, readFileSync, writeFileSync, renameSync, rmSync, readdirSync } from "node:fs";
-import { join, resolve, parse } from "node:path";
+import {strictJson} from "./strict-json.ts";
+import {readBoundedFile} from './bounded-file.ts';
+import {writeAtomicFile,syncDirectory,syncRegularFile} from './atomic-file.ts';
+import { mkdirSync, lstatSync, renameSync, rmSync, readdirSync } from "node:fs";
+import { join, resolve, parse, dirname } from "node:path";
 import { randomBytes, type KeyObject } from "node:crypto";
 import { verifyPackage, canonical, MAX_PACKAGE_BYTES, type SignedManifest } from "./package.ts";
 
 type Host = { abi: number; target: "pjm-ios" | "pjm-android" };
 type State = { current?: string; previous?: string; pending?: string };
+export type AppPermission = 'clipboard.read'|'media'|'location';
+const appPermissions:readonly string[]=['clipboard.read','media','location'];
 export interface InstalledPackage { manifest: SignedManifest; payload: Uint8Array; }
 const slotPattern = /^\d+\.\d+\.\d+-[a-f0-9]{64}$/;
 function appIdentity(appId: string): void {
@@ -34,6 +39,7 @@ export class PackageStore {
       } catch (error: any) {
         if (error.code !== "ENOENT") throw error;
         mkdirSync(cursor, { mode: 0o700 });
+        syncDirectory(cursor);syncDirectory(dirname(cursor));
       }
     }
   }
@@ -42,14 +48,11 @@ export class PackageStore {
     const path = join(this.root, appId); this.directory(path); return path;
   }
   private regular(path: string, maximum: number): Buffer {
-    const stat = lstatSync(path);
-    if (!stat.isFile() || stat.isSymbolicLink()) throw new Error("Package store file must be regular");
-    if (stat.size > maximum) throw new Error("Package store file exceeds size limit");
-    return readFileSync(path);
+    return readBoundedFile(path,maximum);
   }
   private state(path: string): State {
     let state: State;
-    try { state = JSON.parse(this.regular(join(path, "state.json"), 2048).toString("utf8")); }
+    try { state = strictJson(this.regular(join(path, "state.json"), 2048)) as State; }
     catch (error: any) { if (error.code === "ENOENT") return {}; throw error; }
     if (!state || typeof state !== "object" || Array.isArray(state)
       || Object.keys(state).some(key => !["current", "previous", "pending"].includes(key))
@@ -57,9 +60,7 @@ export class PackageStore {
     return state;
   }
   private commit(path: string, state: State): void {
-    const temporary = join(path, `.state-${randomBytes(12).toString("hex")}`);
-    try { writeFileSync(temporary, JSON.stringify(state), { flag: "wx", mode: 0o600 }); renameSync(temporary, join(path, "state.json")); }
-    finally { rmSync(temporary, { force: true }); }
+    writeAtomicFile(path,'state.json',JSON.stringify(state));
   }
   private locked<T>(path: string, operation: () => T): T {
     const lock = join(path, ".lock");
@@ -73,13 +74,15 @@ export class PackageStore {
     const stat = lstatSync(folder);
     if (!stat.isDirectory() || stat.isSymbolicLink()) throw new Error("Invalid package directory");
     const payload = this.regular(join(folder, "main.pocket"), MAX_PACKAGE_BYTES);
-    const manifest = verifyPackage(payload, JSON.parse(this.regular(join(folder, "manifest.json"), 65536).toString("utf8")), this.trustedKey, this.host);
+    const manifest = verifyPackage(payload, strictJson(this.regular(join(folder, "manifest.json"), 65536)), this.trustedKey, this.host);
     if (manifest.appId !== appId || slot !== `${manifest.version}-${manifest.sha256}`) throw new Error("Package store identity mismatch");
     return { payload, manifest };
   }
   stage(payload: Uint8Array, candidate: unknown): SignedManifest {
     // Authenticate before creating any application directory or changing state.
-    const manifest = verifyPackage(payload, candidate, this.trustedKey, this.host);
+    if(!(payload instanceof Uint8Array)||!payload.length||payload.length>MAX_PACKAGE_BYTES)throw new Error('Package size outside 1..64 MiB');
+    const source=Buffer.from(payload);
+    const manifest = verifyPackage(source, candidate, this.trustedKey, this.host);
     const path = this.app(manifest.appId), slot = `${manifest.version}-${manifest.sha256}`;
     return this.locked(path, () => {
       const state = this.state(path), destination = join(path, slot);
@@ -88,14 +91,18 @@ export class PackageStore {
       if (exists) {
         const installed = this.load(path, slot, manifest.appId);
         if (canonical(installed.manifest) !== canonical(manifest)) throw new Error("Package slot already has different signed metadata");
+        syncRegularFile(join(destination,'main.pocket'));syncRegularFile(join(destination,'manifest.json'));
+        syncDirectory(destination);syncDirectory(path);
       }
       else {
         const temporary = join(path, `.install-${randomBytes(12).toString("hex")}`);
         mkdirSync(temporary, { mode: 0o700 });
         try {
-          writeFileSync(join(temporary, "main.pocket"), payload, { flag: "wx", mode: 0o600 });
-          writeFileSync(join(temporary, "manifest.json"), JSON.stringify(manifest), { flag: "wx", mode: 0o600 });
+          writeAtomicFile(temporary,"main.pocket",source);
+          writeAtomicFile(temporary,"manifest.json",JSON.stringify(manifest));
           renameSync(temporary, destination);
+          // Persist the complete slot before publishing a state that selects it.
+          syncDirectory(path);
         } finally { rmSync(temporary, { force: true, recursive: true }); }
       }
       this.commit(path, { ...state, pending: slot });
@@ -141,5 +148,30 @@ export class PackageStore {
   /** Host services map opaque keys inside this app-owned data directory. */
   dataRoot(appId: string): string {
     const path = join(this.app(appId), "data"); this.directory(path); return path;
+  }
+  /** Host approval is separate from guest storage and OS permission status.
+   * Only trusted host code calls these methods with authenticated identity. */
+  permissionDecision(appId:string,permission:AppPermission):boolean|null {
+    this.permissionName(permission);
+    const values=this.permissionState(this.app(appId));
+    return Object.hasOwn(values,permission)?values[permission]:null;
+  }
+  setPermissionDecision(appId:string,permission:AppPermission,granted:boolean):void {
+    this.permissionName(permission);if(typeof granted!=='boolean')throw Error('Invalid permission decision');
+    const path=this.app(appId);
+    this.locked(path,()=>{
+      const decisions=this.permissionState(path);decisions[permission]=granted;
+      writeAtomicFile(path,'permissions.json',canonical({format:1,decisions}));
+    });
+  }
+  private permissionName(permission:string):void {
+    if(!appPermissions.includes(permission))throw Error('Unknown application permission');
+  }
+  private permissionState(path:string):Record<string,boolean> {
+    let state:any;
+    try{state=strictJson(this.regular(join(path,'permissions.json'),1024));}
+    catch(error:any){if(error.code==='ENOENT')return Object.create(null);throw error;}
+    if(!state||Object.keys(state).sort().join(',')!=='decisions,format'||state.format!==1||!state.decisions||typeof state.decisions!=='object'||Array.isArray(state.decisions)||Object.entries(state.decisions).some(([key,value])=>!appPermissions.includes(key)||typeof value!=='boolean'))throw Error('Invalid permission state');
+    return Object.assign(Object.create(null),state.decisions);
   }
 }

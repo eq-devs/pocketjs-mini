@@ -78,7 +78,13 @@ static const uint32_t kPocketSurfaceDefaultTickRate=60;
     PocketSurfaceView *surface=weakSelf;NSString *line=[[NSString alloc] initWithData:record encoding:NSUTF8StringEncoding];
     if(line && surface.onVerifiedCleanup)surface.onVerifiedCleanup(bound,generation,line);
   };
-  _container.onRetirement=^(MiniVerifiedPackage *retired,uint64_t generation){(void)retired;(void)generation;PocketSurfaceView *surface=weakSelf;if(surface)[surface->_presenter finishAndRelease];};
+  _container.onRetirement=^(MiniVerifiedPackage *retired,uint64_t generation){
+    PocketSurfaceView *surface=weakSelf;
+    if(surface){
+      [surface->_presenter finishAndRelease];
+      if(surface.onVerifiedRetirement)surface.onVerifiedRetirement(retired,generation);
+    }
+  };
   if(![self activateVerifiedPackage:package launchData:launch error:error])return nil;
   return self;
 }
@@ -273,6 +279,8 @@ static const uint32_t kPocketSurfaceDefaultTickRate=60;
 }
 - (void)handleDisplayTick:(CADisplayLink *)link {
   (void)link;if(!_handle && !_container)return;
+  if(_container && self.onVerifiedFrameStart)self.onVerifiedFrameStart();
+  if(!_handle && !_container)return;
   MpInput input={0};input.size=sizeof(input);
   for(MiniTouch *contact in [_contacts copy]){
     if(contact.cancelled){if(contact.reported)input.cancelled[input.cancelled_count++]=contact.identifier;[_contacts removeObject:contact];continue;}

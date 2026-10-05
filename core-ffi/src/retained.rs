@@ -1,6 +1,6 @@
 //! Real engine adapter for owner-thread retention. Native presentation resources
 //! still require a host adapter.
-use crate::{pool::RetainedGuest, Instance};
+use crate::{Instance, pool::RetainedGuest};
 
 pub struct RetainedEngine {
     engine: Option<Instance>,

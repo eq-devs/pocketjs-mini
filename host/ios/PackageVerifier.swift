@@ -3,6 +3,7 @@ import CryptoKit
 
 @objc(MiniPackageVerifier)
 public final class NativePackageVerifier: NSObject {
+    @objc(parseStrictJSON:error:) public static func parseStrictJSON(_ data: Data) throws -> Any { try StrictPackageJSON.parse(data) }
     @objc public static func verifyPlanHash(_ plan: NSDictionary) throws {
         guard var body = plan as? [String: Any], let expected = body.removeValue(forKey: "planHash") as? String,
               expected.range(of: "^sha256:[a-f0-9]{64}$", options: .regularExpression) != nil else {
@@ -17,6 +18,71 @@ public final class NativePackageVerifier: NSObject {
     }
 }
 
+/// Validate bytes before Foundation parsing discards duplicate object keys.
+private struct StrictPackageJSON {
+    let bytes: [UInt8]
+    var index = 0
+    var tokens = 0
+    static func parse(_ data: Data) throws -> Any {
+        guard String(data: data, encoding: .utf8) != nil else { throw PackageVerifier.Failure.rejected("JSON UTF-8") }
+        var parser = StrictPackageJSON(bytes: Array(data))
+        try parser.value(0); parser.space()
+        guard parser.index == parser.bytes.count else { throw PackageVerifier.Failure.rejected("JSON trailing bytes") }
+        return try JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed])
+    }
+    func rejected() -> PackageVerifier.Failure { .rejected("Strict JSON grammar") }
+    mutating func tick() throws { tokens += 1; if tokens > 262144 { throw rejected() } }
+    mutating func space() { while index < bytes.count && [UInt8(32),9,10,13].contains(bytes[index]) { index += 1 } }
+    mutating func take(_ byte: UInt8) -> Bool { if index < bytes.count && bytes[index] == byte { index += 1; return true }; return false }
+    mutating func hex() throws -> UInt16 {
+        var result: UInt16 = 0
+        for _ in 0..<4 {
+            guard index < bytes.count else { throw rejected() }; let byte = bytes[index]; index += 1
+            let digit: UInt8
+            switch byte { case 48...57: digit = byte - 48; case 65...70: digit = byte - 55; case 97...102: digit = byte - 87; default: throw rejected() }
+            result = result * 16 + UInt16(digit)
+        }; return result
+    }
+    mutating func string() throws -> Data {
+        try tick(); let start = index; guard take(34) else { throw rejected() }
+        while index < bytes.count {
+            let byte = bytes[index]; index += 1
+            if byte == 34 {
+                let value = try JSONSerialization.jsonObject(with: Data(bytes[start..<index]), options: [.fragmentsAllowed])
+                guard let text = value as? String else { throw rejected() }; return Data(text.utf8)
+            }
+            if byte < 32 { throw rejected() }
+            if byte == 92 {
+                guard index < bytes.count else { throw rejected() }; let escape = bytes[index]; index += 1
+                if escape == 117 {
+                    let code = try hex()
+                    if (0xd800...0xdbff).contains(code) { guard take(92), take(117) else { throw rejected() }; let low = try hex(); guard (0xdc00...0xdfff).contains(low) else { throw rejected() } }
+                    else if (0xdc00...0xdfff).contains(code) { throw rejected() }
+                } else if ![UInt8(34),92,47,98,102,110,114,116].contains(escape) { throw rejected() }
+            }
+        }; throw rejected()
+    }
+    mutating func value(_ depth: Int) throws {
+        guard depth <= 32 else { throw rejected() }; space(); guard index < bytes.count else { throw rejected() }
+        if bytes[index] == 34 { _ = try string(); return }; try tick()
+        if bytes[index] == 123 || bytes[index] == 91 {
+            let object = bytes[index] == 123, end: UInt8 = object ? 125 : 93; index += 1; space(); if take(end) { return }; var keys = Set<Data>()
+            while true {
+                space(); if object { let key = try string(); guard keys.insert(key).inserted else { throw rejected() }; space(); guard take(58) else { throw rejected() } }
+                try value(depth + 1); space(); if take(end) { return }; guard take(44) else { throw rejected() }
+            }
+        }
+        for literal in [Array("true".utf8), Array("false".utf8), Array("null".utf8)] {
+            if index + literal.count <= bytes.count && Array(bytes[index..<index+literal.count]) == literal { index += literal.count; return }
+        }
+        let start = index; _ = take(45)
+        if !take(48) { guard index < bytes.count && (49...57).contains(bytes[index]) else { throw rejected() }; repeat { index += 1 } while index < bytes.count && (48...57).contains(bytes[index]) }
+        if take(46) { guard index < bytes.count && (48...57).contains(bytes[index]) else { throw rejected() }; repeat { index += 1 } while index < bytes.count && (48...57).contains(bytes[index]) }
+        if take(101) || take(69) { if !take(43) { _ = take(45) }; guard index < bytes.count && (48...57).contains(bytes[index]) else { throw rejected() }; repeat { index += 1 } while index < bytes.count && (48...57).contains(bytes[index]) }
+        guard index - start <= 128, let number = Double(String(decoding: bytes[start..<index], as: UTF8.self)), number.isFinite else { throw rejected() }
+    }
+}
+
 /// Verification accepts a host-provisioned raw Ed25519 key, never an envelope key.
 enum PackageVerifier {
     enum Failure: Error { case rejected(String) }
@@ -28,7 +94,7 @@ enum PackageVerifier {
             value.range(of: pattern, options: .regularExpression) != nil
         }
         try require(!payload.isEmpty && payload.count <= 64 * 1024 * 1024 && envelope.count <= 64 * 1024, "Package size")
-        guard var manifest = try JSONSerialization.jsonObject(with: envelope) as? [String: Any] else { throw Failure.rejected("Manifest object") }
+        guard var manifest = try StrictPackageJSON.parse(envelope) as? [String: Any] else { throw Failure.rejected("Manifest object") }
         try require(Set(manifest.keys) == Set(["appId", "version", "minHostAbi", "entry", "pages", "permissions", "domains", "targets", "format", "sha256", "signature"]), "Manifest fields")
         func string(_ key: String) throws -> String {
             guard let value = manifest[key] as? String else { throw Failure.rejected(key) }; return value

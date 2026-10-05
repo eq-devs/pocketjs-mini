@@ -48,6 +48,9 @@ int32_t mp_render_damage(MpInstance*,MpFrame *out,MpDamage *damage);
 ptrdiff_t mp_svc_take(MpInstance*,uint8_t *output,size_t capacity);
 int32_t mp_svc_post(MpInstance*,const uint8_t *line,size_t length);
 const char *mp_last_error(MpInstance*);
+/* Read-only development retained-tree JSON; max capacity 4 MiB.
+ * Returns byte length or -1; caller initializes its own bounded output buffer. */
+ptrdiff_t mp_debug_tree(MpInstance*,uint8_t *output,size_t capacity);
 /* Owner-thread, idempotent for a healthy booted guest. Suspension blocks
  * guest frames/effect draining; bounded completions remain queued for resume.
  * A failed/stopped guest cannot be revived. */
@@ -92,6 +95,8 @@ int32_t mp_pool_resume(MpPool*);
 int32_t mp_pool_memory_warning(MpPool*);
 const char *mp_pool_last_error(MpPool*);
 int32_t mp_pool_destroy(MpPool*);
+/* Strict Ed25519 host verification; key 32 bytes, signature 64, message <=64 KiB. */
+int32_t mp_ed25519_verify(const uint8_t*,size_t,const uint8_t*,size_t,const uint8_t*,size_t);
 #ifdef __cplusplus
 }
 #endif

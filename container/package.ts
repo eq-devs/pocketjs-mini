@@ -1,4 +1,5 @@
 import { createHash, createPrivateKey, createPublicKey, sign, verify, type KeyObject } from "node:crypto";
+import {strictJson} from './strict-json.ts';
 
 export interface PackageMetadata {
   appId: string; version: string; minHostAbi: number; entry: "main.pocket";
@@ -41,8 +42,12 @@ export function signPackage(payload: Uint8Array, metadata: PackageMetadata, priv
 }
 export function verifyPackage(payload: Uint8Array, candidate: unknown, publicKey: KeyObject | string,
   host: { abi: number; target: "pjm-ios" | "pjm-android" }): SignedManifest {
-  validatePackageMetadata(candidate); checkPayload(payload);
-  const manifest = candidate as SignedManifest;
+  checkPayload(payload);
+  // Read caller-owned metadata once; all checks and the return value use this copy.
+  const encoded=Buffer.from(canonical(candidate),'utf8');
+  if(encoded.length>65536)throw new Error('Signed package envelope exceeds size limit');
+  const manifest=strictJson(encoded) as SignedManifest;
+  validatePackageMetadata(manifest);
   const keys = Object.keys(manifest).sort().join(",");
   if (keys !== "appId,domains,entry,format,minHostAbi,pages,permissions,sha256,signature,targets,version") throw new Error("Unknown or missing container manifest fields");
   if (manifest.format !== 1 || typeof manifest.sha256 !== "string" || !/^[a-f0-9]{64}$/.test(manifest.sha256) || typeof manifest.signature !== "string" || !/^[A-Za-z0-9+/]{86}==$/.test(manifest.signature)) throw new Error("Invalid signed package envelope");
@@ -52,7 +57,7 @@ export function verifyPackage(payload: Uint8Array, candidate: unknown, publicKey
   if (!verify(null, unsigned(manifest), key, Buffer.from(manifest.signature, "base64"))) throw new Error("Publisher signature rejected");
   if (!Number.isSafeInteger(host.abi) || host.abi < manifest.minHostAbi) throw new Error("Upgrade the host: package requires a newer ABI");
   if (!manifest.targets.includes(host.target)) throw new Error("Package does not support this host target");
-  return JSON.parse(canonical(manifest));
+  return manifest;
 }
 /** Call on every URL, including redirects; native transport must apply this gate. */
 export function authorizeUrl(manifest: PackageMetadata, address: string): URL {

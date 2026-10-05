@@ -10,6 +10,7 @@ publish = false
 crate-type = ["rlib", "staticlib", "cdylib"]
 
 [dependencies]
+ed25519-dalek = "=2.2.0"
 pocket-mod = { path = "../examples/hello/.pjm/pocketjs/engine/crates/pocket-mod" }
 pocket-ui-surface = { path = "../examples/hello/.pjm/pocketjs/engine/crates/pocket-ui-surface" }
 pocketjs-core = { path = "../examples/hello/.pjm/pocketjs/engine/core" }

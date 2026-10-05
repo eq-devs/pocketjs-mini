@@ -4,3 +4,5 @@ export { Navigation } from "./navigation.ts";
 export type { PageEntry } from "./navigation.ts";
 export { connectMiniApp } from "./native.ts";
 export type { DeviceInfo, NativeMailbox, FrameHost, LifecycleEvent, LaunchOptions } from "./native.ts";
+export type { HttpRequest, HttpResponse, ResourceHandle, ResourceRead, ResourceChunk } from "./http.ts";
+export type {LocationOptions,LocationPosition} from './location.ts';

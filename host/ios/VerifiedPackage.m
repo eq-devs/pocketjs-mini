@@ -45,7 +45,7 @@ static BOOL exactBoolean(id value,BOOL expected){return [value isKindOfClass:NSN
         return nil;
     }
     NSData *planData=[NSData dataWithBytes:_inputs.plan length:_inputs.plan_len];
-    id parsed=[NSJSONSerialization JSONObjectWithData:planData options:0 error:error];
+    id parsed=[MiniPackageVerifier parseStrictJSON:planData error:error];
     if(![parsed isKindOfClass:NSDictionary.class]){if(error && !*error)*error=[NSError errorWithDomain:@"MiniPackage" code:2 userInfo:@{NSLocalizedDescriptionKey:@"Authenticated build plan must be an object"}];return nil;}
     _plan=parsed;
     if(![MiniPackageVerifier verifyPlanHash:_plan error:error])return nil;

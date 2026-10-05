@@ -49,9 +49,9 @@ JNIEXPORT void JNICALL Java_dev_pjm_android_PackageFiles_rename(JNIEnv *e,jclass
   if(left>=0 && right>=0){struct stat st;if(fstatat(left,from,&st,AT_SYMLINK_NOFOLLOW) || !S_ISDIR(st.st_mode))failure(e);else if(fstatat(right,to,&st,AT_SYMLINK_NOFOLLOW)==0 || errno!=ENOENT)failure(e);else if(renameat(left,from,right,to) || fsync(left) || fsync(right))failure(e);}
   if(left>=0)close(left);if(right>=0)close(right);free(a);free(b);
 }
-JNIEXPORT void JNICALL Java_dev_pjm_android_PackageFiles_remove(JNIEnv *e,jclass c,jbyteArray input,jboolean directory){(void)c;char *owned=NULL,*name=NULL;int dir=parent(e,input,&owned,&name);if(dir>=0){if(unlinkat(dir,name,directory?AT_REMOVEDIR:0)!=0 && errno!=ENOENT)failure(e);close(dir);}free(owned);}
-JNIEXPORT jint JNICALL Java_dev_pjm_android_PackageFiles_lock(JNIEnv *e,jclass c,jbyteArray input){
-  (void)c;char *path=string(e,input,4096);if(!path)return -1;int dir=walk(path,0);free(path);if(dir<0){failure(e);return -1;}int fd=openat(dir,".package-lock",O_RDWR|O_CREAT|O_NOFOLLOW|O_NONBLOCK|O_CLOEXEC,0600);close(dir);if(fd<0){failure(e);return -1;}
+JNIEXPORT void JNICALL Java_dev_pjm_android_PackageFiles_remove(JNIEnv *e,jclass c,jbyteArray input,jboolean directory){(void)c;char *owned=NULL,*name=NULL;int dir=parent(e,input,&owned,&name);if(dir>=0){int status=unlinkat(dir,name,directory?AT_REMOVEDIR:0);if(status==0){if(fsync(dir))failure(e);}else if(errno!=ENOENT)failure(e);close(dir);}free(owned);}
+JNIEXPORT jint JNICALL Java_dev_pjm_android_PackageFiles_lockFile(JNIEnv *e,jclass c,jbyteArray input,jbyteArray filename){
+  (void)c;char *name=string(e,filename,32);if(!name)return -1;if(strcmp(name,".package-lock") && strcmp(name,".storage-lock")){free(name);failure(e);return -1;}char *path=string(e,input,4096);if(!path){free(name);return -1;}int dir=walk(path,0);free(path);if(dir<0){free(name);failure(e);return -1;}int fd=openat(dir,name,O_RDWR|O_CREAT|O_NOFOLLOW|O_NONBLOCK|O_CLOEXEC,0600);free(name);close(dir);if(fd<0){failure(e);return -1;}
   struct stat st;if(fstat(fd,&st) || !S_ISREG(st.st_mode)){close(fd);failure(e);return -1;}
   if(flock(fd,LOCK_EX|LOCK_NB)){int busy=errno==EWOULDBLOCK || errno==EAGAIN;close(fd);if(!busy)failure(e);return -1;}return fd;
 }

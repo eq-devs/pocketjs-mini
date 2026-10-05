@@ -177,9 +177,10 @@ mod tests {
         pool.activate::<()>("a", || panic!("retained guest must not be recreated"))
             .unwrap();
         let before = log.borrow().clone();
-        assert!(pool
-            .activate("bad", || Err::<Guest, _>("signature"))
-            .is_err());
+        assert!(
+            pool.activate("bad", || Err::<Guest, _>("signature"))
+                .is_err()
+        );
         assert_eq!(*log.borrow(), before);
         pool.activate("d", || Ok::<_, ()>(Guest("d", log.clone())))
             .unwrap();
@@ -214,7 +215,9 @@ mod tests {
         }
         assert_eq!(
             *log.borrow(),
-            ["a:show", "a:hide", "a:unload", "b:show", "b:hide", "b:unload"]
+            [
+                "a:show", "a:hide", "a:unload", "b:show", "b:hide", "b:unload"
+            ]
         );
     }
 }

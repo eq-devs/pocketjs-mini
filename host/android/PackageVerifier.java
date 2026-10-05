@@ -4,11 +4,12 @@ import org.json.JSONObject;
 import org.json.JSONArray;
 import java.nio.charset.StandardCharsets;
 import java.security.*;
-import java.security.spec.X509EncodedKeySpec;
 import java.util.*;
 
-/** Uses only a host-provisioned raw publisher key. Missing crypto fails closed. */
+/** Uses a host-provisioned raw publisher key and the bundled strict verifier. */
 final class PackageVerifier {
+  static {System.loadLibrary("pocketjs");}
+  private static native boolean verifySignature(byte[] key,byte[] signature,byte[] message);
   static final class Policy {
     private final Set<String> domains,permissions;
     private Policy(JSONObject verified) throws Exception {
@@ -62,7 +63,7 @@ final class PackageVerifier {
   }
   static JSONObject verify(byte[] payload,byte[] envelope,byte[] trustedKey,long abi,String target) throws Exception {
     require(payload.length>0 && payload.length<=64*1024*1024 && envelope.length<=64*1024,"Package size");
-    JSONObject object=new JSONObject(new String(envelope,StandardCharsets.UTF_8));
+    JSONObject object=BoundedJson.object(envelope,65536);
     Set<String> expected=new HashSet<>(Arrays.asList("appId","version","minHostAbi","entry","pages","permissions","domains","targets","format","sha256","signature"));
     Set<String> actual=new HashSet<>();Iterator<String> keys=object.keys();while(keys.hasNext())actual.add(keys.next());require(actual.equals(expected),"Manifest fields");
     String app=string(object,"appId"),version=string(object,"version");
@@ -78,9 +79,8 @@ final class PackageVerifier {
     require(digest.matches("[a-f0-9]{64}") && signatureText.matches("[A-Za-z0-9+/]{86}=="),"Signature envelope");
     StringBuilder hash=new StringBuilder();for(byte b:MessageDigest.getInstance("SHA-256").digest(payload))hash.append(String.format(Locale.ROOT,"%02x",b&255));require(hash.toString().equals(digest),"Payload digest");
     require(trustedKey.length==32,"Trusted key");
-    byte[] encoded=new byte[44],prefix={0x30,0x2a,0x30,0x05,0x06,0x03,0x2b,0x65,0x70,0x03,0x21,0};System.arraycopy(prefix,0,encoded,0,12);System.arraycopy(trustedKey,0,encoded,12,32);
-    object.remove("signature");Signature verifier=Signature.getInstance("Ed25519");verifier.initVerify(KeyFactory.getInstance("Ed25519").generatePublic(new X509EncodedKeySpec(encoded)));verifier.update(canonical(object).getBytes(StandardCharsets.UTF_8));
-    require(verifier.verify(android.util.Base64.decode(signatureText,android.util.Base64.NO_WRAP)),"Publisher signature");
+    object.remove("signature");
+    require(verifySignature(trustedKey,android.util.Base64.decode(signatureText,android.util.Base64.NO_WRAP),canonical(object).getBytes(StandardCharsets.UTF_8)),"Publisher signature");
     require(abi>=minimum && targets.contains(target),"Host compatibility");object.put("signature",signatureText);return object;
   }
 }

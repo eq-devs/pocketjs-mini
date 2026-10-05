@@ -51,7 +51,7 @@ There is no USB-only reload tunnel or offline standalone app in this version.
 ### Android development host
 
 The Android host uses QuickJS, the Rust core and GLES2 in a native surface.
-Install JDK 17, Android SDK platform 34, build-tools 35.0.0, NDK 28.2.13676358,
+Install JDK 17, Android SDK platform 34, build-tools 36.0.0, NDK 28.2.13676358,
 and stable Rust with the Android target:
 
 ```sh
@@ -151,7 +151,11 @@ mini.after(60, () => console.log("60 guest frames elapsed"));
 mini.navigation.push("/detail", { id: "example" });
 ```
 
-The iOS and Android development hosts currently implement `device.info.v1`.
+The iOS and Android development and installed hosts implement `device.info.v1`.
+The SDK validates its platform, model, logical viewport, density and four safe-area
+fields before resolving the request. Installed hosts fit their fixed logical
+viewport inside the platform's safe surface, so those logical safe-area fields
+are zero. Invalid or incomplete replies reject with `PROTOCOL`.
 Both hosts also implement `storage.get.v1`, `storage.set.v1` and
 `storage.remove.v1`, exposed as `mini.storage.get/set/remove(...).promise`.
 Values are JSON; a missing key returns `null`. Limits are 256 keys, 128 UTF-8
@@ -165,11 +169,56 @@ acceptance also switches app identities and verifies a guest-supplied identity
 cannot select another data directory. iOS currently verifies persistence,
 quotas, removal and failed-boot effects; its native identity isolation acceptance
 still needs expansion.
+The installed iOS and Android hosts additionally implement `request.v1`, exposed as
+`mini.http({url: "https://example.com/"}).promise`. The SDK exports `HttpRequest`
+and `HttpResponse` types, validates inline request bounds and canonical base64,
+and validates the reply before returning a frozen response. Its handle includes
+`cancel()`. The generic `mini.request("request.v1", args)` remains available.
+The domain must appear in the authenticated package. Optional arguments are
+`method` (GET/HEAD/POST/PUT/PATCH/DELETE), `headers` with printable ASCII values,
+and canonical `bodyBase64`.
+Successful data contains `status` and `bodyBase64`. Request and response bodies
+are limited to 1536 bytes in inline mode. Both installed hosts also support
+`responseMode: "resource"` for responses up to 1 MiB, returning
+`{status, resource: {handle, size}}`. Use `mini.resources.read({handle, offset,
+count})` for chunks of at most 1536 bytes, and `mini.resources.release(handle)`
+when finished. Reads return canonical `bodyBase64`, `offset`, `nextOffset`, total
+`size`, and `eof`. Handles belong to their original app and guest generation;
+retirement releases them. There are four slots per generation and sixteen
+fixed 1 MiB slots per process, including cancelled workers until they exit.
+Native Android execution and iOS main-queue delegate tests cover resource
+production, chunk ranges, release and retirement; signed guest resource round
+trips remain to be verified.
+Each guest may have four requests pending, eight across the controller. Requests
+also have a process-wide limit of 32 admissions per app in a rolling 60 seconds;
+cancelled work still counts. Retiring guests, opening new controllers or updating
+an app's version does not reset that limit. The rate table holds at most 64 app
+identities with recent admissions; excess admission returns `BUSY` until expiry.
+The hosts disable cookie, credential and HTTP caches and enforce a 15-second native deadline.
+iOS uses per-request ephemeral sessions; Android uses cookie-free OkHttp. Every redirect
+is checked against package policy, with at most five redirects; authorization
+and cookie headers are stripped on redirects. Cancellation and guest retirement
+release their tasks. Both hosts keep completed replies in their bounded task set
+until the guest mailbox accepts them at a frame boundary. Development-host HTTP support remains pending.
 Other service kinds return `UNSUPPORTED`.
+Run `PJM_HTTP_SURFACE_TEST=1 bash tests/package-surface-android.sh <serial>` for
+signed guest HTTP round trips using a test-only controlled transport. The guest
+turns green only after validating six replies; the test also checks touch,
+warm resume and cold reopen. This does not establish live TLS acceptance.
+Set `PJM_HTTP_SURFACE_TEST=live` on the Android or iOS surface script to test
+`https://example.com/` through the default native transport with normal TLS trust.
+This opt-in test requires internet access and the endpoint's response to fit the
+inline body limit. Set `PJM_HTTP_SURFACE_TEST=resource` for live resource reads,
+or `PJM_HTTP_SURFACE_TEST=sdk-resource` for a controlled 4097-byte signed guest
+using the actual SDK read/release wrappers on either host.
+Simulator evidence does not establish physical-device performance.
 Requests, replies and timers belong to the guest's frame pump. Disposing and
 reconnecting keeps the native frame callback stable and prevents old request
 IDs from completing new work. The connector bounds records to 4 KiB and pending
-requests to 32. Android's native mailbox has 32 records per direction and
+requests to 32. Explicit cancellation, frame timeout and disposal each send a
+best-effort native cancel record for outstanding work. Mailbox failure does not
+prevent local teardown; native guest retirement must also release its tasks.
+Android's native mailbox has 32 records per direction and
 preserves whole UTF-8 JSON lines. Both shared-engine mailboxes reject excess
 requests with coded BUSY errors and cap completions at 32 entries. iOS posts
 replies after the guest turn and rejects replies for replaced guests. Total
@@ -317,3 +366,143 @@ reverification and cleanup of unused slots. Package file operations use native
 no-follow directory traversal; adversarial parent replacement is covered by the
 store test. Global cache quotas, release export, older signature-provider support and direct GPU draw-list
 rendering remain pending. Current evidence uses the API 37 emulator.
+
+Android app-data snapshots now use the same native no-follow file operations,
+with per-app locks, bounded atomic writes and legacy backup recovery. Run
+`bash tests/native-storage.sh <android-serial>` for native isolation, quota,
+corruption and migration checks; the script cleans its temporary device files.
+
+Export a signed-only Android host from an Android release directory:
+
+```sh
+pjm export-android --package build/hello-android.release --public-key publisher.key --output build/android-host
+```
+
+Set `ANDROID_SDK_ROOT` and `JAVA_HOME` (JDK 17), then run
+`build/android-host/build-apk.sh` to produce `build/Mini-unsigned.apk` inside the
+exported folder. Installed exports require SDK platform 34 and build-tools
+36.0.0. The folder includes the pinned offline OkHttp Android dependency closure
+and public-suffix asset, with source URLs, checksums and the Apache license.
+The installed host initializes OkHttp explicitly and dispatches bounded HTTP
+requests through its frame loop. The folder includes the arm64 engine, signed Activity sources,
+verified package bytes and separately trusted raw 32-byte publisher public key.
+It can be moved away from this checkout. Use `--bundle your.company.host` to
+choose the host package identity. Sign the APK with your own Android distribution
+keystore before installing; package publisher keys and APK signing keys are
+separate. The export command does not sign, install or publish an app.
+
+`bash tests/export-android.sh <booted-android-serial>` checks the real CLI export,
+folder relocation (including spaces), unsigned APK build, 16 KiB alignment,
+temporary APK signing and authenticated launch with an ignored development URL.
+It removes its temporary app and saves an unsigned APK and evidence under
+`build/android-validation/exported-host-*`. Current launch evidence uses API 37;
+older signature-provider support and store submission compatibility remain open.
+
+Android publisher signatures now use a bundled, pinned native Ed25519 verifier.
+The signature test removes all system Ed25519 providers before running its
+interoperability/rejection fixtures. This removes the JCA provider dependency;
+older-device runtime and performance acceptance still require measurements.
+
+Android signed inputs, service requests and stored snapshots use strict UTF-8
+JSON validation before parsing. Duplicate keys and JSON extensions are rejected;
+limits include depth 32, 262144 syntax tokens and 128 characters per numeric
+literal, alongside existing byte quotas. Native storage/package tests cover
+these limits and verify malformed service requests cannot write app data.
+
+Run `pjm devtools` from a project with an active `pjm run` session to open the
+development panel. `pjm devtools --no-open` prints its URL. The panel
+shows live build status, failures, console activity, and the last 32 build outcomes
+with bounded diagnostics and compiler duration. Filter activity by severity or
+active revision, or pause polling to inspect a stable view. These timings do not measure save-to-device presentation. Native inspection, stepping and replay are pending.
+
+Development console messages are forwarded to the panel as bounded records.
+Messages are truncated to 512 UTF-8 bytes; hosts allow eight pending uploads,
+and the panel retains the latest 32 device events. Release builds omit capture.
+Startup and first-frame logs have been verified on iOS and Android simulators
+through initial launch and hot restart. Physical-device acceptance remains pending.
+
+Publish an existing signed release with a separately trusted raw 32-byte public key:
+
+```sh
+pjm publish --package build/hello-ios.release --public-key publisher.key --device ios --dry-run
+pjm publish --package build/hello-ios.release --public-key publisher.key --device ios --endpoint https://distribution.example/upload
+```
+
+Set `PJM_PUBLISH_TOKEN` in the environment for uploads. The command verifies the
+signed envelope, SHA-256, ABI and selected target before any network request.
+It also checks internal package structure, embedded application identity and
+the build plan's hash, version, viewport limits and supported capabilities.
+A dry run reports identity, version, hash and size without uploading. Publishing
+uses HTTPS, a 30-second deadline and no redirects. The private signing key and
+trusted public key are never sent.
+
+The distribution service contract is a multipart POST with `manifest`
+(`manifest.json`, application/json) and `package` (`main.pocket`,
+application/octet-stream). Authentication uses a bearer token; the
+`Idempotency-Key` is `appId:version:sha256`. The service must independently
+verify publisher trust and package structure, keep versions immutable, and reject
+conflicting uploads (for example HTTP 409). A successful HTTP 200 or 201 response
+contains exactly `{appId, version, sha256, url}` matching the upload, with a HTTPS
+release URL. Receipts are limited to 16 KiB. The client rejects mismatched receipts.
+No production distribution service is configured in this repository; remote
+publishing and host-side distribution downloads still need integration acceptance.
+
+The JavaScript package store, export commands and publish command parse signed
+manifest bytes with strict UTF-8 JSON validation before signature verification.
+Duplicate keys (including escaped equivalents), unpaired surrogates, non-finite
+numbers, byte-order marks and JSON extensions are rejected. Parsing is bounded
+by depth 32, 262144 value/string tokens and 128 characters per numeric literal.
+Native iOS signed manifests and build plans also use strict byte validation
+before Foundation parsing. Installed and development iOS service requests use
+the same strict parser before dispatch, so duplicate fields cannot admit a network
+operation. Native iOS and JavaScript storage snapshots also use strict byte parsing;
+malformed snapshots are preserved when operations fail. Complete canonical-number
+parity and client-side internal package/build-plan admission before publication
+remain pending.
+
+Expanded Android signature and authenticated package admission checks also pass
+on a physical Pixel 8 Pro (API 36), including correctly signed malformed build
+plans, retained engine execution and store rollback/ownership. Physical rendering,
+performance and memory acceptance remain pending.
+
+The replay command has a validation-only mode that checks tape syntax, package
+byte identity, and optional saved comparisons without loading native code:
+
+```sh
+pjm replay --package build/hello.pocket --tape recording.json --app-id dev.pjm.hello --version 1.0.0 --validate-only
+```
+
+Validation-only output explicitly reports that native admission was not run.
+The execution path uses the shared native core release library and supports
+`--assert golden.json` and `--output new-golden.json`. Output creation is atomic
+and refuses to overwrite existing files. Native execution of this command has
+not yet been verified; host recording hooks and the replay interface are pending.
+
+Replay has a 60-second total execution deadline, adjustable with
+`--timeout-ms 1..300000`. The monotonic deadline is checked between turns and
+after frame execution; it does not interrupt a synchronous native call. Native
+guest turn limits remain responsible for bounding that call. Timeout closes the
+engine and does not publish a successful golden.
+
+Replay source also supports `--png-frame N --png-output new.png` to export a
+selected framebuffer, including a divergent frame. PNG output preserves native
+BGRA colour/alpha and refuses existing paths. Encoder and orchestration tests
+pass; actual native frame capture through the command remains unverified.
+
+Replay tree export uses `--tree-frame N --tree-output new-tree.json`. The native
+inspector entry point is loaded only when tree export is requested. Snapshots
+are strictly validated before exclusive persistence, preserving original node
+IDs, parent/child order, text and layout. Tree capture orchestration and argument
+checks pass; actual native inspector execution is still unverified.
+
+The native SDK caps active frame timers and total service-event listeners at 256 each. Applications can configure lower `maxTimers` and `maxListeners` limits. Exceeding capacity returns `BUSY`; cancelling a timer, firing it, or removing a listener releases its slot. These SDK bounds do not establish a process-wide native memory budget.
+
+Lifecycle hooks have a separate listener pool with the same configured `maxListeners` ceiling. Disposing the SDK stops the remaining lifecycle and service-event callbacks in the current delivery batch.
+
+Run `bash tests/reference-check.sh` with Bun on PATH and pinned upstream dependencies installed to check SDK, reference container, publication and devtools/replay TypeScript and regressions together. This gate does not invoke native builds or devices; it cannot substitute for `tests/check.sh`, compiler integration checks or physical acceptance measurements.
+
+`mini.location.get({timeoutMs, maximumAgeMs, highAccuracy})` defines the versioned SDK location contract. Replies contain latitude, longitude, accuracy in meters, and a Unix timestamp in milliseconds. This SDK contract is tested; native location permission/provider adapters and device acceptance are still pending, so it does not yet provide a working platform location service.
+
+`bash tests/fused-location-types.sh` checks the Android location provider against checksum-pinned cached Google API AARs. It requires those exact artifacts in the Gradle cache (or `GRADLE_USER_HOME`), Android API 34 and a JDK. Its compile-only lock is not a complete APK runtime dependency lock; platform location packaging and device acceptance remain pending.
+
+Android `LocationApproval` supplies native app consent and coarse/fine OS permission requests. It separates saved app approval from current OS grants, retires cancelled callbacks and uses non-reused OS request codes. It is source-compiled by the Android service gate but is not yet wired into `InstalledActivity`; dialogs, permission callbacks and provider execution remain untested on a device.

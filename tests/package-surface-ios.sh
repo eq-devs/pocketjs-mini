@@ -19,7 +19,13 @@ trap cleanup EXIT
 cp "$ROOT"/host/ios/* "$TEMP/"
 cp "$ROOT/core-ffi/include/mini_core.h" "$TEMP/"
 cp "$ROOT/tests/SignedSurfaceApp.m" "$TEMP/main.m"
-bun "$ROOT/tests/package-load-fixtures.ts" "$TEMP/cases.json"
+if [ "${PJM_HTTP_SURFACE_TEST:-}" = live ] || [ "${PJM_HTTP_SURFACE_TEST:-}" = resource ] || [ "${PJM_HTTP_SURFACE_TEST:-}" = resource-large ] || [ "${PJM_HTTP_SURFACE_TEST:-}" = sdk-resource ]; then
+  cp "$ROOT/tests/LiveHttpApp.m" "$TEMP/main.m"
+  if [ "$PJM_HTTP_SURFACE_TEST" = resource-large ] || [ "$PJM_HTTP_SURFACE_TEST" = sdk-resource ]; then cp "$ROOT/tests/ResourceHttpApp.m" "$TEMP/main.m";fi
+  PJM_PACKAGE_TARGET=ios PJM_PACKAGE_HTTP_TEST="$PJM_HTTP_SURFACE_TEST" PJM_PACKAGE_VISUAL=1 bun "$ROOT/tests/package-load-fixtures.ts" "$TEMP/cases.json"
+else
+  PJM_PACKAGE_TARGET=ios PJM_PACKAGE_HTTP_TEST= bun "$ROOT/tests/package-load-fixtures.ts" "$TEMP/cases.json"
+fi
 export PJM_SURFACE_TEST_DIR="$TEMP" PJM_SURFACE_TEST_ROOT="$ROOT" PJM_SURFACE_TEST_BUNDLE="$BUNDLE"
 bun -e 'import {writeNativeProject} from "./bin/native-project.ts";writeNativeProject(process.env.PJM_SURFACE_TEST_DIR!,"",process.env.PJM_SURFACE_TEST_ROOT!+"/core-ffi/target/aarch64-apple-ios-sim/release/libmini_core_ffi.a","http://127.0.0.1:1/",true,process.env.PJM_SURFACE_TEST_BUNDLE!)'
 rustup run stable cargo build --offline --locked --release --target aarch64-apple-ios-sim --manifest-path "$ROOT/core-ffi/Cargo.toml" > "$TEMP/core-build.log" 2>&1 || { tail -60 "$TEMP/core-build.log"; exit 1; }

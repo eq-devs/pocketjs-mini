@@ -30,7 +30,7 @@ final class PackageStore {
   private static void sync(File folder)throws Exception{PackageFiles.sync(PackageFiles.path(folder));}
   private static void write(File path,byte[] bytes)throws Exception{PackageFiles.write(PackageFiles.path(path),bytes,(".write-"+UUID.randomUUID()).getBytes(StandardCharsets.UTF_8));}
   private JSONObject state(File app)throws Exception{
-    byte[] bytes=read(new File(app,"state.json"),2048,true);JSONObject state=bytes==null?new JSONObject():new JSONObject(StandardCharsets.UTF_8.newDecoder().onMalformedInput(java.nio.charset.CodingErrorAction.REPORT).decode(java.nio.ByteBuffer.wrap(bytes)).toString());
+    byte[] bytes=read(new File(app,"state.json"),2048,true);JSONObject state=bytes==null?new JSONObject():BoundedJson.object(bytes,2048);
     Iterator<String> names=state.keys();while(names.hasNext()){String name=names.next();Object value=state.get(name);if(!(name.equals("current") || name.equals("previous") || name.equals("pending")) || !(value instanceof String) || !slot((String)value))throw new IOException("Invalid package state");}return state;
   }
   private static String digest(byte[] payload)throws Exception{StringBuilder text=new StringBuilder();for(byte value:MessageDigest.getInstance("SHA-256").digest(payload))text.append(String.format(java.util.Locale.ROOT,"%02x",value&255));return text.toString();}
@@ -62,7 +62,7 @@ final class PackageStore {
     locked(()->{File app=new File(root,admitted.identity);directory(app);JSONObject state=state(app);if(seed && (state.has("current") || state.has("pending")))return null;
       File destination=new File(app,name);real(destination);
       if(destination.exists()){
-        load(app,name,admitted.identity);JSONObject saved=new JSONObject(new String(read(new File(destination,"manifest.json"),65536,false),StandardCharsets.UTF_8));JSONObject fresh=new JSONObject(new String(manifest,StandardCharsets.UTF_8));
+        load(app,name,admitted.identity);JSONObject saved=BoundedJson.object(read(new File(destination,"manifest.json"),65536,false),65536);JSONObject fresh=BoundedJson.object(manifest,65536);
         if(!PackageVerifier.canonical(saved).equals(PackageVerifier.canonical(fresh)))throw new IOException("Existing slot has different signed metadata");
       }else{
         File temporary=new File(app,".install-"+UUID.randomUUID());directory(temporary);
@@ -78,5 +78,22 @@ final class PackageStore {
   }
   void rollback(String identity)throws Exception{
     identity(identity);locked(()->{File app=new File(root,identity);real(app);JSONObject state=state(app);String previous=state.optString("previous",null);load(app,previous,identity);state.put("pending",previous);commit(app,state);return null;});
+  }
+  private static void permission(String name)throws IOException{
+    if(!java.util.Arrays.asList("clipboard.read","media","location").contains(name))throw new IOException("Unknown application permission");
+  }
+  private JSONObject permissionState(File app)throws Exception{
+    byte[] bytes=read(new File(app,"permissions.json"),1024,true);if(bytes==null)return new JSONObject();
+    JSONObject state=BoundedJson.object(bytes,1024);Object format=state.opt("format"),raw=state.opt("decisions");
+    if(state.length()!=2 || !(format instanceof Number) || ((Number)format).doubleValue()!=1 || !(raw instanceof JSONObject))throw new IOException("Invalid permission state");
+    JSONObject decisions=(JSONObject)raw;Iterator<String> names=decisions.keys();while(names.hasNext()){String name=names.next();permission(name);if(!(decisions.get(name) instanceof Boolean))throw new IOException("Invalid permission decision");}return decisions;
+  }
+  // Host approval only. Service invocation must also check signed declarations
+  // and current OS permission. App identity never comes from service arguments.
+  Boolean permissionDecision(String identity,String name)throws Exception{
+    identity(identity);permission(name);return locked(()->{File app=new File(root,identity);directory(app);JSONObject decisions=permissionState(app);return decisions.has(name)?(Boolean)decisions.get(name):null;});
+  }
+  void setPermissionDecision(String identity,String name,boolean granted)throws Exception{
+    identity(identity);permission(name);locked(()->{File app=new File(root,identity);directory(app);JSONObject decisions=permissionState(app);decisions.put(name,granted);write(new File(app,"permissions.json"),new JSONObject().put("format",1).put("decisions",decisions).toString().getBytes(StandardCharsets.UTF_8));return null;});
   }
 }

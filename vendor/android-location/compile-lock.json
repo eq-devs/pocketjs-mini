@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "purpose": "Cached API compilation only; not a complete runtime dependency lock",
+  "artifacts": [
+    {
+      "name": "play-services-location",
+      "version": "21.2.0",
+      "bytes": 304017,
+      "sha256": "bcb06d69ca8a44b358388e0c20e50fe15a58b593a4cb99c8cd24f6e0115baad6"
+    },
+    {
+      "name": "play-services-base",
+      "version": "18.3.0",
+      "bytes": 604420,
+      "sha256": "94066a46047e3d593eb652383e7767e0630385ecd75133e68c21124aa96b8dc2"
+    },
+    {
+      "name": "play-services-basement",
+      "version": "18.3.0",
+      "bytes": 403997,
+      "sha256": "6c11ae3eb2dd7f17373f919c4c557a70e4cf891bc0c9b66926a0a6445d654352"
+    },
+    {
+      "name": "play-services-tasks",
+      "version": "18.1.0",
+      "bytes": 96788,
+      "sha256": "d60575eae39350e6234858bc9d7d775375707ae82a684e6caf7f3e41a12e25a2"
+    }
+  ]
+}

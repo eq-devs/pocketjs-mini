@@ -23,6 +23,13 @@ NS_ASSUME_NONNULL_BEGIN
 // Final unload effects; storage is handled by the container before this hook.
 // Synchronous retirement callback: do not reenter the container or throw.
 @property(nonatomic, copy, nullable) void (^onVerifiedCleanup)(MiniVerifiedPackage *package,uint64_t generation,NSString *line);
+// Called once for every retired guest, including guests with no unload effects,
+// after cleanup records and before native engine release. Cancel service tasks
+// for this exact identity/generation synchronously; do not reenter the container.
+@property(nonatomic, copy, nullable) void (^onVerifiedRetirement)(MiniVerifiedPackage *package,uint64_t generation);
+// Main-thread boundary before a signed guest advances. Service owners may post
+// bounded completions here; do not advance, activate or retire the container.
+@property(nonatomic, copy, nullable) void (^onVerifiedFrameStart)(void);
 - (BOOL)setServiceNamespaces:(NSArray<NSString *> *)names;
 
 // density is the raster scale (1..4; use 2 or 3 to match screen scale).

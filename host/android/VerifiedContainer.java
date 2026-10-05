@@ -49,7 +49,7 @@ final class VerifiedContainer implements AutoCloseable {
   }finally{leave();}}
   Exception lastCleanupError(){return lastCleanupError;}
   private boolean storageRecord(long generation,byte[] record,boolean retiring){
-    JSONObject request;try{request=new JSONObject(new String(record,StandardCharsets.UTF_8));}catch(Exception malformed){return false;}
+    JSONObject request;try{request=BoundedJson.object(record,4096);}catch(Exception malformed){return false;}
     Object kind=request.opt("kind");if(!"storage.get.v1".equals(kind) && !"storage.set.v1".equals(kind) && !"storage.remove.v1".equals(kind))return false;
     Object identifier=request.opt("id"),version=request.opt("v");double number=identifier instanceof Number?((Number)identifier).doubleValue():0;
     if(!(identifier instanceof Number) || Double.isNaN(number) || number<1 || number>9007199254740991L || Math.floor(number)!=number)return false;

@@ -1,3 +1,4 @@
+#import "Mini-Swift.h"
 #import "AppStorage.h"
 #include <sys/stat.h>
 #include <sys/file.h>
@@ -67,9 +68,9 @@ static BOOL storageValue(id value,NSError **error) {
     if(lstat(path.fileSystemRepresentation,&info)==0) {
       if(!S_ISREG(info.st_mode) || info.st_size>1048576){storageFailure(error,@"MiniStorage",@"Invalid storage file");return nil;}
       NSData *data=[NSData dataWithContentsOfFile:path options:0 error:error];if(!data)return nil;
-      id parsed=[NSJSONSerialization JSONObjectWithData:data options:NSJSONReadingMutableContainers error:error];
+      id parsed=[MiniPackageVerifier parseStrictJSON:data error:error];
       if(![parsed isKindOfClass:NSDictionary.class] || [parsed count]>256){storageFailure(error,@"MiniStorage",@"Invalid storage contents");return nil;}
-      values=parsed;
+      values=[parsed mutableCopy];
       for(NSString *key in values)if(!storageKey(key,error) || !storageValue(values[key],error))return nil;
     }else if(errno!=ENOENT){storageFailure(error,@"MiniStorage",@"Storage file unavailable");return nil;}
     NSString *key=arguments[@"key"];

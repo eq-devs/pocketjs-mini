@@ -12,4 +12,12 @@ const cases = [
   { ...base, key: Buffer.alloc(32).toString("base64") },
   ...[{ appId: "dev.other.app" }, { pages: ["/", "/other"] }, { extra: true }, { minHostAbi: true }, { domains: ["*.example.com"] }, { signature: "invalid" }].map(patch => ({ ...base, manifest: { ...manifest, ...patch } })),
 ];
+for(const rawEnvelope of [
+  JSON.stringify(manifest).replace('{','{"appId":"dev.other.app",'),
+  JSON.stringify(manifest).replace('{','{"\\u0061ppId":"dev.other.app",'),
+  '\ufeff'+JSON.stringify(manifest),
+  JSON.stringify(manifest).replace('"media"','"\\ud800"'),
+  JSON.stringify(manifest).replace('"minHostAbi":7','"minHostAbi":1e999'),
+  JSON.stringify(manifest).replace('{','{/*comment*/'),
+]) cases.push({...base,rawEnvelopeBase64:Buffer.from(rawEnvelope).toString("base64")} as any);
 writeFileSync(process.argv[2], JSON.stringify(cases));

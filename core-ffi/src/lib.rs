@@ -1,7 +1,7 @@
 //! Mini-owned per-instance engine composition. Native presentation is separate.
 use pocket_mod::{
-    qjs::{self, Array, CatchResultExt, Exception, Function, Object},
     Guest,
+    qjs::{self, Array, CatchResultExt, Exception, Function, Object},
 };
 use pocket_ui_surface::UiSurface;
 use pocketjs_core::{
@@ -23,6 +23,8 @@ pub mod package_ffi;
 pub mod pool;
 pub mod pool_ffi;
 pub mod retained;
+pub mod replay;
+pub mod inspect;
 #[derive(Default)]
 struct Mailbox {
     incoming: VecDeque<String>,
@@ -960,10 +962,12 @@ mod tests {
         }
         pak[data..data + 5].copy_from_slice(&[1, 0, 1, 0, 3]);
         let mut engine = guest();
-        assert!(engine
-            .boot("globalThis.frame=()=>{}", &pak)
-            .unwrap_err()
-            .contains("Boot texture"));
+        assert!(
+            engine
+                .boot("globalThis.frame=()=>{}", &pak)
+                .unwrap_err()
+                .contains("Boot texture")
+        );
         assert_eq!(engine.surface.with_ui(|ui| ui.texture_slot_count()), 0);
         // Nine directory entries may point at one payload; each upload owns
         // its own native copy, so counting unique payloads would be unsafe.
@@ -975,10 +979,12 @@ mod tests {
             pak[offset + 8..offset + 12].copy_from_slice(&(8u32 + 512 * 512 * 4).to_le_bytes());
         }
         let mut byte_limited = guest();
-        assert!(byte_limited
-            .boot("globalThis.frame=()=>{}", &pak)
-            .unwrap_err()
-            .contains("Boot texture"));
+        assert!(
+            byte_limited
+                .boot("globalThis.frame=()=>{}", &pak)
+                .unwrap_err()
+                .contains("Boot texture")
+        );
         assert_eq!(
             byte_limited.surface.with_ui(|ui| ui.texture_slot_count()),
             0
@@ -1112,10 +1118,12 @@ mod tests {
     fn launch_data_enters_guest_as_json_values() {
         let mut engine = guest();
         engine.boot("globalThis.frame=()=>{};globalThis.__miniLifecycle=(event,data)=>ui.svcSend(event+':'+data.source+':'+data.path+':'+data.query.id)",&[]).unwrap();
-        assert!(engine
-            .lifecycle_data("launch", &" ".repeat(4097))
-            .unwrap_err()
-            .contains("byte limit"));
+        assert!(
+            engine
+                .lifecycle_data("launch", &" ".repeat(4097))
+                .unwrap_err()
+                .contains("byte limit")
+        );
         engine
             .lifecycle_data(
                 "launch",
@@ -1123,10 +1131,12 @@ mod tests {
             )
             .unwrap();
         assert_eq!(engine.take().unwrap(), "launch:qr:/detail:123");
-        assert!(engine
-            .lifecycle("launch")
-            .unwrap_err()
-            .contains("already launched"));
+        assert!(
+            engine
+                .lifecycle("launch")
+                .unwrap_err()
+                .contains("already launched")
+        );
         engine.frame(&[]).unwrap();
     }
     #[test]
@@ -1254,20 +1264,24 @@ mod tests {
     fn unhandled_promises_fail_the_turn_but_same_turn_handlers_recover() {
         let mut frame_failure = guest();
         frame_failure.boot("globalThis.frame=()=>{ui.svcSend('discard');Promise.reject(new Error('frame failure'))}", &[]).unwrap();
-        assert!(frame_failure
-            .frame(&[])
-            .unwrap_err()
-            .contains("unhandled Promise"));
+        assert!(
+            frame_failure
+                .frame(&[])
+                .unwrap_err()
+                .contains("unhandled Promise")
+        );
         assert!(frame_failure.take().is_none());
         assert!(frame_failure.frame(&[]).is_err());
         let mut broken = guest();
-        assert!(broken
-            .boot(
-                "globalThis.frame=()=>{};Promise.reject(new Error('boom'))",
-                &[]
-            )
-            .unwrap_err()
-            .contains("unhandled Promise"));
+        assert!(
+            broken
+                .boot(
+                    "globalThis.frame=()=>{};Promise.reject(new Error('boom'))",
+                    &[]
+                )
+                .unwrap_err()
+                .contains("unhandled Promise")
+        );
         let mut handled = guest();
         handled.boot("globalThis.frame=()=>ui.svcSend('healthy');const p=Promise.reject(new Error('expected'));Promise.resolve().then(()=>p.catch(()=>{}))", &[]).unwrap();
         handled.frame(&[]).unwrap();
@@ -1290,21 +1304,24 @@ mod tests {
         assert!(looping.boot("while(true){}", &[]).is_err());
         assert!(looping.take().is_none());
         let mut jobs = guest();
-        assert!(jobs
-            .boot(
+        assert!(
+            jobs.boot(
                 "globalThis.frame=()=>{};const f=()=>{Promise.resolve().then(f)};f()",
                 &[]
             )
             .unwrap_err()
-            .contains("deadline"));
+            .contains("deadline")
+        );
         let mut limited = guest();
-        assert!(limited
-            .boot(
-                "const x=new Uint8Array(64*1024*1024);globalThis.frame=()=>{}",
-                &[]
-            )
-            .unwrap_err()
-            .contains("memory"));
+        assert!(
+            limited
+                .boot(
+                    "const x=new Uint8Array(64*1024*1024);globalThis.frame=()=>{}",
+                    &[]
+                )
+                .unwrap_err()
+                .contains("memory")
+        );
         let mut healthy = guest();
         healthy
             .boot("globalThis.frame=()=>ui.svcSend('ok')", &[])
@@ -1332,10 +1349,12 @@ mod tests {
             .unwrap();
         assert!(broken.frame(&[]).unwrap_err().contains("interrupted"));
         assert!(broken.take().is_none());
-        assert!(broken
-            .boot("globalThis.frame=()=>{}", &[])
-            .unwrap_err()
-            .contains("new instance"));
+        assert!(
+            broken
+                .boot("globalThis.frame=()=>{}", &[])
+                .unwrap_err()
+                .contains("new instance")
+        );
         let mut healthy = guest();
         healthy.boot("globalThis.frame=()=>{for(let i=0;i<33;i++){try{ui.svcSend('ok')}catch(error){globalThis.errorCode=error.code}}}",&[]).unwrap();
         healthy.frame(&[]).unwrap();
@@ -1350,5 +1369,153 @@ mod tests {
             assert_eq!(healthy.take().unwrap(), "ok");
         }
         assert!(healthy.take().is_none());
+    }
+}
+
+/// Strict verification for host-provisioned Ed25519 keys. No guest callback.
+/// # Safety
+/// Nonempty inputs must point to readable buffers of the specified lengths.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn mp_ed25519_verify(
+    key: *const u8,
+    key_len: usize,
+    signature: *const u8,
+    signature_len: usize,
+    message: *const u8,
+    message_len: usize,
+) -> i32 {
+    if key.is_null()
+        || key_len != 32
+        || signature.is_null()
+        || signature_len != 64
+        || message_len > 65536
+        || (message.is_null() && message_len != 0)
+    {
+        return -1;
+    }
+    std::panic::catch_unwind(|| {
+        let key_bytes: &[u8; 32] = unsafe { std::slice::from_raw_parts(key, 32) }
+            .try_into()
+            .unwrap();
+        let signature_bytes: &[u8; 64] = unsafe { std::slice::from_raw_parts(signature, 64) }
+            .try_into()
+            .unwrap();
+        let data = if message_len == 0 {
+            &[]
+        } else {
+            unsafe { std::slice::from_raw_parts(message, message_len) }
+        };
+        let Ok(verifier) = ed25519_dalek::VerifyingKey::from_bytes(key_bytes) else {
+            return -1;
+        };
+        if verifier
+            .verify_strict(data, &ed25519_dalek::Signature::from_bytes(signature_bytes))
+            .is_ok()
+        {
+            0
+        } else {
+            -1
+        }
+    })
+    .unwrap_or(-1)
+}
+#[cfg(test)]
+mod signature_tests {
+    use super::mp_ed25519_verify;
+    fn hex(value: &str) -> Vec<u8> {
+        (0..value.len())
+            .step_by(2)
+            .map(|index| u8::from_str_radix(&value[index..index + 2], 16).unwrap())
+            .collect()
+    }
+    #[test]
+    fn rfc8032_vector_and_strict_rejections() {
+        let key = hex("d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a");
+        let signature = hex(
+            "e5564300c360ac729086e2cc806e828a84877f1eb8e5d974d873e065224901555fb8821590a33bacc61e39701cf9b46bd25bf5f0595bbe24655141438e7a100b",
+        );
+        unsafe {
+            assert_eq!(
+                mp_ed25519_verify(
+                    key.as_ptr(),
+                    32,
+                    signature.as_ptr(),
+                    64,
+                    std::ptr::null(),
+                    0
+                ),
+                0
+            );
+            assert_eq!(
+                mp_ed25519_verify(
+                    key.as_ptr(),
+                    32,
+                    signature.as_ptr(),
+                    64,
+                    b"wrong".as_ptr(),
+                    5
+                ),
+                -1
+            );
+            let mut changed = signature.clone();
+            changed[0] ^= 1;
+            assert_eq!(
+                mp_ed25519_verify(key.as_ptr(), 32, changed.as_ptr(), 64, std::ptr::null(), 0),
+                -1
+            );
+            let mut weak_key = [0u8; 32];
+            weak_key[0] = 1;
+            let mut weak_signature = [0u8; 64];
+            weak_signature[0] = 1;
+            assert_eq!(
+                mp_ed25519_verify(
+                    weak_key.as_ptr(),
+                    32,
+                    weak_signature.as_ptr(),
+                    64,
+                    std::ptr::null(),
+                    0
+                ),
+                -1
+            );
+            changed[32..].fill(255);
+            assert_eq!(
+                mp_ed25519_verify(key.as_ptr(), 32, changed.as_ptr(), 64, std::ptr::null(), 0),
+                -1
+            );
+            assert_eq!(
+                mp_ed25519_verify(
+                    std::ptr::null(),
+                    32,
+                    signature.as_ptr(),
+                    64,
+                    std::ptr::null(),
+                    0
+                ),
+                -1
+            );
+            assert_eq!(
+                mp_ed25519_verify(
+                    key.as_ptr(),
+                    32,
+                    signature.as_ptr(),
+                    63,
+                    std::ptr::null(),
+                    0
+                ),
+                -1
+            );
+            assert_eq!(
+                mp_ed25519_verify(
+                    key.as_ptr(),
+                    32,
+                    signature.as_ptr(),
+                    64,
+                    b"x".as_ptr(),
+                    65537
+                ),
+                -1
+            );
+        }
     }
 }

@@ -18,6 +18,7 @@ test("storage survives restart, isolates apps and treats traversal/prototype key
     assert.throws(()=>first.set("large","x".repeat(VALUE_BYTES)),/quota/);
     assert.throws(()=>first.set("invalid",undefined),/JSON/);
     assert.throws(()=>first.set("",1),/key/);
+    assert.throws(()=>first.set("\ud800",1),/JSON/);assert.throws(()=>first.set("invalid-unicode","\ud800"),/JSON/);
     for(let i=0;i<STORAGE_KEYS-2;i++)first.set(`key-${i}`,i);
     assert.throws(()=>first.set("one-too-many",1),/quota/);
     assert.equal(first.get("__proto__"),"plain");
@@ -28,6 +29,8 @@ test("storage refuses corrupt, symlinked and concurrently locked files without c
   try {
     const store=new PackageStore(root,generateKeyPairSync("ed25519").publicKey,{abi:7,target:"pjm-ios"});
     const storage=new AppStorage(store,"com.example.app"),directory=store.dataRoot("com.example.app"),file=join(directory,"storage.json");
+    for(const malformed of ['{"key":1,"key":2}','{"key":1,"\\u006bey":2}','{"key":"\\ud800"}','{"key":1e999}']){writeFileSync(file,malformed);assert.throws(()=>storage.set("key",3));assert.equal(readFileSync(file,"utf8"),malformed);}
+    const malformedBytes=Buffer.from([123,34,120,34,58,34,255,34,125]);writeFileSync(file,malformedBytes);assert.throws(()=>storage.get("x"));assert.deepEqual(readFileSync(file),malformedBytes);
     writeFileSync(file,"invalid");assert.throws(()=>storage.get("key"));rmSync(file);
     writeFileSync(outside,"keep");symlinkSync(outside,file);assert.throws(()=>storage.set("key",1),/Invalid storage/);assert.equal(readFileSync(outside,"utf8"),"keep");rmSync(file);
     mkdirSync(join(directory,".storage-lock"));assert.throws(()=>storage.set("key",1),/busy/);
