@@ -25,6 +25,7 @@ final class VerifiedContainer implements AutoCloseable {
   private static native void releaseGpu(long handle,long epoch);
   private static native long gpuEpoch(long handle);
   private static native int hitTest(long handle,float x,float y);
+  private static native boolean back(long handle);
   private static native byte[] effects(long handle);
   private static native void post(long handle,byte[] identity,long generation,byte[] record);
   private static native void control(long handle,int operation,byte[] identity);
@@ -46,6 +47,7 @@ final class VerifiedContainer implements AutoCloseable {
   void releaseGpu(long epoch){enter();try{releaseGpu(handle,epoch);}finally{leave();}}
   long gpuEpoch(){enter();try{return gpuEpoch(handle);}finally{leave();}}
   int hitTest(float x,float y){enter();try{if(Float.isNaN(x) || Float.isInfinite(x) || Float.isNaN(y) || Float.isInfinite(y))throw new IllegalArgumentException("Invalid touch coordinate");return hitTest(handle,x,y);}finally{leave();}}
+  boolean systemBack(){enter();try{return back(handle);}finally{leave();}}
   byte[] effects(){enter();try{
     byte[] records=effects(handle);ByteArrayOutputStream external=new ByteArrayOutputStream();int start=0;
     for(int index=0;index<records.length;index++)if(records[index]=='\n'){

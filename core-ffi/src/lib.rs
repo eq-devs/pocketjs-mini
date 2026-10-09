@@ -21,7 +21,13 @@ const RECORD_COUNT: usize = 32;
 pub mod ffi;
 #[cfg(any(target_os = "android", test))]
 mod gles;
+mod gpu_texture;
+mod gpu_frame;
+mod gpu_geometry;
+mod gpu_ffi;
+mod gpu_budget;
 pub mod inspect;
+mod inspection_geometry;
 pub mod package_ffi;
 pub mod pool;
 pub mod pool_ffi;
@@ -896,6 +902,30 @@ impl Instance {
         Ok(written)
     }
     /// Optional SDK hook, run between frames under the same execution/job budget.
+    pub fn system_back(&mut self) -> Result<bool, String> {
+        if !self.ready || self.suspended {
+            return Err("Guest is not in the foreground".into());
+        }
+        let mut handled = false;
+        let result = self.turn(50, || {
+            self.guest.with(|ctx| {
+                let callback: Option<Function> = ctx.globals().get("__miniBack")
+                    .catch(&ctx).map_err(|error| error.to_string())?;
+                if let Some(callback) = callback {
+                    let value: qjs::Value = callback.call(())
+                        .catch(&ctx).map_err(|error| error.to_string())?;
+                    handled = value.as_bool().ok_or("Back callback must return a boolean")?;
+                }
+                Ok(())
+            })
+        });
+        if let Err(error) = result {
+            self.stop();
+            return Err(error);
+        }
+        Ok(handled)
+    }
+    /// Optional SDK lifecycle hook, run between frames under the execution/job budget.
     pub fn lifecycle(&mut self, event: &str) -> Result<(), String> {
         self.lifecycle_data(event, "{}")
     }
@@ -1208,6 +1238,36 @@ mod tests {
                 .contains("already launched")
         );
         engine.frame(&[]).unwrap();
+    }
+    #[test]
+    fn system_back_is_optional_strict_and_bounded() {
+        let mut absent = guest();
+        absent.boot("globalThis.frame=()=>{}", &[]).unwrap();
+        assert!(!absent.system_back().unwrap());
+        absent.suspend().unwrap();
+        assert!(absent.system_back().is_err());
+        absent.resume().unwrap();
+        absent.frame(&[]).unwrap();
+
+        let mut routed = guest();
+        routed.boot("let depth=2,n=0;globalThis.frame=()=>ui.svcSend('frame:'+ ++n);globalThis.__miniBack=()=>{if(depth===1)return false;depth--;ui.svcSend('back:'+depth);return true}", &[]).unwrap();
+        routed.frame(&[]).unwrap();
+        assert_eq!(routed.take().unwrap(), "frame:1");
+        assert!(routed.system_back().unwrap());
+        assert_eq!(routed.take().unwrap(), "back:1");
+        assert!(!routed.system_back().unwrap());
+        routed.frame(&[]).unwrap();
+        assert_eq!(routed.take().unwrap(), "frame:2");
+
+        for hook in ["()=>1", "()=>Promise.resolve(true)", "()=>{throw Error('bad back')}", "()=>{while(true){}}", "()=>{const f=()=>Promise.resolve().then(f);f();return true}"] {
+            let mut malicious = guest();
+            malicious.boot(&format!("globalThis.frame=()=>{{}};globalThis.__miniBack={hook}"), &[]).unwrap();
+            assert!(malicious.system_back().is_err());
+            assert!(malicious.frame(&[]).is_err());
+            let mut healthy = guest();
+            healthy.boot("globalThis.frame=()=>{}", &[]).unwrap();
+            healthy.frame(&[]).unwrap();
+        }
     }
     #[test]
     fn lifecycle_callbacks_and_promise_jobs_are_bounded() {

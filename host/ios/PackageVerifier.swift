@@ -4,17 +4,74 @@ import CryptoKit
 @objc(MiniPackageVerifier)
 public final class NativePackageVerifier: NSObject {
     @objc(parseStrictJSON:error:) public static func parseStrictJSON(_ data: Data) throws -> Any { try StrictPackageJSON.parse(data) }
+    @objc(canonicalJSON:error:) public static func canonicalJSON(_ value: Any) throws -> Data { try CanonicalPackageJSON.data(value) }
     @objc public static func verifyPlanHash(_ plan: NSDictionary) throws {
         guard var body = plan as? [String: Any], let expected = body.removeValue(forKey: "planHash") as? String,
               expected.range(of: "^sha256:[a-f0-9]{64}$", options: .regularExpression) != nil else {
             throw PackageVerifier.Failure.rejected("Build plan hash envelope")
         }
-        let bytes = try JSONSerialization.data(withJSONObject: body, options: [.sortedKeys, .withoutEscapingSlashes])
+        let bytes = try CanonicalPackageJSON.data(body)
         let actual = "sha256:" + SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined()
         guard actual == expected else { throw PackageVerifier.Failure.rejected("Build plan hash mismatch") }
     }
     @objc public static func verify(payload: Data, envelope: Data, trustedKey: Data, abi: Int, target: String) throws -> NSDictionary {
         try PackageVerifier.verify(payload: payload, envelope: envelope, trustedKey: trustedKey, abi: abi, target: target) as NSDictionary
+    }
+}
+
+/// Match the pinned compiler's JSON.stringify number spelling and UTF-16 key order.
+private enum CanonicalPackageJSON {
+    static func data(_ value: Any) throws -> Data {
+        Data(try text(value).utf8)
+    }
+    static func rejected(_ reason: String) -> PackageVerifier.Failure { .rejected("Canonical JSON \(reason)") }
+    static func quote(_ value: String) throws -> String {
+        let encoded = try JSONSerialization.data(withJSONObject: [value], options: [.withoutEscapingSlashes])
+        guard var result = String(data: encoded, encoding: .utf8), result.first == "[", result.last == "]" else { throw rejected("string") }
+        result.removeFirst(); result.removeLast(); return result
+    }
+    static func less(_ lhs: String, _ rhs: String) -> Bool {
+        lhs.utf16.lexicographicallyPrecedes(rhs.utf16)
+    }
+    static func number(_ value: Double) throws -> String {
+        guard value.isFinite else { throw rejected("number") }
+        if value == 0 { return "0" }
+        let negative = value < 0, magnitude = abs(value)
+        let raw = String(magnitude).lowercased()
+        let halves = raw.split(separator: "e", maxSplits: 1, omittingEmptySubsequences: false)
+        var significand = String(halves[0])
+        if significand.hasSuffix(".0") { significand.removeLast(2) }
+        let exponent = halves.count == 2 ? Int(halves[1])! : 0
+        let point = significand.firstIndex(of: ".")
+        let integerDigits = point.map { significand.distance(from: significand.startIndex, to: $0) } ?? significand.count
+        let digits = significand.filter { $0 != "." }
+        let decimal = integerDigits + exponent
+        let body: String
+        if magnitude >= 0.000001 && magnitude < 1e21 {
+            if decimal <= 0 { body = "0." + String(repeating: "0", count: -decimal) + digits }
+            else if decimal >= digits.count { body = digits + String(repeating: "0", count: decimal - digits.count) }
+            else {
+                let split = digits.index(digits.startIndex, offsetBy: decimal)
+                body = String(digits[..<split]) + "." + String(digits[split...])
+            }
+        } else {
+            let rest = digits.dropFirst()
+            body = String(digits.first!) + (rest.isEmpty ? "" : "." + rest) + "e" + (decimal - 1 >= 0 ? "+" : "") + String(decimal - 1)
+        }
+        return negative ? "-" + body : body
+    }
+    static func text(_ value: Any) throws -> String {
+        if value is NSNull { return "null" }
+        if let value = value as? String { return try quote(value) }
+        if let value = value as? NSNumber {
+            if CFGetTypeID(value) == CFBooleanGetTypeID() { return value.boolValue ? "true" : "false" }
+            return try number(value.doubleValue)
+        }
+        if let value = value as? [Any] { return "[" + (try value.map(text)).joined(separator: ",") + "]" }
+        if let value = value as? [String: Any] {
+            return "{" + (try value.keys.sorted(by: less).map { try quote($0) + ":" + text(value[$0]!) }).joined(separator: ",") + "}"
+        }
+        throw rejected("value")
     }
 }
 
@@ -125,7 +182,7 @@ enum PackageVerifier {
         try require(actual == digest, "Payload digest")
         guard let signature = Data(base64Encoded: signatureText), trustedKey.count == 32 else { throw Failure.rejected("Trusted key") }
         manifest.removeValue(forKey: "signature")
-        let canonical = try JSONSerialization.data(withJSONObject: manifest, options: [.sortedKeys, .withoutEscapingSlashes])
+        let canonical = try CanonicalPackageJSON.data(manifest)
         let key = try Curve25519.Signing.PublicKey(rawRepresentation: trustedKey)
         try require(key.isValidSignature(signature, for: canonical), "Publisher signature")
         try require(abi >= minimum && targets.contains(target), "Host compatibility")

@@ -2,12 +2,14 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 #include <pthread.h>
 #include <GLES2/gl2.h>
 #include "pocket_runtime.h"
 #include "pocket_input.h"
 #include "contact_latch.h"
 #include "mini_core.h"
+#include "recording_input.h"
 
 typedef struct {
   MpInstance *engine;
@@ -16,17 +18,32 @@ typedef struct {
   uint8_t *upload_scratch,*capture;
   size_t upload_capacity,capture_size;
   int logical_width,logical_height,surface_width,surface_height,ready,test_mode;
+  int recording;
   unsigned long frames,touches;
   uint32_t pixel_hash;
   PocketContactLatch contacts;
   pthread_mutex_t mutex;
 } Host;
+static void record_step(JNIEnv *env,jobject self,Host *host,int kind,const void *bytes,size_t length){
+  if(!host->recording || !length || length>4096)return;
+  jclass type=(*env)->GetObjectClass(env,self);
+  jmethodID callback=type?(*env)->GetMethodID(env,type,"recordNativeStep","(I[B)V"):NULL;
+  jbyteArray data=callback?(*env)->NewByteArray(env,(jsize)length):NULL;
+  if(data){(*env)->SetByteArrayRegion(env,data,0,(jsize)length,bytes);if(!(*env)->ExceptionCheck(env))(*env)->CallVoidMethod(env,self,callback,(jint)kind,data);(*env)->DeleteLocalRef(env,data);}
+  if(type)(*env)->DeleteLocalRef(env,type);
+}
+static void record_input(JNIEnv *env,jobject self,Host *host,const MpInput *input){
+  if(!host->recording)return;
+  char json[1024];size_t length=mini_recording_input(input,json,sizeof(json));
+  if(length)record_step(env,self,host,0,json,length);
+}
 static jfieldID host_field(JNIEnv *env,jobject self){
   jclass type=(*env)->GetObjectClass(env,self);
   jfieldID field=(*env)->GetFieldID(env,type,"nativeHost","J");(*env)->DeleteLocalRef(env,type);return field;
 }
 static Host *get_host(JNIEnv *env,jobject self){jfieldID field=host_field(env,self);return field?(Host*)(intptr_t)(*env)->GetLongField(env,self,field):NULL;}
 static void set_host(JNIEnv *env,jobject self,Host *host){jfieldID field=host_field(env,self);if(field)(*env)->SetLongField(env,self,field,(jlong)(intptr_t)host);}
+JNIEXPORT void JNICALL Java_dev_pjm_android_MiniActivity_setRecording(JNIEnv *env,jobject self,jboolean enabled){Host *host=get_host(env,self);if(host)host->recording=enabled?1:0;}
 JNIEXPORT jlong JNICALL Java_dev_pjm_android_MiniActivity_createHost(JNIEnv *env,jobject self){
   (void)env;(void)self;Host *host=calloc(1,sizeof(*host));if(!host)return 0;
   if(pthread_mutex_init(&host->mutex,NULL)!=0){free(host);return 0;}
@@ -133,6 +150,7 @@ JNIEXPORT jstring JNICALL Java_dev_pjm_android_MiniActivity_frame(JNIEnv *env,jo
   for(unsigned i=0;i<input.contact_count;i++){sampled.contacts[i]=pocket_runtime_pack_contact(&input.contacts[i]);sampled.hits[i]=input.contacts[i].hit;}
   for(unsigned i=0;i<input.cancelled_count;i++)sampled.cancelled[i]=(uint8_t)input.cancelled[i];
   if(mp_frame_input(host->engine,&sampled)!=0){host->ready=0;return engine_error(env,host);}
+  record_input(env,self,host,&sampled);
   MpDamage damage={0};damage.size=sizeof(damage);
   MpFrame pixels;if(mp_render_damage(host->engine,&pixels,&damage)!=0){host->ready=0;return engine_error(env,host);}
   glViewport(0,0,width,height);glDisable(GL_BLEND);glDisable(GL_DEPTH_TEST);glUseProgram(host->program);
@@ -189,14 +207,22 @@ JNIEXPORT jboolean JNICALL Java_dev_pjm_android_MiniActivity_serviceReply(JNIEnv
   jsize length=(*env)->GetArrayLength(env,reply);if(length<1 || length>4096)return JNI_FALSE;
   char line[4096];(*env)->GetByteArrayRegion(env,reply,0,length,(jbyte*)line);
   if((*env)->ExceptionCheck(env))return JNI_FALSE;
-  return host->ready && mp_svc_post(host->engine,(const uint8_t*)line,(size_t)length)==0?JNI_TRUE:JNI_FALSE;
+  if(!host->ready || mp_svc_post(host->engine,(const uint8_t*)line,(size_t)length)!=0)return JNI_FALSE;
+  record_step(env,self,host,1,line,(size_t)length);return JNI_TRUE;
+}
+JNIEXPORT jbyteArray JNICALL Java_dev_pjm_android_MiniActivity_debugTree(JNIEnv *env,jobject self){
+  Host *host=get_host(env,self);if(!host || !host->ready || !host->engine || !host->frames)return NULL;
+  size_t capacity=4*1024*1024;uint8_t *bytes=malloc(capacity);if(!bytes)return NULL;
+  ptrdiff_t length=mp_debug_tree(host->engine,bytes,capacity);jbyteArray result=NULL;
+  if(length>0 && (size_t)length<=capacity){result=(*env)->NewByteArray(env,(jsize)length);if(result)(*env)->SetByteArrayRegion(env,result,0,(jsize)length,(const jbyte*)bytes);}
+  free(bytes);return result;
 }
 
 JNIEXPORT jstring JNICALL Java_dev_pjm_android_MiniActivity_lifecycle(JNIEnv *env,jobject self,jboolean active) {
   Host *host=get_host(env,self);if(!host){return (*env)->NewStringUTF(env,"");}
   if(!host->ready || !host->engine)return (*env)->NewStringUTF(env,"");
   int status;
-  if(active){status=mp_resume(host->engine);if(!status)status=mp_lifecycle(host->engine,MP_SHOW);}
+  if(active){status=mp_resume(host->engine);if(!status)status=mp_lifecycle(host->engine,MP_SHOW);if(!status)record_step(env,self,host,2,"show",4);}
   else {
     MpInput cancelled={0};cancelled.size=sizeof(cancelled);
     pthread_mutex_lock(&host->mutex);
@@ -205,10 +231,25 @@ JNIEXPORT jstring JNICALL Java_dev_pjm_android_MiniActivity_lifecycle(JNIEnv *en
     memset(&host->contacts,0,sizeof host->contacts);
     pthread_mutex_unlock(&host->mutex);
     status=cancelled.cancelled_count?mp_frame_input(host->engine,&cancelled):0;
+    if(!status && cancelled.cancelled_count)record_input(env,self,host,&cancelled);
     if(!status)status=mp_lifecycle(host->engine,MP_HIDE);
+    if(!status)record_step(env,self,host,2,"hide",4);
     if(!status)status=mp_suspend(host->engine);
   }
   if(status){host->ready=0;return engine_error(env,host);}return (*env)->NewStringUTF(env,"");
+}
+JNIEXPORT jint JNICALL Java_dev_pjm_android_MiniActivity_systemBack(JNIEnv *env,jobject self) {
+  Host *host=get_host(env,self);if(!host || !host->ready || !host->engine)return 0;
+  MpInput cancelled={0};cancelled.size=sizeof(cancelled);
+  pthread_mutex_lock(&host->mutex);
+  pocket_contacts_cancel(&host->contacts);
+  for(unsigned i=0;i<host->contacts.cancelled_count;i++)cancelled.cancelled[cancelled.cancelled_count++]=(uint8_t)host->contacts.cancelled[i];
+  memset(&host->contacts,0,sizeof host->contacts);
+  pthread_mutex_unlock(&host->mutex);
+  int32_t status=cancelled.cancelled_count?mp_frame_input(host->engine,&cancelled):0;
+  if(!status)status=mp_system_back(host->engine);
+  if(status<0)host->ready=0;
+  return status;
 }
 
 JNIEXPORT jstring JNICALL Java_dev_pjm_android_MiniActivity_shutdown(JNIEnv *env,jobject self) {
@@ -233,5 +274,6 @@ JNIEXPORT jstring JNICALL Java_dev_pjm_android_MiniActivity_memoryWarning(JNIEnv
   Host *host=get_host(env,self);
   if(!host || !host->ready || !host->engine)return (*env)->NewStringUTF(env,"");
   if(mp_lifecycle(host->engine,MP_MEMORY_WARNING)!=0){host->ready=0;return engine_error(env,host);}
+  record_step(env,self,host,2,"memoryWarning",13);
   return (*env)->NewStringUTF(env,"");
 }

@@ -96,6 +96,36 @@ test("page navigation shares a guest, validates declared pages and delegates roo
   unsubscribe(); nav.push("/detail"); assert.equal(updates.length, 3);
 });
 
+test("navigation rejects oversized routes atomically and bounds subscriptions", () => {
+  const nav = new Navigation(["/", "/detail"], "/", 32, 1);
+  let updates = 0;
+  const listener = () => updates++;
+  const unsubscribe = nav.subscribe(listener);
+  nav.subscribe(listener);
+  assert.throws(() => nav.subscribe(() => {}), { code: "BUSY" });
+  assert.throws(() => nav.subscribe(null as any), { code: "PROTOCOL" });
+  const queries = [
+    Object.fromEntries(Array.from({ length: 33 }, (_, n) => [`k${n}`, "v"])),
+    { ["k".repeat(129)]: "v" },
+    { k: "v".repeat(1025) },
+    { a: "😀".repeat(512), b: "😀".repeat(512) },
+    { invalid: "\ud800" },
+  ];
+  for (const query of queries) {
+    for (const action of [() => nav.push("/detail", query), () => nav.replace("/detail", query), () => nav.reset("/detail", query)]) {
+      assert.throws(action, { code: "PROTOCOL" });
+      assert.equal(nav.stack.length, 1);
+      assert.equal(nav.current.path, "/");
+      assert.equal(updates, 0);
+    }
+  }
+  unsubscribe();
+  nav.subscribe(() => updates++);
+  nav.push("/detail", { id: "valid" });
+  assert.equal(updates, 1);
+  assert.equal(nav.current.query.id, "valid");
+});
+
 test("mixed event and reply records cannot consume pending requests",async()=>{
  const runtime=new FrameRuntime({send(){}});let events=0;runtime.on('show',()=>events++);const request=runtime.request('fixture.v1');
  for(const record of [

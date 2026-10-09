@@ -1,5 +1,8 @@
 #import "Mini-Swift.h"
 #import "InstalledController.h"
+#import "VerifiedLocation.h"
+#import "VerifiedNetwork.h"
+#import "VerifiedMedia.h"
 // Bounded process-wide rolling windows, independent of controller/generation.
 static BOOL MiniHTTPAdmitRate(NSString *identity,double now) {
     static NSMutableDictionary<NSString *,NSMutableArray<NSNumber *> *> *rates;
@@ -105,17 +108,24 @@ static BOOL MiniResourceInteger(id value,NSUInteger low,NSUInteger high) {
 @property(nonatomic) NSMutableDictionary<NSString *,MiniHTTPTask *> *requests;
 @property(nonatomic) NSMutableDictionary<NSString *,MiniResource *> *resources;
 @property(nonatomic) NSMutableDictionary<NSString *,MiniClipboardRead *> *clipboardReads;
+@property(nonatomic) MiniVerifiedLocation *location;
+@property(nonatomic) MiniVerifiedMedia *media;
+@property(nonatomic) MiniVerifiedNetwork *network;
+@property(nonatomic) NSMutableDictionary<NSNumber *,NSDictionary *> *networkWatches;
 @end
 @implementation MiniInstalledController
+- (Class)mediaServiceClass {return MiniVerifiedMedia.class;}
 - (instancetype)initWithIdentity:(NSString *)identity store:(MiniPackageStore *)store launchData:(NSData *)launch error:(NSError **)error {
     self=[super initWithNibName:nil bundle:nil];if(!self)return nil;
     _store=store;_surface=[[PocketSurfaceView alloc] initWithInstalledIdentity:identity store:store storageRoot:nil launchData:launch error:error];if(!_surface)return nil;
     __weak MiniInstalledController *weakSelf=self;
-    _requests=[NSMutableDictionary new];_resources=[NSMutableDictionary new];_clipboardReads=[NSMutableDictionary new];
+    _requests=[NSMutableDictionary new];_resources=[NSMutableDictionary new];_clipboardReads=[NSMutableDictionary new];_location=[[MiniVerifiedLocation alloc] initWithStore:store presenter:self];
+    _network=[MiniVerifiedNetwork new];_networkWatches=[NSMutableDictionary new];
+    _media=[[[self mediaServiceClass] alloc] initWithStore:store presenter:self reserve:^id(NSString *identity,uint64_t generation){return [weakSelf reserveResourceForIdentity:identity generation:generation];} complete:^NSDictionary *(id token,MiniMediaImage *image){MiniInstalledController *owner=weakSelf;MiniResource *slot=token;if(!owner||owner.resources[slot.handle]!=slot||image.jpeg.length>1024*1024)return nil;memcpy(slot.bytes.mutableBytes,image.jpeg.bytes,image.jpeg.length);slot.length=image.jpeg.length;slot.ready=YES;return @{@"mime":@"image/jpeg",@"width":@(image.width),@"height":@(image.height),@"resource":@{@"handle":slot.handle,@"size":@(slot.length)}};} discard:^(id token){MiniResource *slot=token;[weakSelf.resources removeObjectForKey:slot.handle];}];
     _surface.onError=^(NSString *message){(void)message;MiniInstalledController *owner=weakSelf;owner.message.text=@"Unable to run this app.";owner.message.hidden=NO;};
     _surface.onVerifiedEffect=^(MiniVerifiedPackage *package,uint64_t generation,NSString *line){[weakSelf dispatchService:line package:package generation:generation];};
     _surface.onVerifiedRetirement=^(MiniVerifiedPackage *package,uint64_t generation){(void)package;[weakSelf cancelGeneration:generation];};
-    _surface.onVerifiedFrameStart=^{[weakSelf drainHTTP];};
+    _surface.onVerifiedFrameStart=^{[weakSelf drainNetwork];[weakSelf drainHTTP];[weakSelf.media drain:^BOOL(MiniVerifiedPackage *bound,uint64_t generation,NSString *reply){return [weakSelf.surface postVerifiedEvent:reply identity:bound.metadata[@"appId"] generation:generation error:nil];}];[weakSelf.location drain:^BOOL(MiniVerifiedPackage *bound,uint64_t generation,NSString *reply){return [weakSelf.surface postVerifiedEvent:reply identity:bound.metadata[@"appId"] generation:generation error:nil];}];};
     return self;
 }
 - (void)viewDidLoad {
@@ -126,12 +136,15 @@ static BOOL MiniResourceInteger(id value,NSUInteger low,NSUInteger high) {
 - (void)layoutSurface {CGRect bounds=UIEdgeInsetsInsetRect(self.view.bounds,self.view.safeAreaInsets);_surface.frame=bounds;_message.frame=CGRectInset(bounds,16,16);}
 - (void)viewDidLayoutSubviews {[super viewDidLayoutSubviews];[self layoutSurface];}
 - (void)viewSafeAreaInsetsDidChange {[super viewSafeAreaInsetsDidChange];[self layoutSurface];}
-- (void)viewDidAppear:(BOOL)animated {[super viewDidAppear:animated];[self layoutSurface];[_surface resumeForHost];[_surface start];}
-- (void)viewDidDisappear:(BOOL)animated {[super viewDidDisappear:animated];[_surface stop];[_surface suspendForHost];}
+- (void)viewDidAppear:(BOOL)animated {[super viewDidAppear:animated];[self layoutSurface];[_network resume];[_location resume];[_media resume];[_surface resumeForHost];[_surface start];}
+- (void)viewDidDisappear:(BOOL)animated {[super viewDidDisappear:animated];[_surface stop];[_surface suspendForHost];[_media suspendForHost];[_location suspend];[_network suspend];}
 - (BOOL)openIdentity:(NSString *)identity launchData:(NSData *)launch error:(NSError **)error {
     BOOL opened=[_surface activateInstalledIdentity:identity store:_store launchData:launch error:error];if(opened)_message.hidden=YES;return opened;
 }
 - (void)cancelGeneration:(uint64_t)generation {
+    [_networkWatches removeObjectForKey:@(generation)];
+    [_location retireGeneration:generation];
+    [_media retireGeneration:generation];
     for(NSString *key in [_clipboardReads.allKeys copy])if(_clipboardReads[key].generation==generation){[_clipboardReads[key] cancel];[_clipboardReads removeObjectForKey:key];}
     for(NSString *handle in [_resources.allKeys copy])if(_resources[handle].generation==generation)[_resources removeObjectForKey:handle];
     NSString *prefix=[NSString stringWithFormat:@"%llu:",(unsigned long long)generation];
@@ -145,6 +158,12 @@ static BOOL MiniResourceInteger(id value,NSUInteger low,NSUInteger high) {
         MiniHTTPTask *work=_requests[key];if(!work.reply)continue;
         if([_surface postVerifiedEvent:work.reply identity:work.package.metadata[@"appId"] generation:work.generation error:nil]){if(work.resource && !work.resource.ready)[_resources removeObjectForKey:work.resource.handle];[_requests removeObjectForKey:key];}
     }
+}
+- (void)drainNetwork {
+    uint64_t generation=_surface.verifiedActiveGeneration;NSDictionary *watch=_networkWatches[@(generation)];
+    if(!watch || ![watch[@"identity"] isEqual:_surface.verifiedActiveIdentity] || [watch[@"state"] isEqual:_network.state])return;
+    NSDictionary *state=_network.state;NSData *encoded=[NSJSONSerialization dataWithJSONObject:@{@"v":@1,@"event":@"device.network.v1",@"data":state} options:0 error:nil];
+    if(encoded && [_surface postVerifiedEvent:[[NSString alloc] initWithData:encoded encoding:NSUTF8StringEncoding] identity:watch[@"identity"] generation:generation error:nil])_networkWatches[@(generation)]=@{@"identity":watch[@"identity"],@"state":state};
 }
 - (MiniResource *)reserveResourceForIdentity:(NSString *)identity generation:(uint64_t)generation {
     NSAssert(NSThread.isMainThread,@"Resources require main owner");
@@ -188,11 +207,18 @@ static BOOL MiniResourceInteger(id value,NSUInteger low,NSUInteger high) {
     NSMutableDictionary *reply=[@{@"v":@1,@"id":identifier} mutableCopy];NSString *code=nil,*message=nil;
     if(![version isKindOfClass:NSNumber.class] || CFGetTypeID((__bridge CFTypeRef)version)==CFBooleanGetTypeID() || [version doubleValue]!=1 || ![kind isKindOfClass:NSString.class] || [kind length]>64 || [kind rangeOfString:@"^[a-z][a-zA-Z0-9.]*\\.v[1-9][0-9]*$" options:NSRegularExpressionSearch].length!=[kind length] || ![kind length] || !request[@"args"]){code=@"PROTOCOL";message=@"Invalid service request";}
     else if([kind isEqual:@"device.info.v1"]){MpConfig config=package.config;reply[@"data"]=@{@"platform":@"ios",@"model":UIDevice.currentDevice.model,@"width":@(config.width),@"height":@(config.height),@"density":@(config.density),@"safeTop":@0,@"safeBottom":@0,@"safeLeft":@0,@"safeRight":@0};}
+    else if([kind isEqual:@"device.network.v1"]){
+        if(![request[@"args"] isKindOfClass:NSDictionary.class] || [request[@"args"] count]){code=@"PROTOCOL";message=@"Network state takes no arguments";}
+        else if(!_networkWatches[@(generation)] && _networkWatches.count>=3){code=@"BUSY";message=@"Network watcher capacity reached";}
+        else {reply[@"data"]=_network.state;_networkWatches[@(generation)]=@{@"identity":package.metadata[@"appId"],@"state":_network.state};}
+    }
     else if([kind isEqual:@"clipboard.write.v1"]){NSDictionary *result=[self clipboardWrite:request[@"args"] identity:package.metadata[@"appId"]];[reply addEntriesFromDictionary:result];if(![result[@"ok"] boolValue]){code=result[@"error"][@"code"];message=result[@"error"][@"message"];}}
     else if([kind isEqual:@"clipboard.read.v1"]){NSDictionary *result=[self startClipboardRead:request[@"args"] identifier:identifier package:package generation:generation];if(!result)return;[reply addEntriesFromDictionary:result];if(![result[@"ok"] boolValue]){code=result[@"error"][@"code"];message=result[@"error"][@"message"];}}
+    else if([kind isEqual:@"location.get.v1"]){NSDictionary *result=[_location start:request[@"args"] identifier:identifier package:package generation:generation];if(!result)return;[reply addEntriesFromDictionary:result];if(![result[@"ok"] boolValue]){code=result[@"error"][@"code"];message=result[@"error"][@"message"];}}
+    else if([kind isEqual:@"media.select.v1"]){NSDictionary *result=[_media start:request[@"args"] identifier:identifier package:package generation:generation];if(!result)return;[reply addEntriesFromDictionary:result];if(![result[@"ok"] boolValue]){code=result[@"error"][@"code"];message=result[@"error"][@"message"];}}
     else if([kind isEqual:@"request.v1"]){NSDictionary *result=[self startHTTP:request[@"args"] identifier:identifier package:package generation:generation];if(!result)return;[reply addEntriesFromDictionary:result];if(![result[@"ok"] boolValue]){code=result[@"error"][@"code"];message=result[@"error"][@"message"];}}
     else if([kind isEqual:@"resource.read.v1"] || [kind isEqual:@"resource.release.v1"]){NSDictionary *result=[self resourceService:kind arguments:request[@"args"] identity:package.metadata[@"appId"] generation:generation];[reply addEntriesFromDictionary:result];if(![result[@"ok"] boolValue]){code=result[@"error"][@"code"];message=result[@"error"][@"message"];}}
-    else if([kind isEqual:@"cancel.v1"]){NSString *key=[NSString stringWithFormat:@"%llu:%@",(unsigned long long)generation,identifier];[_clipboardReads[key] cancel];[_clipboardReads removeObjectForKey:key];MiniHTTPTask *work=_requests[key];if(work.resource)[_resources removeObjectForKey:work.resource.handle];[work cancel];[_requests removeObjectForKey:key];reply[@"data"]=NSNull.null;}
+    else if([kind isEqual:@"cancel.v1"]){NSString *key=[NSString stringWithFormat:@"%llu:%@",(unsigned long long)generation,identifier];[_clipboardReads[key] cancel];[_clipboardReads removeObjectForKey:key];[_location cancelGeneration:generation identifier:identifier];[_media cancelGeneration:generation identifier:identifier];MiniHTTPTask *work=_requests[key];if(work.resource)[_resources removeObjectForKey:work.resource.handle];[work cancel];[_requests removeObjectForKey:key];reply[@"data"]=NSNull.null;}
     else {code=@"UNSUPPORTED";message=@"Unsupported native service";}
     reply[@"ok"]=code?@NO:@YES;if(code)reply[@"error"]=@{@"code":code,@"message":message};
     NSData *encoded=[NSJSONSerialization dataWithJSONObject:reply options:NSJSONWritingWithoutEscapingSlashes error:nil];if(encoded && encoded.length<=4096){NSError *failure=nil;[_surface postVerifiedEvent:[[NSString alloc] initWithData:encoded encoding:NSUTF8StringEncoding] identity:package.metadata[@"appId"] generation:generation error:&failure];}
@@ -267,6 +293,6 @@ static BOOL MiniResourceInteger(id value,NSUInteger low,NSUInteger high) {
     [alert addAction:[UIAlertAction actionWithTitle:@"Allow" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action){(void)action;decide(YES);}]];
     [self presentViewController:alert animated:YES completion:nil];return nil;
 }
-- (void)shutdown {[_surface shutdown];for(MiniClipboardRead *work in _clipboardReads.allValues)[work cancel];[_clipboardReads removeAllObjects];for(MiniHTTPTask *work in _requests.allValues)[work cancel];[_requests removeAllObjects];[_resources removeAllObjects];}
-- (void)dealloc {[_surface shutdown];for(MiniClipboardRead *work in _clipboardReads.allValues)[work cancel];for(MiniHTTPTask *work in _requests.allValues)[work cancel];}
+- (void)shutdown {[_media close];[_location close];[_surface shutdown];for(MiniClipboardRead *work in _clipboardReads.allValues)[work cancel];[_clipboardReads removeAllObjects];for(MiniHTTPTask *work in _requests.allValues)[work cancel];[_requests removeAllObjects];[_resources removeAllObjects];}
+- (void)dealloc {[_media close];[_location close];[_surface shutdown];for(MiniClipboardRead *work in _clipboardReads.allValues)[work cancel];for(MiniHTTPTask *work in _requests.allValues)[work cancel];}
 @end

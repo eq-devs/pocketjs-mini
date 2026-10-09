@@ -11,7 +11,8 @@ export function nativeReplayEngine(path:string,identity:{appId:string;version:st
  const library=dlopen(path,{
  mp_abi_version:{args:[],returns:u},mp_create:{args:[p],returns:p},mp_destroy:{args:[p],returns:i},mp_last_error:{args:[p],returns:p},
  mp_package_select:{args:[p,z,u,p,z,p],returns:i},mp_boot:{args:[p,p,z,p,z],returns:i},mp_launch:{args:[p,p,z],returns:i},mp_lifecycle:{args:[p,u],returns:i},
- mp_frame_input:{args:[p,p],returns:i},mp_render:{args:[p,p],returns:i},mp_svc_take:{args:[p,p,z],returns:FFIType.i64_fast},mp_svc_post:{args:[p,p,z],returns:i}
+ mp_frame_input:{args:[p,p],returns:i},mp_render:{args:[p,p],returns:i},mp_svc_take:{args:[p,p,z],returns:FFIType.i64_fast},mp_svc_post:{args:[p,p,z],returns:i},
+ mp_hit_test:{args:[p,FFIType.f32,FFIType.f32,p],returns:i}
  });
  let handle:Pointer|null=null,closed=false,started=false;const f=library.symbols;
  if(f.mp_abi_version()!==1){library.close();throw Error('Replay core ABI mismatch');}
@@ -28,6 +29,7 @@ export function nativeReplayEngine(path:string,identity:{appId:string;version:st
  check(f.mp_boot(handle,address(v,8),length(v,16,16*1024*1024),address(v,24),length(v,32,64*1024*1024)));const launch=Buffer.from(tape.launchData);check(f.mp_launch(handle,ptr(launch),launch.length));check(f.mp_lifecycle(handle,2));started=true;
  },
  completion(record){const h=ready(),bytes=Buffer.from(record);check(f.mp_svc_post(h,ptr(bytes),bytes.length));},
+ hitTest(x,y){if(!Number.isFinite(x)||!Number.isFinite(y))throw Error('Invalid hit-test coordinates');const output=new Int32Array(1);check(f.mp_hit_test(ready(),x,y,ptr(output)));return output[0]!;},
  lifecycle(event){check(f.mp_lifecycle(ready(),{show:2,hide:3,memoryWarning:5}[event]));},
  frame(contacts,hits,cancelled){const h=ready(),input=new Uint8Array(84),v=new DataView(input.buffer);v.setUint32(0,84,true);v.setUint32(4,contacts.length,true);contacts.forEach((word,index)=>v.setUint32(8+index*4,word,true));hits.forEach((hit,index)=>v.setInt32(40+index*4,hit,true));v.setUint32(72,cancelled.length,true);input.set(cancelled,76);check(f.mp_frame_input(h,ptr(input)));const out=new Uint8Array(32),view=new DataView(out.buffer);check(f.mp_render(h,ptr(out)));const pixels=new Uint8Array(toArrayBuffer(address(view,0),0,length(view,8,16*1024*1024))).slice();const records=new Uint8Array(32*4097),count=Number(f.mp_svc_take(h,ptr(records),records.length));if(!Number.isSafeInteger(count)||count<0||count>records.length)throw Error('Replay mailbox drain failed');const text=new TextDecoder('utf-8',{fatal:true}).decode(records.subarray(0,count));return {pixels,effects:text?text.replace(/\n$/,'').split('\n'):[]};},
  inspectTree(){if(!inspector)throw Error('Inspector capability unavailable');const buffer=new Uint8Array(4*1024*1024),count=Number(inspector.symbols.mp_debug_tree(ready(),ptr(buffer),buffer.length));if(!Number.isSafeInteger(count)||count<0||count>buffer.length)throw Error('Native inspector snapshot failed');return buffer.slice(0,count);},

@@ -1,5 +1,159 @@
 # Native phone phase — plan and acceptance
 
+## v0.0.1 release priority — user update (2026-10-09)
+
+The user deprioritized DevTools for v0.0.1. Preserve the existing inspection,
+recording, replay and highlighting implementation, but defer further DevTools
+features and acceptance work until after this release. DevTools is not a
+v0.0.1 release gate. The broader technical plan remains a later roadmap.
+
+Prioritize the shared mobile engine, iOS/Android rendering and input, TSX SDK
+and essential native APIs, package verification and container limits, a working
+example, and build/run reliability. Audit these areas against existing evidence
+before estimating v0.0.1 completion or declaring the release ready. Simulator
+results do not establish physical-device performance or isolation acceptance.
+
+The current requirement/evidence matrix is maintained in `RELEASE-0.0.1.md`.
+
+Release audit execution: the full `tests/check.sh` gate completed successfully,
+with evidence retained in `build/validation/v001-20261009/check.log`. Added
+bounded navigation queries (32 fields, 128-character keys, 1024-character
+values, 4-KiB encoded routes, valid Unicode) and a 256-listener ceiling.
+Invalid push/replace/reset and launch queries preserve prior state; rejected
+launches can recover with valid parameters. Focused SDK/native/installed SDK
+checks pass 28 tests and strict SDK types pass after these changes. Native
+device release readiness is still unproven; the audit records specific gaps.
+
+Actual TSX routing milestone: added `examples/navigation`, a two-page Solid/SDK
+application with shared counter and item query. Both platform contracts pass
+type/metadata checking. The real development hosts compile and execute it:
+UIKit button routing, item/counter retention, Home/resume and cold reset pass
+one XCTest with zero failures/skips; Android passes the same flows plus system
+Back, retained Home state, root exit and cold reset. Native screenshots and
+trees were reviewed; this is stronger evidence than the earlier raw-color SDK
+fixture, but does not establish signed TSX deployment or physical performance.
+
+Evidence: `build/ios-validation/navigation-20261009` and
+`build/android-validation/navigation-20261009-retry`. The first Android attempt
+timed out before receipts; connection was verified and the retry passed. The
+new runner checks completed boot before launch. A separate restricted-shell
+compile was denied writing the upstream transform cache; authorized native
+runners completed actual compilation. The iOS simulator core rebuilt with the
+known nonfatal optional libLLVM strip warning. Owned app/server/launcher
+sessions were cleaned, the read-only Android emulator shut down, and the
+preexisting iOS simulator left running. Further DevTools work stays deferred.
+
+Signed TSX milestone: both installed hosts now pass the real navigation
+example with a test-only SDK storage observer. Android covers button/system
+Back, query/counter retention, Home/resume, root exit and cold reset. UIKit
+covers button routing, retained state, Home/resume, cold reset and ignored
+untrusted development URL. The UIKit run revealed and fixed a production
+storage reply bug: retained completions now include the SDK-required `ok`
+boolean on success and error. Focused native container regression verifies
+set/get success and protocol failure. Current screenshots were visually
+reviewed; failed attempts are retained separately. Evidence is in
+`build/android-validation/signed-navigation-20261009` and
+`build/ios-validation/signed-navigation-20261009-storage-fix`. Temporary apps
+and the owned emulator were cleaned. Physical release acceptance and remaining
+services/distribution work stay open; DevTools stays deferred.
+
+Media foundation milestone: added library/camera SDK request and JPEG resource
+reply contracts plus bounded native normalization codecs. The Apple codec runs
+against actual ImageIO on macOS; Android runs in a temporary native test APK on
+the disposable emulator. Resize, EXIF orientation/GPS stripping, white alpha,
+source limits and malformed input checks pass. The full gate passes with 72
+core tests and new SDK/native admission checks; evidence is under
+`build/validation/media-foundation-20261009` and
+`build/android-validation/media-image-20261009-retry`. The initial Android
+fixture rejected an undefined orientation on normalized pixels; its corrected
+retry also verifies rotated pixel colors. SDK sources and codecs are included
+in generated projects. This does not implement the host media service yet:
+native UI/consent, bounded provider input, lifecycle/cancellation and isolated
+resource adoption remain the next required work. DevTools stays deferred.
+
+Android media service milestone: the signed host now dispatches selection to
+per-app native consent and the system document chooser or camera, with bounded
+provider reads and one normalization worker. HTTP and media share one isolated
+resource pool; retiring the container owns pool cleanup. A native Android test
+passes JPEG reads, shared quota, identity/generation isolation, cancellation,
+late-callback rejection and oversized-provider rejection. The signed TSX host
+also passes consent, denial, chooser cancellation and saved decisions after a cold reopen,
+alongside navigation, background/resume and Back. Evidence:
+`build/android-validation/media-service-20261009` and
+`build/android-validation/media-picker-cancel-20261009-button-fix` and
+`build/android-validation/media-picker-deny-20261009`.
+The full gate passes, including 72 core tests, with log retained under
+`build/validation/media-service-20261009`. Initial UI attempts are retained;
+the consent test now uses native button IDs because Android uppercases labels.
+Positive system image import/camera capture, iOS media dispatch and physical
+performance remain open. DevTools stays deferred for v0.0.1.
+The signed HTTP SDK resource/pixel fixture passes with the shared pool as well;
+evidence: `build/android-validation/media-shared-http-20261009`. Current Android
+Java source compilation and whitespace checks pass. Temporary apps and the
+owned read-only emulator were cleaned after validation.
+
+iOS media implementation milestone: the signed host now connects per-app native
+consent, PHPicker and camera authorization to bounded input/normalization and
+the same HTTP resource pool. One process-wide operation permit is retained
+through outstanding provider/worker callbacks, including cancellation; app
+backgrounding, retirement and the two-minute deadline suppress late completion.
+Generated projects include PhotosUI/AVFoundation, service sources and the camera
+usage description. Real simulator consent/chooser cancellation, saved approval
+after cold reopen, navigation and lifecycle pass one XCTest without failures.
+A separate owned synthetic NSItemProvider source passes real SDK JPEG metadata,
+handle reads and release through the installed host. This substitutes only the
+picker source; positive system image selection and camera hardware remain open.
+Evidence: `build/ios-validation/media-picker-cancel-20261009-retry`,
+`build/ios-validation/media-provider-20261009` and
+`build/ios-validation/media-picker-deny-20261009`. The separate denial run also
+passes real consent denial and its saved decision after cold reopen.
+The first UI attempt passed the
+initial picker but waited for a surface covered by the cold-reopen picker;
+the corrected test dismisses the picker before checking that surface.
+The full gate passes with 72 core tests; final iOS source checks and focused
+SDK/export tests pass. Broader release/device/service work remains active and
+DevTools stays deferred for v0.0.1.
+
+Network service milestone: added bounded network snapshot/change-event SDK
+contracts and real signed-host platform monitors. Both signed native navigation
+runners pass their SDK/storage network snapshot proof; Android additionally
+receives real offline/restored events from the disposable emulator. One latest
+snapshot replaces prior changes; lifecycle stops monitors and inactive retained
+guests receive their current state on activation. Evidence is retained under
+`build/ios-validation/network-20261009-retry` and
+`build/android-validation/network-transitions-20261009`. Physical transitions,
+iOS transition acceptance, retained switching/stress and development parity
+remain open. The owned emulator's settings were restored before shutdown.
+
+Network validation gate: `tests/check.sh` passes with the pinned local upstream,
+including 72 core tests and the new network/installed-SDK checks. Log:
+`build/validation/network-20261009/check.log`. A restricted attempt tried a
+GitHub clone and failed; its log is retained separately. Existing
+`PJM_TEST_UPSTREAM` and authorized loopback/cache access resolve that test
+setup issue. Native mobile runs separately compile and execute the hosts.
+
+Android Back milestone: the SDK installs a synchronous page-stack hook and
+restores the previous hook on disposal. Additive shared FFI operations return
+handled/delegate/error, enforce owner/foreground state, and run callbacks and
+Promise jobs under the existing 50-ms turn budget. Failed retained callbacks
+are unscheduled without disrupting another retained guest. Both Android hosts
+coalesce Back requests and dispatch on the GL owner; active contacts cancel
+before routing and root Back finishes the Activity. Generated manifests use
+legacy Back dispatch. Current development tape format lacks Back, so capture
+is discarded if that action occurs; replay correctness is not weakened.
+
+The full regression gate passes 72 core tests plus compiler/server/SDK/package
+checks (`build/validation/back-20261009/check.log`). Focused SDK/export and
+type checks, Java host compilation and production NDK development JNI source
+checks pass. A signed installed app containing the actual SDK passes touch,
+Home/resume, detail-to-root Back, root exit and fresh cold reopen on the owned
+read-only ARM64 emulator. Evidence: `build/android-validation/back-20261009-retry`.
+The first fixture failed initial pixel expectation after a launch-triggered
+root reset; corrected detail paint and retained the first failed evidence.
+Root screenshot was visually inspected; foreground/exit are separately checked
+from UI hierarchies. The temporary app and emulator were cleaned up. Physical
+device and complete rendered TSX routing acceptance remain open.
+
 ## Objective
 
 Remove Flutter and use an unchanged PocketJS native engine/view directly.
@@ -2742,3 +2896,301 @@ Added benchmark-project.ts to sign that actual payload in memory with a temporar
 Added benchmark-surface-android.sh: refuses to replace a pre-existing fixed test bundle, signs the actual exported APK with an owned temporary key, requires authenticated benchmark marker before input, scopes logs/memory to its process and uninstalls/removes owned files on exit. Pixel first run renders actual baked text and VirtualList rows 1–14; screenshot inspected. Total process PSS is 132970 KiB, including 84952 KiB Graphics; this is not the required incremental per-instance baseline/delta. Evidence: build/android-validation/benchmark-gpu-20261005-first. Its pause log was missed due immediate read; runner now polls for measurement completion.
 
 Added authenticated-surface-derived benchmark coordinates for the actual 390x844 logical viewport. Second run executes six one-second upward swipes and opens the form. Inspected screenshots show rows 20–33 after scrolling, selected row 27, and rendered form. Owned measurement log records 776 frames over 13122584560 ns, maximum CPU 15966634 ns, no CPU samples above 33 ms, but maximum submission interval 162813558 ns and three intervals above 33 ms. This is a mixed scrolling/idle/form-switch run, not isolated scrolling or compositor FPS acceptance. Form screenshot unexpectedly shows Newsletter Yes after only the mode-switch tap despite initial false; input/recycled-hit/press behavior needs investigation. Evidence: build/android-validation/benchmark-gpu-20261005-scroll. Both runners exit zero/remove owned app/files, but runner exit proves operation/capture only, not performance/form correctness acceptance. Full original goal active; identified timing/input issues and remaining scope require work.
+
+### Authoritative native benchmark input reproduction (2026-10-05)
+
+Physical form-only retesting could not start: the selected Pixel serial disappeared and a fresh device inventory was empty. No new device acceptance evidence was collected. Hardened the benchmark runner to require the selected device state before signing, evidence-directory creation or installation.
+
+Added native benchmark input regression using the actual compiled benchmark and macOS native core. The first swipe harness guessed targets from inspector rectangles and failed its required visible-row advancement assertion; it was not evidence of scrolling. Added optional owner-thread native hit testing to ReplayEngine through existing mp_hit_test, rejecting non-finite coordinates. The corrected six-swipe sequence advances the maximum visible row from 17 to 69 and then opens the form through an authoritative hit target. Newsletter remains No. The isolated form-switch case also remains No; both final runs pass, as do shell syntax and diff whitespace checks. Captured inspector evidence is under build/benchmark-native-input. This rules out the anomaly for these deterministic native sequences only; Android input timing/packing and the earlier physical Newsletter Yes result remain unresolved. Device reconnection, physical repetition, performance/memory acceptance, iOS GPU and all remaining original goal scope are still required. Full goal active.
+
+### Freeze ended Android contacts across queued pointer reuse (2026-10-05)
+
+Inspection found InstalledActivity retained ended contacts until the next rendered sample but continued updating them from later MotionEvents with the same Android pointer ID. Thus a quick new gesture before frame drain could overwrite an old gesture's final position while keeping its original latched hit. Added owner-thread TouchContact terminal update protection and skipped ended contacts in Activity event processing. New contacts keep independent identifiers and hits; final samples remain available for their existing frame-drain path. Production export and Java source gate include the helper.
+
+A JVM regression simulates an ended scroll contact plus a new contact reusing pointer zero, followed by queued move/up updates. It verifies the old final position/hit/identifier remain intact while the new contact completes independently. Regression and existing frame pacing/measurement tests pass; all Android host/service Java sources compile and diff whitespace checks pass. This repairs a concrete queued-event defect, but no physical Android rerun has established that it caused the earlier newsletter anomaly. Physical validation and all remaining full-goal scope stay active.
+
+### Preserve between-frame gesture displacement (2026-10-05)
+
+Installed touch coalescing also discarded a gesture's initial position when down/move/up all arrived before the first guest frame. That allowed the guest to see a zero-distance contact at the final point. TouchContact now keeps its initial position for the first sample, then supplies the latest/final position on the next sample. An ended contact drains only after that final sample; an already-reported contact still drains on its normal final sample. Sampling state advances after successful drawing, and existing cancellation uses only reported identifiers.
+
+JVM regression now checks compressed gesture initial/final delivery, terminal draining and normal live movement alongside pointer reuse. It and pacing/measurement tests pass. Android host/service Java compilation and whitespace checks pass. Actual compiled benchmark native replay with two samples per swipe advances maximum visible row from 17 to 119 across six swipes and keeps Newsletter No after mode switch. This proves that preserved displacement reaches the actual native guest recognizer in this deterministic scenario; it does not establish physical Android causality, latency or performance acceptance. Full goal active.
+
+### Updated Android APK and iOS final-position delivery (2026-10-05)
+
+Fresh approved adb inventory remains empty; no device test was attempted. Exported actual compiled benchmark with current Android TouchContact fixes into build/benchmark-touch-20261005/project using a fresh in-memory package signing key. Production Java/dex/resource packaging succeeds and produces build/Mini-unsigned.apk; existing Google dependency warnings remain. APK awaits temporary signing/install through the device runner.
+
+Inspected iOS touch sampling: it removed an ended, already-reported contact before delivering the final position and collapsed an unreported complete gesture to its endpoint. Added initialPoint/finalReported state so the first sample uses the initial point and the final point is delivered before removal. UIKit touch identity already excludes ended contacts from later updates. Expanded ios-service-types.sh to typecheck the Metal presenter and compile PocketSurfaceView along with existing service fixtures. The first ad hoc compile omitted generated PJM_TEST_MODE and failed; the permanent runner supplies that configuration. Runtime iOS touch behavior and physical Android causality still require testing; full goal active.
+
+Expanded iOS check initially exposed missing UIKit import before generated Swift UIView declarations in service translation units. Runner now imports UIKit before those declarations; final expanded iOS source/type checks pass. This is compilation evidence only, not simulator/device runtime acceptance.
+
+### Executable iOS sampling-state regression (2026-10-05)
+
+Moved the iOS initial/final delivery decision into TouchSampling.h, used directly by PocketSurfaceView. Added an executable C regression covering a gesture already ended before its first frame, initial-then-final delivery, sustained live samples, and final delivery/draining for an already-reported gesture. ios-service-types.sh compiles/runs this test with strict warnings before its existing Swift/UIKit source checks. Both sampling regression and expanded iOS compilation pass. Installed export copies the entire iOS host directory, including the new header. These are deterministic sampling-state and compilation results; UIKit event delivery, simulator/physical behavior, native Metal DrawList implementation and remaining full-goal acceptance stay unproven. Full goal active.
+
+### Development Android contact sampling parity (2026-10-05)
+
+Development MiniActivity routes input through pinned PocketContactLatch. Inspection confirmed its sampler used only the latest point and removed an ended previously-sampled contact without final delivery. Added local host/android/contact_latch.h adaptation of the exact pinned source, retaining license attribution and original pointer-lifetime/identifier/cancellation policies. Local include precedence selects this adaptation without modifying reference files. It keeps the initial point for first sampling and final displacement for one later sample; capacity reclamation requires final delivery.
+
+Executable C regression verifies an ended compressed drag and new contact sharing platform pointer zero coexist with distinct guest identifiers, initial/final displacement is delivered before removal, and cancellation retains the published new identifier. Strict C compilation and regression pass; Android NDK runtime source compilation also passes. Development/installed behavior now shares this sampling policy, but no physical device performance or full development-host parity is claimed. Full goal active.
+
+### Contact capacity and pending cancellation validation (2026-10-05)
+
+Expanded the actual development sampler regression to fill all eight slots with ended gestures, verify a new DOWN is refused while final positions remain undelivered, verify all final positions are delivered, then verify capacity reclamation succeeds. Hardened guest-ID allocation to reserve pending cancellation IDs in addition to resident and previous-frame IDs; a boundary regression forces ID wrap toward a queued cancelled identifier and verifies distinct active/terminal IDs. Updated adaptation comments to describe final-sample reclamation and the bounded 24-ID reservation set.
+
+Strict C sampler regression passes. Replay type checking passes, and package-input/replay/tape tests pass 10 cases with 282 assertions. These verify input bookkeeping and replay contracts, not OS gesture delivery or performance. Remaining full-plan requirements stay active.
+
+### Shared bounded GPU texture decoding for Metal preparation (2026-10-05)
+
+Inspected pinned sources: no existing Metal DrawList backend was found. Extracted the actual GLES pixel-format conversion into shared gpu_texture.rs compiled for Android/iOS/tests. GLES uses that function; future Metal uploads can use identical RGB565/RGBA4444/RGBA8888/indexed decoding instead of duplicating semantics. Conversion now rejects zero dimensions, checked-size overflow and RGBA output above 16 MiB before allocation, and uses fallible exact reservation. Added malformed/oversized dimension regressions alongside existing pixel-format fixtures. License attribution points to preserved upstream license.
+
+First cargo invocation lacked rustc on PATH and did not run tests. Corrected compiler configuration: all 57 native library regressions pass; final added conversion boundary assertions pass in a focused rerun. This is a shared prerequisite and allocation hardening, not an implemented Metal DrawList renderer. Geometry/resource snapshot API, GPU ownership, Metal shaders/presentation and physical acceptance remain required. Full goal active.
+
+### Shared GPU command admission and owned frame snapshot (2026-10-05)
+
+Extracted GLES DrawList and image admission into shared gpu_frame.rs, preserving opcode, finite-UV, clip-depth, expanded-vertex and texture-budget checks. Android GLES calls the shared admission functions. Added an internal owned command snapshot with finite positive viewport validation and fallible bounded allocation, providing a stable prerequisite for Metal frame handoff. It explicitly does not yet capture texture/font resources or issue GPU work.
+
+Initial new regression mistakenly called pinned ui.setStyle with an object and failed; existing 57 regressions passed in that run. Corrected to actual ui.setProp API and strengthened fixture to generate different background colors on successive guest frames. Final focused regression proves current commands change while the first owned snapshot remains unchanged and validates its expansion bound. It passes. Complete Metal resource capture, FFI handoff, shader/driver implementation, host lifecycle and device validation remain required; full goal active.
+
+### Owned bounded GPU texture resource handoff (2026-10-05)
+
+Added internal capture_textures alongside owned command snapshots. It admits the entire retained-UI texture set and driver dimensions before any decoded copies, reserves the bounded slot table fallibly, and owns RGBA bytes plus generation-tagged handle, content revision, dimensions and filter mode. All formats use shared gpu_texture decoding. Failed admission/copy returns no partial snapshot.
+
+Three focused gpu_frame regressions pass: owned commands survive changed guest turns; actual texture free/reused-slot replacement changes identity/pixels while the old snapshot stays intact; aggregate decoded storage over the 64 MiB bound rejects before decoding. This is resource handoff preparation only, not live Metal rendering. Glyph-page preparation/metadata, combined frame ownership, FFI, shaders/Metal driver and device validation remain required. Full goal active.
+
+### Combined GPU snapshot with visible glyph resources (2026-10-05)
+
+Added capture_frame combining validated owned commands, texture bytes and visible-glyph sampling metadata. It walks only admitted opcodes, deduplicates slot/glyph pairs with fallible bounded reservation, prepares actual upstream glyph pages, rechecks aggregate/driver image admission during preparation, and then captures owned texture bytes. Metadata includes glyph identity, page texture handle, UV rectangle and baked logical dimensions. Missing font/invalid glyph entries retain the existing GLES skip behavior; no raw guest GPU API is exposed.
+
+Four focused gpu_frame tests pass. New actual baked-font fixture renders ArA across two generated pages, verifies repeated glyph deduplication, finite normalized UVs, dimensions and matching owned texture resources, then frees a source page without altering captured pixels. Snapshotting all resource bytes is an initial internal handoff, not a performance-approved per-frame upload/cache policy. FFI lifetime/ownership, Metal command expansion/shaders/driver/cache, lifecycle, GPU budgeting and physical validation remain required. Full goal active.
+
+### Backend-neutral geometry expansion for Metal (2026-10-05)
+
+Added gpu_geometry.rs adapting the pinned GLES command walk into driver-independent vertices and clipped texture batches. It consumes only admitted owned snapshots, reserves geometry/batch/resource lookup capacity fallibly, preserves painter order, handles rectangles/gradients/triangles/textured geometry/glyphs/scissors, and resolves glyphs from captured page metadata. Solid geometry uses a reserved white-texture identifier; this initial planner omits GLES's optional white-patch batching optimization. No GPU calls or driver names occur in this stage.
+
+Five focused GPU snapshot/geometry regressions pass. Cross-page ArA expands to 18 vertices and three ordered batches with first/third page identity matching. Nested clip fixture verifies three six-vertex ranges, restored outer clip and original per-vertex colors. Shared snapshots/texture identity/aggregate rejection continue to pass. Metal FFI/driver/shaders/cache/physical presentation and remaining original full-goal requirements remain pending. Full goal active.
+
+### Synchronous GPU callback ABI and instance reentry guard (2026-10-05)
+
+Added mp_gpu_snapshot and mp_pool_gpu_snapshot owner-thread callback handoff with C vertex/batch/texture descriptors and explicit borrowed lifetime. All geometry/pixel bytes remain owned by the call; host must copy/upload before return, return zero to accept, never retain pointers or unwind. Invalid max-side/missing callback fail before capture; callback rejection does not advance or stop the guest. Header documents logical clipping, RGBA color layout and reserved white texture identity. This supplies host integration data, not a Metal driver.
+
+New actual-instance callback test exposed missing individual-instance FFI reentry protection and initially aborted on its assertion. Reused the retained-container thread-local guard before instance borrowing and destruction; fixed the Android attached-GPU destruction diagnostic path to avoid nested guard acquisition. Final six focused GPU tests pass, including callback reentry/limits/rejection and recoverable guest framing. C header syntax passes. Full native suite final result recorded below. Metal upload/command submission/lifecycle/performance and remaining original full-goal scope stay active.
+
+Final native library suite: 63 passed, zero failed. No device or Metal driver execution occurred in this stage.
+
+### Actual direct Metal driver execution (2026-10-05)
+
+Added MiniDirectMetalRenderer: owner-thread device/pipeline/samplers, runtime Metal shader compilation, direct 20-byte native vertices, RGBA texture uploads cached by generation-tagged handle/content revision/dimensions, clipped triangle batches and straight-alpha separate RGB/alpha blending matching GLES. Target/viewport/slices/ranges/texture dimensions and aggregate bytes are validated; failed host submission returns error. It encodes into caller-owned command buffer/target; reset drops cache references without taking presentation ownership. Header/implementation are included by whole-directory iOS export, and the iOS source gate includes the implementation.
+
+Built actual shared native library and executed tests/metal-driver.sh on the host's actual Metal device. A real native guest/root DrawList renders green through GPU snapshot, Metal shader and command buffer into a 32x32 offscreen BGRA target. Every pixel matches a centered 16x16 green viewport with opaque black letterboxing. Deliberately incompatible RGBA target rejects; subsequent guest turn and correct-target Metal encoding/command completion recover successfully. Driver resets and instance destroys. No software framebuffer copy was used for this render.
+
+This establishes simple actual Metal GPU execution on the Mac development machine, not a desktop product host or iOS device acceptance. UIKit surface integration, bounded submissions/retirement, forced loss, texture/glyph/gradient/alpha goldens, actual iOS device performance/memory and remaining original full-goal scope stay required. Full goal active.
+
+### UIKit direct Metal integration and bounded submissions (2026-10-05)
+
+PocketSurfaceView now advances input and renders through mp_gpu_snapshot/mp_pool_gpu_snapshot plus MiniDirectMetalRenderer into its CAMetalLayer drawable. VerifiedContainer adds advanceGpuInput and shares storage/effect draining with existing framebuffer adapter. Normal rendering no longer calls render_damage/presentPixels. GPU work is bounded to three outstanding command buffers; drawable unavailability/backpressure skips guest advance. Completion collection reports driver errors and test-mode GPU readback hashes actual submitted pixels. Background, activation, retirement and shutdown fence pending submissions and clear cached textures. Native project includes DirectMetalRenderer.m as a compiled source for installed/development export.
+
+Initial iOS source check caught an Objective-C NSError ivar write-back ownership error; corrected with local error output. Expanded compilation passes after that correction, and installed iOS exporter tests pass two cases/22 assertions. Source gate now also includes VerifiedContainer.m; final result recorded below. This integration has not yet executed in UIKit/simulator/iPhone. Actual prior offscreen Metal evidence remains simple driver-only. Forced lifecycle loss, bounded total in-flight resource memory, complex GPU goldens/performance and all remaining original scope require further validation. Full goal active.
+
+Final expanded iOS compilation including VerifiedContainer.m passes. No UIKit runtime execution was performed in this stage.
+
+### Simulator direct Metal signed surface and production entry acceptance (2026-10-05)
+
+Fresh simulator inventory showed no booted devices. Booted the existing iPhone 17 Pro/iOS 26.4 validation simulator 69A9330F-92B1-4192-B44E-035E41272064, then rebuilt the actual release simulator core and Xcode app with current direct Metal integration. tests/package-surface-ios.sh passes signed surface rendering with nonzero actual GPU readback hash 1644551685, four guest frames, warm activation, hidden/foreground lifecycle fence, HTTP replies, backpressure, strict service/resource/rate checks, final cleanup and exactly-once retirement. Evidence: build/ios-validation/direct-metal-surface-20261005. Owned temporary app/files removed.
+
+Executed tests/package-entry-ios.sh through production signed-only export and real simulator XCTest. testSignedHostIgnoresDevelopmentURL passes launch/terminate/relaunch with authenticated surface and no error status; test duration 9.563 s. Exported release binary passes the development-entry leakage check. Evidence: build/ios-validation/direct-metal-entry-20261005 including Tests.xcresult. Owned temporary app/files removed; test simulator remains booted for further authorized validation.
+
+These establish simple simulator UIKit/direct Metal lifecycle/service and production entry behavior. They do not establish touch screenshot colors, sustained complex graphics/glyphs, physical iPhone latency/FPS/memory, first-present cold timing or full P0–P4 acceptance. All those and other original outstanding scope stay required; full goal active.
+
+### Production direct Metal touch/color/lifecycle screenshots (2026-10-05)
+
+Strengthened installed-entry fixture to enable its actual red-to-blue visual guest. XCTest now samples rendered screenshot pixels, waits for initial red, checks opaque black letterbox and verifies a letterbox tap leaves center red across three later captures, then taps the logical viewport and waits for blue. HOME/activate retains blue; terminate/relaunch returns red. It still rejects development URL influence and checks authenticated surface/no error status.
+
+Production exported app on iPhone 17 Pro/iOS 26.4 Simulator passes the complete test in 16.852 s. Evidence: build/ios-validation/direct-metal-touch-20261005 including Tests.xcresult. Owned temporary app/files removed. Updated README and iOS provenance to describe current direct Metal/GLES paths and distinguish earlier software evidence. This proves simple visible touch and warm/cold state behavior in this simulator, not <=2-frame input latency, physical iPhone performance or full graphics/memory acceptance. Full goal active.
+
+### Actual Metal textures, alpha, clipping and in-flight revisions (2026-10-05)
+
+Expanded offscreen Metal driver test beyond native solid geometry. Constructed actual GPU upload descriptors/quad batches with half-alpha red texture and half-width logical clip, then encoded a second outstanding frame with the same generation-tagged handle and newer blue texture revision into a separate target. Cleared original source bytes before commit. Per-pixel checks prove the first frame retains red/clip and the second uses blue/full viewport, both with opaque composited alpha and black letterboxes. Actual GPU command completion and earlier native guest/target rejection recovery checks pass.
+
+Renderer explicitly rejects command buffers that do not retain referenced resources, documenting that requirement in its header; normal host command buffers satisfy it. Expanded iOS source gate passes. This proves these specific shader/upload/cache/in-flight behaviors on actual host Metal hardware, not broad screenshot equivalence or physical iOS performance. Glyph/gradient/full benchmark rendering, process-wide CPU/GPU budget and remaining original scope stay required. Full goal active.
+
+### Actual 1,000-row/form benchmark through iOS Metal (2026-10-05)
+
+Added benchmark-project-ios.ts compiling the actual benchmark TSX through the isolated exact-pin compiler for pjm-ios, then signing in memory/exporting the production installed project. It refuses existing output and preserves the prior Android package. Compilation succeeds: 56 modules, 20 styles, two baked font slots/98 glyphs each, 58528-byte pak and 203761-byte JS. Project/evidence: build/benchmark-ios-metal-20261005. Private package key is not saved.
+
+Added BenchmarkMetalTests using fitted logical coordinates for six slow upward gestures and header form switch. Production Xcode simulator XCTest passes; screenshot attachments exported and visually inspected. Initial rows 1–14 render correctly with baked text/rounded controls. After gestures, rows approximately 56–70 are visible and Selected remains none. Form shows Plan Basic and Newsletter No. This provides actual UIKit/direct Metal glyph, virtual-list scroll and form rendering evidence on iPhone 17 Pro/iOS 26.4 Simulator. Test screenshot-difference assertions alone prove only changed output; row/form assertions here come from explicit image inspection. Owned temporary benchmark app uninstalled after execution; build/screenshots preserved.
+
+No sustained FPS/compositor, first-present, touch-latency or memory acceptance was measured. Physical iPhone and Android revalidation, process-wide resource limits, remaining services/tooling and all other original requirements remain active.
+
+### Optimized real benchmark offscreen CPU/GPU cost (2026-10-05)
+
+Added benchmark-metal-cost.m/.sh loading the actual compiled pjm-ios benchmark through structural package selection, launching the guest, warming thirty frames, then executing six sixty-sample scroll gestures plus releases. Each measured frame advances real input, captures/expands/uploads the native GPU snapshot, encodes/commits Metal work and waits for completion. CPU duration ends at commit; actual completed-command GPU timestamps are counted separately only when available. Inspector row assertion verifies the measured sequence advances maximum visible row from 17 to 69.
+
+Optimized native release build succeeds with a toolchain warning that rust-objcopy could not strip debug info because libLLVM.dylib was unavailable; optimization/build still completes. Initial measurement lacked row-advance assertion and is retained separately. Final verified-scroll measurement: 366 frames, CPU total 102766000 ns (~0.281 ms average), maximum 2136000 ns, zero CPU samples above 33 ms; 366 valid GPU timestamp samples, total 0.037352209 s (~0.102 ms average), maximum 0.001429583 s; maximum copied texture payload 528384 bytes. Evidence: build/benchmark-ios-metal-20261005/offscreen-cost-verified-scroll.json.
+
+These are serialized warm offscreen costs on actual Mac Metal hardware, not a desktop host deliverable or iPhone FPS/compositor/present/latency/cold/memory acceptance. Device benchmarks and all remaining original full-goal requirements stay active.
+
+### Shared completion-owned Metal resource reservations (2026-10-05)
+
+Added thread-safe MiniGpuResourceBudget with a shared 128 MiB bound for explicit texture payload and vertex-buffer bytes across renderers. Renderer reserves before creating/uploading resources; cache reuse shares the original reservation, changed revisions acquire separate reservations, failure releases local reservations, and command completion closures retain all referenced image/white/vertex reservations even after cache reset. Native project/build/source runners include the helper.
+
+Budget capacity/release/overflow/zero-size and concurrent-reservation executable test passes and is included in standard checks. Initial cache-reset assertion failed: completion ownership captured the same mutable cache dictionary that reset clears. Diagnostics showed 252 bytes before reset and 248 afterward. Corrected completion capture to retain an immutable dictionary copy; final regression result is recorded below. Expanded iOS compilation passes. Driver overhead, caller-owned drawables/readbacks, native snapshot CPU copies, other GPU backends and full process memory remain outside this explicit-byte ledger and still require accounting/measurements. This is resource ownership hardening, not full memory acceptance. Full original goal active.
+
+Final actual Metal regression passes after immutable completion capture: cache reset preserves both texture/vertex reservations before commit, and all expected pixels/revision/recovery checks pass. Earlier failed assertion was an ownership defect in the initial implementation, not an accepted result.
+
+### Process-shared native GPU snapshot-copy reservations (2026-10-05)
+
+Added a process-shared 128 MiB reservation ledger for native GPU handoff copies. Draw words, decoded RGBA texture payloads and slot tables, glyph lookup bookkeeping, expanded vertices/batches/clip state and FFI texture descriptors reserve with checked atomic accounting before allocation. Reservations are owned by the corresponding snapshot or geometry object and release automatically on every failure and return path. The bound applies across engine handles and concurrent owner threads; it is separate from the existing retained-UI quotas and Metal driver-resource ledger.
+
+The allocator capacity, overflow, zero-size, release and eight-thread contention tests pass. A real retained-UI rectangle snapshot regression calibrates its complete frame reservation, then uses a one-byte-short combined budget to force geometry admission failure. It verifies that the live frame bytes remain accounted, dropping the frame returns usage exactly to zero, and the entire capacity can be reserved again. Replaced the deprecated atomic update call; the final native library suite is warning-free with 66 passed and zero failed.
+
+This ledger covers explicitly sized native snapshot copies. QuickJS/runtime allocator overhead, retained source assets and UI structures, generated glyph source pages, Android driver allocations, Metal driver overhead, caller-owned drawables/readbacks and OS process overhead remain outside it. Full physical-device process-memory acceptance therefore remains pending; the original goal stays active.
+
+### Exact iOS canonical JSON bytes for signatures and plan hashes (2026-10-05)
+
+Cross-runtime comparison found that Foundation's sorted JSON output is not compatible with the pinned compiler's ECMAScript number spelling. Concrete failures included JavaScript `1e-7` versus Foundation `9.9999999999999995e-08`, and JavaScript's fixed `100000000000000000000` versus Foundation `1e+20`. A correctly signed envelope or build-plan hash containing such a number could therefore fail only on iOS.
+
+Replaced Foundation canonical emission in both iOS signature verification and plan-hash verification with an explicit serializer. It uses Swift's shortest round-trip binary64 digits, applies ECMAScript's 1e-6/1e21 fixed-versus-exponent thresholds, emits negative zero as zero, normalizes exponent signs/zeroes, distinguishes booleans from numbers, preserves JSON string escaping without slash escaping, and sorts object keys by UTF-16 code units like JavaScript `Object.keys().sort()`.
+
+The fixture generator now carries the JavaScript signer's exact unsigned canonical bytes and the native iOS test compares them before signature admission. Difficult-number vectors and a surrogate-pair-versus-BMP key-order vector pass. The 17-case signature/strict-JSON suite passes, actual authenticated package ownership/admission/engine boot/retained activation passes, and the complete iOS host source gate compiles. Android's accepted mobile manifests/plans continue to use safe integral fields in current tests, but arbitrary binary64 edge-case parity there is not yet established. Physical-device and remaining original requirements stay active.
+
+### Standard native-core and real replay gate (2026-10-05)
+
+Revalidated the public replay CLI against the current GPU/memory/canonical changes using the actual compiled 1,000-row benchmark package: two fresh native executions produced identical framebuffer/effect hashes; PNG export was a valid 390x844 RGBA image and retained-tree export contained 135 connected nodes. The repository already contained a stronger native replay fixture covering packed touch, completion ordering, hide/show, cancellation, literal quoted/emoji/newline inspector text, decoded PNG pixels and deliberate first-frame divergence. That established regression also passes against the current release core.
+
+Added tests/native-core.sh and wired it into the Darwin full check. The gate runs the complete Rust library suite, builds the optimized native library, then executes tests/replay-native-cli.ts through real Bun FFI. Final gate result: 66 native tests passed, optimized build completed, deterministic replay/golden/PNG/tree/divergence checks passed. The toolchain still warns that rust-objcopy cannot find libLLVM while stripping debug information; this does not fail the optimized build or execution. Reference-only checks remain separate. Host tape capture, pause/step/seek UI and physical mobile replay acceptance remain pending; the full goal stays active.
+
+### iOS Core Location service and controlled simulator runtime (2026-10-06)
+
+Added the installed iOS `location.get.v1` service. It validates the exact versioned argument shape, signed `location` declaration, host-owned persisted app consent, current Core Location authorization, foreground ownership, maximum cache age and finite coordinate/accuracy/timestamp output. Work is bounded to eight service requests per process instance and four per generation, with a process-shared 16 calls/minute/app rolling limit and 64-identity cap. Replies retain the authenticated package and generation until frame delivery; cancellation, retirement, suspension and close detach providers, timers and prompts. The generated host links CoreLocation and includes the required When In Use usage description.
+
+Introduced an overridable manager-construction seam while retaining `CLLocationManager` in production. The signed-surface simulator harness supplies a deterministic manager and an independently signed location-declared package. On the booted iPhone 17 Pro/iOS 26.4 simulator, the generated Xcode app passes fresh one-shot delivery, recent cached delivery without a provider request, OS denial, actual run-loop timer expiry, cancellation followed by a stale provider callback, background rejection and malformed-argument rejection. The same run then passes strict service parsing, resource accounting, HTTP/backpressure, direct Metal rendering, cleanup and exactly-once retirement with hash 1644551685. Evidence: `build/ios-validation/location-runtime-20261006`.
+
+The first test uses a controlled provider and pre-recorded host approval. A follow-up run installs another temporary generated app, grants its bundle When In Use simulator permission and sets 43.238949,76.889709 through `simctl location`. The production `CLLocationManager` adapter returns exactly that coordinate with five-meter accuracy through the signed service, after which the complete signed-surface suite still passes. Evidence: `build/ios-validation/location-real-adapter-20261006`. Cleanup terminates/uninstalls the owned app and clears the simulated location.
+
+This does not display the app consent or iOS permission dialogs, read a physical sensor or establish physical iPhone acceptance. Those platform/device checks and the remaining original scope stay active.
+
+Expanded the simulator fixture to hold four live requests in one generation, reject the fifth, hold four more in another generation, and reject a ninth service-wide request. Retirement cancels both groups. After the preceding six accepted calls, two additional denied calls reach the 16-call rolling limit; a separate service object for the same authenticated app is then rejected before its provider starts, proving the process-shared quota. The full run passes with `PJM_LOCATION_LIMITS_PASS generation=4 instance=8 process-rate=16 shared`; evidence: `build/ios-validation/location-limits-20261006`.
+
+Added a signed location-declared guest that bundles the real TSX SDK and calls `mini.location.get`. The first integration attempt exposed two harness-only problems: the test had replaced the surface's installed-controller effect callback, and its synthetic base frame was the boot-time function retained by the engine while the SDK installed a later wrapper. The final fixture chains JSON service records to the original controller dispatcher and uses a stable boot-time frame delegate that invokes the SDK hook without recursion. The Android controlled-location fixture retains its prior guest through a separate environment flag.
+
+The final iPhone 17 Pro/iOS 26.4 simulator run logs the exact SDK request, routes it through `MiniInstalledController` and production `CLLocationManager`, receives 43.238949,76.889709 on a later frame, validates it in the SDK promise and emits `PJM_LOCATION_SDK_PASS`. It then passes generation/instance/process location limits and the existing signed Metal/HTTP/resource/lifecycle/cleanup suite. Evidence: `build/ios-validation/location-sdk-frame-final-20261006`. This is end-to-end simulator service evidence; system consent UI and physical-device sensor acceptance remain outstanding.
+
+Extended that signed SDK guest through the real simulator pasteboard. Its authenticated manifest declares `clipboard.read`, the host decision is pre-approved for the verified app identity, and the guest writes the Unicode text `PocketJS SDK 😀`, awaits the later-frame null acknowledgement, reads through `clipboard.read.v1`, then validates the exact text in its SDK promise before disposal. The generated host logs `PJM_CLIPBOARD_SDK_PASS write-read-frame-path` and continues to pass the location limits plus signed Metal/HTTP/resource/lifecycle suite. Evidence: `build/ios-validation/location-clipboard-sdk-20261006`.
+
+This proves same-app simulator `UIPasteboard` write/read, native routing and frame/SDK delivery. It does not show the first-call host approval alert, cross-app iOS paste privacy UI, denial interaction or physical-device behavior; those acceptance items remain open.
+
+### Full native and compiler gate after service integration (2026-10-06)
+
+Ran `tests/check.sh` against the combined Core Location, clipboard SDK/frame path, GPU budgets and replay work. Native iOS touch sampling, service typing, package signatures and storage execute successfully; Android location contracts/mailbox/quota/cleanup, frame pacing and touch regressions pass; the shared GPU reservation test passes. The Rust library reports 66 passed and zero failed. The optimized library builds and the public native replay CLI executes deterministic frames, lifecycle/completion/input ordering, PNG pixels, literal retained-tree inspection and deliberate divergence rejection.
+
+The development server/compiler watch and recovery integration passes, including failed revisions and subsequent publication. Public build with actual pinned compiler artifacts, SDK, package/store/storage/permission, installed iOS/Android export, Android HTTP/location runtime-lock and reference suites all pass. The known optional strip warning remains because the Rust toolchain's `rust-objcopy` cannot locate `libLLVM.dylib`; it does not fail or prevent optimized library execution. No new physical-device acceptance is inferred from this host gate.
+
+### Deterministic replay pause, step and seek core (2026-10-06)
+
+Added `ReplaySession`, an owner-thread state machine over the existing strictly admitted native tape and `ReplayEngine` interface. Sessions start paused; play only changes state, while bounded host ticks execute one recorded action at a time so UI turns can pause between actions. Step requires paused state. Seek accepts an exact action boundary, closes the current engine, creates and boots a fresh engine, then deterministically replays the validated prefix. Backward seek therefore never depends on hidden mutable runtime state. Immutable snapshots expose state, action/frame counts, current frame hashes and terminal failure text. Failed engines close once, a later seek can rebuild from the start, and explicit close is idempotent.
+
+Three focused tests pass for pause/play/tick/step behavior, immutable progress, forward/backward seek, boundary rejection, failure teardown and seek recovery. Strict TypeScript checking includes the new module. The real native replay gate now checks the compiled engine's first step, full resumed play, backward seek and seek-then-step hashes against the established three-frame golden. The complete 66-test native suite and optimized build pass before that execution; the known optional `rust-objcopy` warning remains. The browser DevTools panel and development-server endpoints are not yet connected to `ReplaySession`, so interactive product UI acceptance remains pending.
+
+### Development-server replay controls and browser panel (2026-10-06)
+
+Connected `ReplaySession` to the token-bound development server. The server now admits an 8-MiB-bounded tape against the current published signed package and optimized native library, exposes play/pause/step/strict seek/close commands, advances playing sessions one action per owner-thread clock turn, publishes immutable replay progress in the normal state snapshot, closes sessions during shutdown, and invalidates them whenever a newer build publishes. The browser panel exposes all six controls and action/frame progress while preserving text-only diagnostic rendering.
+
+Added integration expectations for missing sessions, oversized uploads and null replay state, plus panel coverage for replay rendering and control enablement. Repository whitespace validation and a direct browser-script VM smoke test pass. The current shell does not expose Bun, so the Bun test suite and full development-server execution have not yet been rerun for this change. Host-side tape capture, live component highlighting, physical mobile replay and remaining original requirements stay active.
+
+### Executed native development-server replay acceptance (2026-10-08)
+
+Installed a temporary official Bun runtime under `/tmp` and reused the existing exact pinned PocketJS checkout. Focused panel/session tests pass (6 tests, 50 assertions), and the replay strict type gate passes. The complete development-server/compiler watch test passes with actual native replay enabled (1 test, 101 assertions): the compiled package loads, a native frame exposes hashes, malformed tape/duplicate-key seek requests are rejected, a failed upload preserves the live session, backward seek reproduces identical frame/effect hashes, play/pause and completed seek/close work, and a subsequent published build closes the prior replay. The standard Darwin gate now enables this native server coverage. Evidence is saved in `build/validation/replay-server-20261008`.
+
+Replay package reads use descriptor-bounded nofollow regular-file admission. Oversized streaming bodies cancel the reader; seek requests retain the original session across asynchronous body consumption and reject replacement races. The development artifact is a compiled package, not a publisher-signed release envelope; corrected the panel and README wording accordingly. Host recording, live component highlighting and the full original acceptance scope remain open.
+
+### Opt-in iOS development capture source and server admission (2026-10-08)
+
+Added cold-boot recording to the UIKit development surface. It records successful engine frame inputs with sampled packed contacts, original latched hits and cancellation arrays; accepted service completions; hide/show/memory-warning events; and the otherwise easy-to-miss cancellation frame executed before background suspension. Admission happens before eval, preserves the exact development launch object and compiled package hash, and rejects warm/signed-pool configuration. Capture stops at 36,000 actions or 8 MiB and returns a bounded tape only after at least one frame. Disabled recording skips per-frame allocation. Re-evaluation or failed boot stops capture.
+
+`PJM_RECORD=1 pjm run` passes an opt-in argument to the iOS development host. After 600 frames the controller finishes capture and uploads to the authenticated session. Server strict tape admission rejects wrong package/target, exposes a no-store downloadable recording, and invalidates it on successful rebuild. DevTools shows the download link only when a recording exists. Expanded iOS source checks now compile the development controller as well as the surface. Source checks pass, panel/recorder tests pass (5 tests, 35 assertions), and actual compiler/native replay server integration passes (1 test, 108 assertions). Evidence: `build/validation/recording-server-20261008/integration.log`.
+
+This is implemented iOS capture source and executed server admission, not observed mobile capture/replay equivalence. Simulator/device execution, Android capture, signed-container capture, interactive record control, preview/highlighting and remaining original acceptance requirements stay open. Full goal active.
+
+### Actual UIKit capture and native replay execution (2026-10-08)
+
+Added `tests/recording-native-ios.ts` using the production development controller/surface, generated Xcode project, existing compiled iOS core and actual pinned TSX compiler. It creates a temporary sample that invokes `mini.deviceInfo` after three frames, runs a uniquely identified app on the booted iPhone 17 Pro/iOS 26.4 simulator, waits for the authenticated recording upload, downloads and strictly admits the tape, verifies 600 frames, exact package hash/development launch data, an actual iOS service completion and the SDK delivery log. It then executes the tape twice through fresh native FFI engines and compares every frame/effect hash.
+
+The complete run passes. Evidence: `build/ios-validation/recording-20261008/{recording.json,capture.pocket,frames.json,result.json,server.log}`. Temporary app is terminated/uninstalled and sample/server files are cleaned. This establishes real simulator capture with SDK completion and deterministic replay of that tape. No gestures or hide/show were driven in this run, and no host Metal pixels, physical-device performance or signed multi-guest capture were compared. Those checks, Android recording and the remaining full original objective stay active.
+
+### UIKit tap and lifecycle capture through XCTest (2026-10-08)
+
+Extended the real recording runner with `RecordingInputTests.swift`. The production development host launches with recording enabled, waits for advancing frame receipts, taps the logical surface center, verifies a touch receipt, presses Home, activates the same app and waits for the 600-frame capture. The downloaded tape must contain sampled contacts and exactly ordered hide/show events in addition to the earlier SDK device-info completion and delivery log. Two fresh native replays compare every pixel/effect hash; a separate assertion requires the captured sequence to change pixel output.
+
+The generated Xcode simulator UI test and complete tape/replay checks pass. Evidence: `build/ios-validation/recording-input-20261008`, including `Tests.xcresult`, source/build log, tape, compiled package, all frame hashes and result JSON. Result: 600 frames, 603 actions, recorded touch, hide/show, SDK completion, two matching native replays. Owned temporary app is removed and server/sample artifacts are cleaned. Focused recorder/session regressions also pass (5 tests, 37 assertions). Host GPU pixels were not compared with replay pixels; physical-device performance, complex gestures/cancellation, Android/signed-container capture, live inspection and all remaining full-goal requirements stay open.
+
+### Android GL-owner capture implementation and native encoding checks (2026-10-08)
+
+Added opt-in Android development recording via `PJM_RECORD=1` and the launcher intent extra. JNI observes successful `mp_frame_input` calls, preserving sampled packed contacts, latched signed hits and cancellation arrays, including the cancellation frame before background suspension. Accepted service replies and show/hide/memory-warning events are recorded synchronously on the engine GL owner. Java binds the original development launch object and published package SHA-256, enforces 36,000-action/8-MiB limits, stops admission at capacity, and uploads the tape after 600 frames through the existing network owner. Replacement cold boots disable/discard old capture before unload; disabled capture skips JNI allocations. Download and build invalidation reuse the validated shared server contract.
+
+Extracted the exact packed-input encoder into `recording_input.h`. An executed native C fixture covers empty input, high-bit packed coordinates, minimum/maximum signed hit IDs, cancellations 0/255, all eight slots, insufficient buffer and invalid input counts. The emitted samples pass the shared strict native-tape validator (new regression plus Android launcher test: 2 tests, 12 assertions). Android host Java compilation passes and the full JNI translation unit compiles cleanly under the production API-23 NDK compiler with `-Wall -Wextra -Werror`. Added the encoding regression to the full gate.
+
+ADB inventory confirms no currently connected Android device. No Android capture/upload/JNI callback/replay runtime acceptance is claimed. APK execution on emulator/hardware, signed-container recording, mobile GPU/replay comparisons and all other original requirements remain active.
+
+### Actual Android GL capture, tap/lifecycle and native replay (2026-10-08)
+
+Located the installed Pixel_2 ARM64 API 37/16-KiB emulator and started an owned read-only session with snapshot load/save disabled. The machine retains stable Cargo/rustc binaries but lacks the rustup launcher; a temporary `/tmp` adapter routes only stable Cargo invocation and rustc discovery to those exact installed binaries, without changing the permanent toolchain. Added `tests/recording-native-android.ts` to create a temporary TSX SDK sample, build the current production development APK through the public run path, wait for real host receipts, tap the surface center, press Home and resume the same Activity.
+
+The complete run passes. The uploaded/downloaded tape contains 600 frames, sampled touch, hide/show and native Android SDK device-info completion; the guest's delivery log is observed. Two fresh native FFI replays compare every framebuffer/effect hash, and the captured sequence changes pixel output. Evidence: `build/android-validation/recording-20261008` including tape, compiled package, frame hashes, result and production build/server log. Temporary sample/server files are cleaned, the development host is stopped and the owned read-only emulator is shut down. This supersedes the earlier source-only Android capture status. Host GLES pixels were not compared to replay pixels; physical hardware/performance, signed-container recording, live inspection and all remaining original requirements remain open.
+
+### Read-only native live tree transport and DevTools view (2026-10-08)
+
+Added `DeviceInspection`: exact UTF-8 envelope parsing, 4-MiB tree/16,384-node admission through the existing tree validator, current revision/platform ownership, strictly increasing frame sequence, one immutable retained snapshot and explicit rebuild invalidation. Token-bound GET/POST transport separates full trees from lightweight polling state. Added opt-in `PJM_INSPECT=1` to both native launchers. UIKit/JNI snapshot the native engine tree on its owner thread every 60 frames, with at most one host upload outstanding and no guest-state mutation. Disabled inspection skips the snapshot allocation. The panel renders up to 200 nodes with original IDs, parents, types, literal text and logical layout, plus full download; active selection/highlighting remains pending.
+
+Admission/panel tests pass (4 tests, 40 assertions), strict devtools types pass, iOS host/development-controller source checks pass, and Android Java/production NDK JNI checks pass. Actual compiler/server/replay integration passes (1 test, 114 assertions), including stale revision/frame rejection and rebuild clearing. Actual iOS simulator XCTest capture/replay run passes and the live snapshot contains the tapped counter. The first fixture incorrectly required one combined `Count: 1` text node and failed; inspection preserves native fragments (`Count: ` and `1`), so the corrected assertion checks their combined text while preserving the snapshot. Evidence: `build/ios-validation/inspection-20261008-retry/inspection.json` and associated XCTest/tape artifacts. Android runtime inspection is being executed; browser visual acceptance, selection/highlighting, signed-container inspection and all remaining original requirements are open.
+
+Android actual live inspection also passes through the current production APK on the owned API 37 ARM64/16-KiB read-only emulator. The downloaded tree has the correct current revision/platform and reflects `Count: 1` through original native text fragments after the driven tap. The same run passes SDK completion capture, hide/show, 600 frames and two exact native replay sequences. Evidence: `build/android-validation/inspection-20261008/inspection.json` and associated tape/package/frame hashes/result/server log. The temporary sample/server is cleaned and the emulator is shut down. Complete reference checks pass (90 tests across 34 files, 686 assertions). Browser visual inspection, selection/highlighting, signed-container support and remaining full original requirements stay active.
+
+### Snapshot-bound component selection (2026-10-08)
+
+The panel now exposes selectable native node buttons and literal selected-node details, plus explicit clear. The token-bound selection endpoint accepts exactly revision, frame and original node ID within 128 bytes. It rejects missing snapshots, stale build/frame ownership, unknown IDs, duplicate JSON keys and malformed requests. State exposes one immutable selection. New admitted snapshots and published builds clear it, because native IDs can be reused in later frames. No arbitrary client-provided rectangle is accepted.
+
+Reference/type checks pass: 91 tests across 34 files, 706 assertions, including panel click/clear behavior and exact snapshot ownership. The actual compiler/server/native replay integration passes 119 assertions, including selection admission and rejected stale/unknown-node requests. Native highlighting and browser visual acceptance have not yet been implemented/observed for this change. Signed-container inspection, physical hardware and the remaining original goal stay open.
+
+### Native highlight overlay implementation in progress (2026-10-08)
+
+Both development hosts consume snapshot-bound selection before the same-revision poll shortcut. UIKit retains its captured tree/frame and draws a cyan CAShapeLayer over the fitted viewport. Android retains the accepted snapshot on the UI owner and draws a noninteractive overlay matching the full GL viewport. Neither path changes guest input or the shared engine's debug state. Snapshot replacement, background suspension, absent/stale selection and retired build ownership clear or suppress the overlay. Signed pools remain excluded from this development path.
+
+Inspection of the exact pinned upstream confirms `Ui::layout_of` returns parent-relative coordinates, not screen bounds. Both provisional overlays now accumulate retained ancestry. Correct resolved transforms, perspective and ancestor clipping still need a native world-bounds contract; highlighting is therefore not accepted as complete. Current iOS host/surface/controller source checks and Android host Java compilation pass. Actual overlay screenshots, geometry/lifecycle runtime checks and browser visual acceptance have not yet run. These are the next required work, along with the full outstanding objective.
+
+### Shared read-only inspection geometry foundation (2026-10-08)
+
+Added a Mini-owned core geometry module using public retained-tree and resolved-style accessors from the exact pinned engine. Its 2D matrix composition follows the pinned renderer's parent transforms, translation, origin, rotation, scale and skew; its deterministic trigonometric polynomial follows pinned fmath. A bounded tree walk computes screen AABBs and ancestor overflow clipping without changing guest debug/paint state. Perspective descendants currently return unavailable bounds rather than an incorrect parent-relative box; projection parity remains required.
+
+Executed geometry tests compare a real retained nested/rotated node against the upstream renderer's independently captured debug rectangle, verify draw words are unchanged by the read-only walk, test ancestor clipping, reflected/fractional bounds, finite-coordinate rejection and perspective unavailability. All three new geometry tests pass. The complete Rust library suite passes 69 tests, zero failures. The module is not yet exported through inspection snapshots or consumed by the overlays; perspective projection, transport and runtime/browser acceptance remain unfinished. Full goal active.
+
+### Projected bounds export and shared overlay consumption (2026-10-08)
+
+Extended the read-only geometry walk with the pinned renderer's 3x4 matrix composition, transform origin, rotateX/rotateY/rotateZ, translateZ, scale/skew and perspective near guard. Context roots use their 2D world matrix and center; descendants preserve the same context and root clip, matching `collect_3d` rather than inventing nested overflow/perspective contexts. A real retained-tree fixture compares projected screen bounds with the extents of actual emitted native triangles and verifies read-only draw preservation; rotateY produces finite changed bounds.
+
+Native inspector nodes now carry optional `bounds` in logical screen x/y/width/height, separately from parent-relative `layout`. Hidden/offscreen nodes carry null. The shared strict tree decoder accepts and freezes this additive field while rejecting negative/nonfinite/empty rectangles and unknown shapes. UIKit and Android consume native bounds directly, removing duplicated parent-accumulation approximations. Missing/null bounds suppress the overlay.
+
+Validation: complete Rust library suite 70 passed; reference/type gate 92 tests and 716 assertions passed; iOS host/controller/surface checks and Android Java compilation passed. The optimized macOS core rebuilt and the public native replay CLI passed deterministic golden, PNG, literal tree, pause/step/seek and divergence checks, now also asserting every exported node owns a bounds field and a visible rectangle exists. An initial added CLI assertion used an absent helper; replaced it with the suite's explicit error checks and reran successfully. The known optional libLLVM strip warning remains nonfatal. Actual mobile overlay geometry/screenshots, rebuilt mobile core transport, stale-selection/lifecycle runtime and browser visual acceptance still need execution; full original objective stays active.
+
+### Actual iOS root selection, clear and screenshot evidence (2026-10-08)
+
+Rebuilt the optimized ARM64 iOS simulator core from current sources. Extended the UIKit UI fixture to submit snapshot-bound root selection through the real server, observe the live CAShapeLayer-backed highlighted-node receipt, save a screenshot, clear through the selection endpoint, observe zero highlight, save another screenshot and verify zero after Home/resume. Added a readonly highlighted-node getter, reported only in test-mode accessibility receipts; guest state and rendering inputs are unchanged.
+
+The generated app on iPhone 17 Pro/iOS 26.4 passes the complete XCTest case. Authoritative xcresult summary reports Passed, one passed test, zero failed/skipped tests. Two exported screenshots were visually inspected: the cyan border/tint follows the fitted root app viewport and is absent in the cleared screenshot. The downloaded current mobile snapshot exports bounds on all 11 nodes; root bounds equal [0,0,402,778]. The same run captures touch, hide/show, SDK completion, 600 frames/603 actions and two exact native replays. Evidence: `build/ios-validation/highlight-20261008`, including `Tests.xcresult`, `attachments`, inspection/tape/hash results and `highlight-review.json`. The runner now exports attachments and asserts mobile bounds ownership/root size for subsequent executions.
+
+Apple attachment export initially needed access to its external test-report cache; the approved tool invocation succeeded. The owned app/server/temp sample were cleaned. This is simulator root overlay evidence, not transformed-node screenshot acceptance, Android overlay acceptance, host GPU/replay pixel equality or physical-device performance. Those and browser verification plus the full remaining original objective stay active.
+
+### Android root overlay screenshot acceptance and capture race (2026-10-08)
+
+Added a UI-owned selected-node receipt to the Android test path and extended the production APK recording runner to select root 1, capture a screenshot, clear, capture again and verify no highlight after Home/resume. The first run passed native receipts/capture/replay but its supposed highlighted screenshot had no border; visual review and PNG edge analysis rejected it as overlay evidence. Since selections expire with every snapshot, ADB screenshot delivery can outlast the selected snapshot.
+
+The corrected fixture continuously selects the latest admitted snapshot with at most one selection request in flight while screenshot capture runs, then stops that pump before explicit clear. A bounded RGB/RGBA PNG reader handles all PNG row filters and checks the viewport's side strips for cyan pixels, avoiding false positives from the counter text. It requires more than 100 cyan edge pixels during selection and exactly zero after clear. No production snapshot interval or ownership rule was weakened.
+
+The complete retry passes on the owned read-only Pixel_2 ARM64 API 37/16-KiB emulator with the current production APK and rebuilt Android core. The selected screenshot contains 7,192 cyan edge pixels; the cleared screenshot contains zero. Visual review confirms the border/tint follows the inset app viewport. The live native tree includes screen bounds on every node and exact root dimensions. The same run passes touch, hide/show, SDK completion, 600 frames/603 actions and two exact native replays. Evidence: `build/android-validation/highlight-20261008-retry`, including both PNGs, tree, tape/package/frame hashes/result and `highlight-review.json`; the first attempt remains saved as incomplete visual evidence. The app/server/temp project were stopped/cleaned and the owned emulator was shut down. Transformed-node screenshots, browser verification, signed-container debugging, physical performance and the full remaining objective stay open.
+
+### Browser verification of component selection and replay controls (2026-10-09)
+
+Used the Browser skill and Codex in-app browser against an isolated actual compiler/development-server session with the optimized native replay engine. The component fixture is a saved real iOS native tree rebound to the temporary build revision, explicitly not live mobile inspection or viewport-matching evidence. Actual UI actions show selected node 5 details including bounds, clear removes them, missing-file feedback appears, and malformed tape admission remains visible/recoverable. The first hand-built tape contained extra window inset keys and was correctly rejected; fixed the fixture to the exact width/height/density contract before executing replay.
+
+Browser upload/load, step to action/frame 1, backward seek to 0, play, pause at action/frame 23 of 120, and close all work. Error filtering shows no matching activity and pause/resume captions transition correctly. Literal `<img ...>` console text remains text: no image elements or JavaScript dialog are created. Removed obsolete product wording that said highlighting was pending, replacing it with snapshot-bound device highlighting and selection-reset guidance. Started a fresh session to observe the updated copy and save selected-node/paused-replay screenshot and accessibility evidence. Focused panel/inspection regressions pass six tests, 70 assertions; whitespace checks pass.
+
+Evidence: `build/browser-validation/devtools-20261009/{panel.jpg,accessibility.txt,tape.json,fixture.json,result.json,server.log}`; earlier interactive sequence is associated with the saved 20261008 fixture. The agent-created tab was closed and both temporary server/project sessions were cleaned. Responsive breakpoint validation, transformed-node mobile screenshots, signed-container debugging and all remaining original requirements remain open; full goal active.

@@ -11,6 +11,14 @@ import { createHash, randomBytes } from "node:crypto";
 import { cpSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import type { PackageMetadata } from "../container/package.ts";
+import { MAX_PACKAGE_BYTES } from "../container/package.ts";
+import { strictJson } from "../container/strict-json.ts";
+import { readBoundedFile } from "../container/bounded-file.ts";
+import { TAPE_BYTES } from "../devtools/tape.ts";
+import { decodeNativeTape } from "../devtools/tape.ts";
+import { ReplaySession } from "../devtools/session.ts";
+import { nativeReplayEngine } from "../devtools/native-engine.ts";
+import {DeviceInspection} from '../devtools/inspection.ts';
 
 const [upstream, device = "", requestedPlatform = "ios"] = Bun.argv.slice(2);
 if (requestedPlatform !== "ios" && requestedPlatform !== "android") throw new Error("Platform must be ios or android");
@@ -46,9 +54,14 @@ function fingerprint(): string {
 
 
 const buildHistory=new BuildHistory(),deviceEvents=new DeviceEvents();
+const inspection=new DeviceInspection();
 let active = 0, sequence = 0, error: string | null = null;
 let publishedWindow: WindowInfo = { ...defaultWindow };
 let publishedMetadata: PackageMetadata | null = null;
+let publishedPackagePath: string | null = null;
+let replaySession: ReplaySession | null = null;
+let publishedPackageHash:string|null=null;
+let recording:Uint8Array|null=null;
 let wanted = "", completed = "", compiling = false, stopping = false;
 let compileChild: ReturnType<typeof Bun.spawn> | undefined;
 let setupChild: ReturnType<typeof Bun.spawn> | undefined;
@@ -56,6 +69,19 @@ let hostCleanup: (() => Promise<void>) | undefined;
 const token = randomBytes(24).toString("hex");
 const phone = process.env.PJM_TEST_SERVER === "1" ? undefined : platform === "android" ? await selectAndroid(device) : await selectPhone(device);
 const host = phone?.host ?? "127.0.0.1";
+async function boundedBody(request: Request, limit: number): Promise<Uint8Array> {
+  const declared=request.headers.get("content-length");
+  if(declared!==null&&(!/^\d+$/.test(declared)||Number(declared)>limit))throw Error("Request body exceeds limit");
+  if(!request.body)throw Error("Request body required");
+  const reader=request.body.getReader(),parts:Uint8Array[]=[];let total=0;
+  try{for(;;){const {done,value}=await reader.read();if(done)break;if(!value)continue;total+=value.length;if(total>limit)throw Error("Request body exceeds limit");parts.push(value);}}
+  catch(failure){try{await reader.cancel();}catch{}throw failure;}
+  finally{reader.releaseLock();}
+  if(!total)throw Error("Request body required");const output=new Uint8Array(total);let offset=0;for(const part of parts){output.set(part,offset);offset+=part.length;}return output;
+}
+function replaySnapshot(){return replaySession?.snapshot()??null;}
+function requireReplay(){if(!replaySession)throw Error("Load a replay tape first");return replaySession;}
+function replayError(failure:unknown){return new Response(failure instanceof Error?failure.message:"Replay command failed",{status:400,headers:{"Cache-Control":"no-store"}});}
 const server = Bun.serve({ hostname: host, port: Number(process.env.PJM_PORT ?? 0),
   async fetch(request) {
     const path = new URL(request.url).pathname;
@@ -170,11 +196,39 @@ const storageMini=connectMiniApp();
       writeFileSync("app/main.tsx", content); return new Response("ok");
     }
     if(route === "device-event" && request.method === "POST"){try{deviceEvents.accept(await boundedEvent(request),active);return new Response("ok");}catch{return new Response("Invalid device event",{status:400});}}
+    if(route === 'inspection/select' && request.method === 'POST'){try{return Response.json(inspection.select(await boundedBody(request,128),active),{headers:{'Cache-Control':'no-store'}});}catch(failure){return replayError(failure);}}
+    if(route === 'inspection' && request.method === 'POST'){try{inspection.accept(await boundedBody(request,4*1024*1024+1024),active,platform);return new Response('ok');}catch(failure){return replayError(failure);}}
+    if(route === 'inspection' && request.method === 'GET')return inspection.snapshot()?Response.json(inspection.snapshot(),{headers:{'Cache-Control':'no-store'}}):new Response('No device inspection available',{status:404});
+    if(route === "recording" && request.method === "POST"){
+      try{const bytes=await boundedBody(request,TAPE_BYTES),tape=decodeNativeTape(bytes);if(!publishedPackageHash||tape.packageSha256!==publishedPackageHash||tape.target!==`pjm-${platform}`)throw Error("Recording does not match active build");recording=bytes;return new Response("ok");}catch(failure){return replayError(failure);}
+    }
+    if(route === "recording" && request.method === "GET")return recording?new Response(recording,{headers:{"Content-Type":"application/json","Content-Disposition":"attachment; filename=recording.json","Cache-Control":"no-store"}}):new Response("No recording available",{status:404});
+    if(route === "replay/load" && request.method === "POST"){
+      try{
+        if(!publishedPackagePath||!publishedMetadata)throw Error("Build an application before loading a replay");
+        const tape=await boundedBody(request,TAPE_BYTES),packageBytes=readBoundedFile(publishedPackagePath,MAX_PACKAGE_BYTES);
+        const extension=process.platform==="darwin"?"dylib":process.platform==="win32"?"dll":"so";
+        const library=join(root,`core-ffi/target/release/${process.platform==="win32"?"mini_core_ffi":"libmini_core_ffi"}.${extension}`);
+        if(!existsSync(library)||!lstatSync(library).isFile()||lstatSync(library).isSymbolicLink())throw Error("Build the native replay library with pjm check first");
+        const identity={appId:publishedMetadata.appId,version:publishedMetadata.version};
+        const replacement=new ReplaySession(packageBytes,tape,()=>nativeReplayEngine(library,identity));
+        try{replaySession?.close();}catch(failure){replacement.close();throw failure;}
+        replaySession=replacement;
+        return Response.json(replaySnapshot(),{headers:{"Cache-Control":"no-store"}});
+      }catch(failure){return replayError(failure);}
+    }
+    if(route === "replay/play" && request.method === "POST"){try{return Response.json(requireReplay().play());}catch(failure){return replayError(failure);}}
+    if(route === "replay/pause" && request.method === "POST"){try{return Response.json(requireReplay().pause());}catch(failure){return replayError(failure);}}
+    if(route === "replay/step" && request.method === "POST"){try{return Response.json(requireReplay().step());}catch(failure){return replayError(failure);}}
+    if(route === "replay/seek" && request.method === "POST"){
+      try{const session=requireReplay(),value=strictJson(await boundedBody(request,128)) as any;if(session!==replaySession)throw Error("Replay session changed during request");if(!value||typeof value!=="object"||Array.isArray(value)||Object.keys(value).join(",")!=="step")throw Error("Replay seek requires exactly one step");return Response.json(session.seek(value.step));}catch(failure){return replayError(failure);}
+    }
+    if(route === "replay/close" && request.method === "POST"){try{const snapshot=requireReplay().close();replaySession=null;return Response.json(snapshot);}catch(failure){replaySession=null;return replayError(failure);}}
     if (route === "window" && request.method === "POST") {
       try { window = readWindow(await request.json()); wanted = fingerprint(); void rebuild(); return Response.json(window); }
       catch (failure) { return new Response(String(failure), { status: 400 }); }
     }
-    if (route === "state") return Response.json({ revision: active, error, window: publishedWindow, metadata: publishedMetadata, compiling, builds:buildHistory.snapshot(),deviceEvents:deviceEvents.snapshot() }, { headers: { "Cache-Control": "no-store" } });
+    if (route === "state") return Response.json({ revision: active, error, window: publishedWindow, metadata: publishedMetadata, compiling, builds:buildHistory.snapshot(),deviceEvents:deviceEvents.snapshot(),replay:replaySnapshot(),packageSha256:publishedPackageHash,recordingAvailable:recording!==null,inspectionSelection:inspection.selection(),inspection:inspection.snapshot()?{revision:inspection.snapshot()!.revision,frame:inspection.snapshot()!.frame,nodeCount:inspection.snapshot()!.tree.nodes.length}:null }, { headers: { "Cache-Control": "no-store" } });
     const match = /^(\d+)\/(app\.(?:js|pak))$/.exec(route);
     if (!match || Number(match[1]) > active) return new Response("Not found", { status: 404 });
     const file = Bun.file(resolve(`build/revisions/${match[1]}/${match[2]}`));
@@ -198,7 +252,9 @@ async function rebuild() {
     if (!stopping && snapshot === wanted) {
       const artifact = join(result.directory,"artifact.pocket");
       writeFileSync(artifact,result.packed);renameSync(artifact,`build/${result.name}.pocket`);
-      outcome="published";active = revision; error = null; publishedWindow = result.metrics; publishedMetadata = result.metadata;
+      try{replaySession?.close();}catch{}replaySession=null;
+      outcome="published";active = revision; error = null; publishedWindow = result.metrics; publishedMetadata = result.metadata;publishedPackagePath=`build/${result.name}.pocket`;
+      publishedPackageHash=createHash("sha256").update(result.packed).digest("hex");recording=null;inspection.clear();
       console.log(`Ready revision ${active}`);
     }
   } catch (failure) {
@@ -216,10 +272,11 @@ const watch = setInterval(() => {
   try { wanted = fingerprint(); void rebuild(); }
   catch (failure) { error = String(failure); }
 }, 300);
+const replayClock=setInterval(()=>{try{replaySession?.tick();}catch{}},16);
 function shutdown(status = 0) {
   if (stopping) return;
   stopping = true;
-  clearInterval(watch); server.stop(true);
+  clearInterval(watch);clearInterval(replayClock);try{replaySession?.close();}catch{}replaySession=null;server.stop(true);
   for (const child of [compileChild, setupChild]) {
     if (!child) continue;
     try { process.kill(-child.pid, "SIGTERM"); } catch { child.kill("SIGTERM"); }

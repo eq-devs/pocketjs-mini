@@ -14,7 +14,7 @@ trap cleanup EXIT
 cd "$ROOT"
 unset PJM_PACKAGE_REAL
 mkdir -p "$EVIDENCE"
-bun "$ROOT/tests/package-load-fixtures.ts" "$TEMP/cases.json"
+PJM_PACKAGE_VISUAL=1 bun "$ROOT/tests/package-load-fixtures.ts" "$TEMP/cases.json"
 export RUSTC=$(rustup which --toolchain stable rustc)
 export IPHONEOS_DEPLOYMENT_TARGET=16.0
 rustup run stable cargo build --offline --locked --release --target aarch64-apple-ios-sim --manifest-path "$ROOT/core-ffi/Cargo.toml" > "$EVIDENCE/core-build.log" 2>&1

@@ -7,6 +7,8 @@ import {inflateSync} from 'node:zlib';
 import {decodePocketPackage,encodePocketPackage} from '../examples/hello/.pjm/pocketjs/contracts/spec/pocket-package.ts';
 import {decodeInspectorTree} from '../devtools/tree.ts';
 import {decodeReplayGolden} from '../devtools/golden.ts';
+import {nativeReplayEngine} from '../devtools/native-engine.ts';
+import {ReplaySession} from '../devtools/session.ts';
 
 // Requires the current release core. This exercises actual Bun FFI and guest execution.
 const root=mkdtempSync(join(tmpdir(),'pjm-native-replay-'));
@@ -32,13 +34,20 @@ try{
  const frames=decodeReplayGolden(readFileSync(golden),tape);
  if(frames.length!==3||frames[0].pixelsSha256===frames[1].pixelsSha256)throw Error('Native contact did not change the captured frame');
  const inspected=decodeInspectorTree(readFileSync(tree));
+ if(!inspected.nodes.every(node=>Object.hasOwn(node,'bounds')))throw Error('Native inspection did not export screen bounds for every node');
+ if(!inspected.nodes.some(node=>node.bounds!==null))throw Error('Native screen geometry has no visible rectangle');
  if(!inspected.nodes.some(node=>node.text===text&&node.parent===1))throw Error('Native inspector lost literal guest text');
  const image=readFileSync(png);
  if(image.subarray(0,8).toString('hex')!=='89504e470d0a1a0a'||image.readUInt32BE(16)!==64||image.readUInt32BE(20)!==64)throw Error('Native PNG dimensions/signature mismatch');
  const chunks:Buffer[]=[];for(let offset=8;offset<image.length;){const length=image.readUInt32BE(offset);if(image.toString('ascii',offset+4,offset+8)==='IDAT')chunks.push(image.subarray(offset+8,offset+8+length));offset+=length+12;}
  const rows=inflateSync(Buffer.concat(chunks));if(rows.length!==(64*4+1)*64||rows[4]!==255)throw Error('Native PNG pixel rows mismatch');
  const matched=run(['--assert',golden]);if(matched.status!==0||JSON.parse(matched.stdout).matched!==true)throw Error('Second native replay failed to match: '+matched.stderr);
+ const library=join(import.meta.dir,'../core-ffi/target/release/libmini_core_ffi.dylib');
+ const session=new ReplaySession(payload,tape,()=>nativeReplayEngine(library,{appId:'dev.pjm.fixture',version:'1.0.0'}));
+ if(session.step().current?.pixelsSha256!==frames[0].pixelsSha256)throw Error('Native replay step differs from golden');
+ session.seek(0);session.play();while(session.snapshot().state==='playing')session.tick();if(session.snapshot().current?.pixelsSha256!==frames[2].pixelsSha256)throw Error('Native replay play differs from golden');
+ session.seek(2);if(session.snapshot().current?.pixelsSha256!==frames[0].pixelsSha256)throw Error('Native replay backward seek differs from golden');session.step();if(session.snapshot().current?.pixelsSha256!==frames[1].pixelsSha256)throw Error('Native replay seek/step differs from golden');session.close();
  const changed=JSON.parse(readFileSync(golden,'utf8'));changed.frames[0].pixelsSha256='0'.repeat(64);const bad=join(root,'mismatch.json');writeFileSync(bad,JSON.stringify(changed));
  const mismatch=run(['--assert',bad]);if(mismatch.status!==1||!mismatch.stderr.includes('Replay diverged at frame 1'))throw Error('Changed-golden rejection mismatch: '+mismatch.stderr);
- console.log('Native public replay CLI passed: three deterministic frames, completion/lifecycle/input tape, PNG export, literal tree inspection and divergent-golden rejection. This is host-native software replay, not mobile hardware acceptance.');
+ console.log('Native public replay CLI passed: deterministic frames, pause/step/backward-seek rebuild, completion/lifecycle/input tape, PNG export, literal tree inspection and divergent-golden rejection. This is host-native software replay, not mobile hardware acceptance.');
 }finally{rmSync(root,{recursive:true,force:true});}

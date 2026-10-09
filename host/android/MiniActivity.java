@@ -26,6 +26,7 @@ public class MiniActivity extends Activity {
   private native boolean contextCreated();
   private native String lifecycle(boolean active);
   private native String memoryWarning();
+  private native int systemBack();
   private native String prepareUnload();
   private volatile boolean pendingMemoryWarning;
   private synchronized native String shutdown();
@@ -35,6 +36,83 @@ public class MiniActivity extends Activity {
   private native long[] receipt();
   private native byte[] serviceRequests();
   private native boolean serviceReply(byte[] reply);
+  private native void setRecording(boolean enabled);
+  private native byte[] debugTree();
+  private boolean inspectionMode;
+  private volatile boolean inspectionPending;
+  // Snapshot and overlay belong to the UI owner; native capture remains on GL.
+  private JSONObject inspectionTree;
+  private long inspectionFrame;
+  private int inspectionRevision;
+  private InspectionOverlay inspectionOverlay;
+  private final class InspectionOverlay extends View {
+    private final android.graphics.Paint paint=new android.graphics.Paint();
+    private android.graphics.RectF logical;
+    private int selectedNode;
+    InspectionOverlay(){super(MiniActivity.this);setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);setWillNotDraw(false);}
+    void clear(){logical=null;selectedNode=0;invalidate();}
+    int highlightedNode(){return logical!=null && !paused && !closed && revision==inspectionRevision?selectedNode:0;}
+    @Override protected void onSizeChanged(int w,int h,int oldw,int oldh){super.onSizeChanged(w,h,oldw,oldh);clear();inspectionTree=null;}
+    void select(JSONObject selection){
+      logical=null;selectedNode=0;
+      try {
+        if(!paused && !closed && inspectionTree!=null && selection!=null && revision==inspectionRevision && selection.getInt("revision")==revision && selection.getLong("frame")==inspectionFrame){
+          org.json.JSONArray nodes=inspectionTree.getJSONArray("nodes");int id=selection.getInt("nodeId");
+          for(int i=0;i<nodes.length();i++){JSONObject node=nodes.getJSONObject(i);if(node.getInt("id")!=id)continue;
+            org.json.JSONArray layout=node.optJSONArray("bounds");if(layout==null || layout.length()!=4)break;
+            double x=layout.getDouble(0),y=layout.getDouble(1),w=layout.getDouble(2),h=layout.getDouble(3);
+            if(Double.isNaN(x+y+w+h) || Double.isInfinite(x+y+w+h) || w<=0 || h<=0)break;
+            double l=Math.max(0,x),t=Math.max(0,y),r=Math.min(width,x+w),b=Math.min(height,y+h);
+            if(r>l && b>t){logical=new android.graphics.RectF((float)l,(float)t,(float)r,(float)b);selectedNode=id;}break;
+          }
+        }
+      }catch(Exception invalid){logical=null;}
+      invalidate();
+    }
+    @Override protected void onDraw(android.graphics.Canvas canvas){
+      super.onDraw(canvas);if(logical==null || paused || closed || revision!=inspectionRevision || width<=0 || height<=0)return;
+      android.graphics.RectF rect=new android.graphics.RectF(logical.left*getWidth()/width,logical.top*getHeight()/height,logical.right*getWidth()/width,logical.bottom*getHeight()/height);
+      paint.setStyle(android.graphics.Paint.Style.FILL);paint.setColor(0x2600ffff);canvas.drawRect(rect,paint);
+      paint.setStyle(android.graphics.Paint.Style.STROKE);paint.setStrokeWidth(2);paint.setColor(Color.CYAN);rect.inset(1,1);canvas.drawRect(rect,paint);
+    }
+  }
+  private boolean recordMode,recordingStopped;
+  private JSONObject recordingHeader;
+  private java.util.ArrayList<String> recordingSteps;
+  private int recordingBytes;
+  // Called synchronously by JNI after successful engine entry, on the GL owner.
+  private void recordNativeStep(int kind,byte[] bytes){
+    if(recordingHeader==null || recordingStopped)return;
+    try{
+      String value=new String(bytes,"UTF-8"),step;
+      if(kind==0)step=value;
+      else if(kind==1)step=new JSONObject().put("kind","completion").put("record",value).toString();
+      else if(kind==2)step=new JSONObject().put("kind","lifecycle").put("event",value).toString();
+      else throw new IllegalArgumentException("Unknown recording action");
+      int added=step.getBytes("UTF-8").length+1;
+      if(recordingSteps.size()>=36000 || added>8*1024*1024-recordingBytes){recordingStopped=true;setRecording(false);return;}
+      recordingSteps.add(step);recordingBytes+=added;
+    }catch(Exception invalid){recordingStopped=true;setRecording(false);show("Recording failed: "+invalid.getMessage());}
+  }
+  private void startRecording(String hash,int w,int h,int d) throws Exception {
+    setRecording(false);recordingHeader=null;recordingSteps=null;
+    if(!recordMode)return;
+    if(!hash.matches("[a-f0-9]{64}"))throw new IllegalArgumentException("Invalid recording package hash");
+    recordingHeader=new JSONObject().put("format",1).put("packageSha256",hash).put("target","pjm-android")
+      .put("launchData","{\"source\":\"development\",\"query\":{}}")
+      .put("window",new JSONObject().put("width",w).put("height",h).put("density",d));
+    recordingSteps=new java.util.ArrayList<>();recordingBytes=512;recordingStopped=false;setRecording(true);
+  }
+  private void uploadRecording(){
+    if(recordingHeader==null)return;
+    try{
+      setRecording(false);recordingStopped=true;
+      String header=recordingHeader.toString();StringBuilder tape=new StringBuilder(header.substring(0,header.length()-1)).append(",\"steps\":[");
+      for(int i=0;i<recordingSteps.size();i++){if(i>0)tape.append(',');tape.append(recordingSteps.get(i));}tape.append("]}");
+      final String body=tape.toString();recordingHeader=null;recordingSteps=null;
+      network.execute(()->{try{request("recording",body);}catch(Exception error){show("Recording upload failed: "+error.getMessage());}});
+    }catch(Exception error){recordingHeader=null;recordingSteps=null;show("Recording failed: "+error.getMessage());}
+  }
   private GLSurfaceView surface;
   private TextView message;
   private ScheduledExecutorService network;
@@ -46,6 +124,24 @@ public class MiniActivity extends Activity {
   private volatile String metrics="";
   private int pixelWidth,pixelHeight;
   private boolean testMode;
+  private boolean backPending;
+  @Override public void onBackPressed(){
+    if(backPending)return;
+    if(surface==null || paused || closed || loading || revision<1){finish();return;}
+    backPending=true;final int expectedRevision=revision;
+    surface.queueEvent(()->{
+      int handled=0;
+      try{
+        if(!paused && !closed && revision==expectedRevision){
+          // Current tapes have no Back action. Never upload an incomplete trace.
+          if(recordingHeader!=null){setRecording(false);recordingStopped=true;recordingHeader=null;recordingSteps=null;android.util.Log.i("PocketJS","Recording discarded after system Back");}
+          handled=systemBack();
+        }
+      }catch(Throwable error){handled=-1;}
+      final int result=handled;
+      runOnUiThread(()->{backPending=false;if(closed || paused || revision!=expectedRevision)return;if(result<=0)finish();else surface.requestRender();});
+    });
+  }
   private long nextFrameNanos;
   private final Choreographer.FrameCallback frameCallback=new Choreographer.FrameCallback() {
     public void doFrame(long time) {
@@ -63,6 +159,8 @@ public class MiniActivity extends Activity {
     nativeHost=createHost();if(nativeHost==0)throw new OutOfMemoryError("Native host allocation failed");
     base=getIntent().getStringExtra("pjm-url");
     testMode=getIntent().getBooleanExtra("pjm-test",false);
+    recordMode=getIntent().getBooleanExtra("pjm-record",false);
+    inspectionMode=getIntent().getBooleanExtra("pjm-inspect",false);
     if(base==null || !base.matches("http://127\\.0\\.0\\.1:[0-9]+/[a-f0-9]+/")) throw new IllegalArgumentException("Missing development session URL");
     preferredDensity=Math.max(1,Math.min(4,Math.round(getResources().getDisplayMetrics().density)));density=preferredDensity;
     FrameLayout root=new FrameLayout(this); root.setBackgroundColor(0xff0f172a);
@@ -86,6 +184,11 @@ public class MiniActivity extends Activity {
         dispatchServices();
         if(revision>0) {
           long[] data=receipt();data[4]=testActions;data[5]=testValue;
+          if(inspectionMode && data[0]%60==0 && !inspectionPending && network!=null && !closed){
+            byte[] snapshot=debugTree();final int origin=revision;final long frameNumber=data[0];
+            if(snapshot!=null){inspectionPending=true;try{network.execute(()->{try{JSONObject tree=new JSONObject(new String(snapshot,"UTF-8"));String body=new JSONObject().put("revision",origin).put("platform","android").put("frame",frameNumber).put("tree",tree).toString();if(body.getBytes("UTF-8").length<=4*1024*1024+1024){request("inspection",body);runOnUiThread(()->{if(revision==origin && !closed){inspectionTree=tree;inspectionFrame=frameNumber;inspectionRevision=origin;inspectionOverlay.clear();}});}}catch(Exception ignored){}finally{inspectionPending=false;}});}catch(java.util.concurrent.RejectedExecutionException stopped){inspectionPending=false;}}
+          }
+          if(data[0]>=600 && recordingHeader!=null)uploadRecording();
           if(data[0]%30==0) {
             final int nativeRevision=revision;
             runOnUiThread(()->{
@@ -94,7 +197,7 @@ public class MiniActivity extends Activity {
                 JSONObject record=new JSONObject();record.put("session",base);record.put("revision",nativeRevision);record.put("frames",data[0]);record.put("touches",data[1]);
                 record.put("width",data[2]);record.put("height",data[3]);record.put("density",density);record.put("top",top);record.put("left",left);
                 record.put("actions",data[4]);record.put("value",data[5]);
-                record.put("hash",data[6]);testRecord("receipt.json",record.toString());
+                record.put("hash",data[6]);record.put("highlight",inspectionOverlay.highlightedNode());testRecord("receipt.json",record.toString());
               } catch(Exception receiptError) {show("Test receipt failed: "+receiptError.getMessage());}
             });
           }
@@ -115,6 +218,7 @@ public class MiniActivity extends Activity {
       return true;
     });
     root.addView(surface,new FrameLayout.LayoutParams(-1,-1));
+    inspectionOverlay=new InspectionOverlay();root.addView(inspectionOverlay,new FrameLayout.LayoutParams(-1,-1));
     message=new TextView(this);message.setTextColor(Color.WHITE);message.setTextSize(14);message.setBackgroundColor(0xee0f172a);message.setGravity(Gravity.CENTER);message.setPadding(24,24,24,24);message.setText("Starting PocketJS…");
     root.addView(message,new FrameLayout.LayoutParams(-1,-1));
     root.setOnApplyWindowInsetsListener((view,insets)->{
@@ -202,18 +306,23 @@ public class MiniActivity extends Activity {
       JSONObject state=new JSONObject(new String(request("state",null),"UTF-8"));
       if(!state.isNull("error")){show(state.getString("error"));return;}
       int next=state.getInt("revision");JSONObject committed=state.getJSONObject("window");
+      final JSONObject selection=next==revision?state.optJSONObject("inspectionSelection"):null;
+      runOnUiThread(()->inspectionOverlay.select(selection));
       if(next<=revision || next==failedRevision || committed.getInt("width")!=w || committed.getInt("height")!=h || committed.getInt("density")!=d) return;
       final AppStorage storage=new AppStorage(getFilesDir(),state.getJSONObject("metadata").getString("appId"));
+      final String packageHash=recordMode?state.getString("packageSha256"):"";
       byte[] js=request(next+"/app.js",null),pak=request(next+"/app.pak",null);
       loading=true;
       surface.queueEvent(()->{
         try {
           if(width!=w || height!=h || closed || paused) return;
+          setRecording(false);recordingHeader=null;recordingSteps=null;
           String unloadError=prepareUnload();
           if(unloadError.isEmpty())dispatchServices();else android.util.Log.e("PocketJS",unloadError);
           appStorage=null;
           testActions=0;testValue=0;String error=boot(js,pak,w,h,d,testMode);
           if(!error.isEmpty()){failedRevision=next;show(error);return;}
+          try{startRecording(packageHash,w,h,d);}catch(Exception invalid){show("Recording configuration failed: "+invalid.getMessage());}
           appStorage=storage;revision=next;failedRevision=0;
           runOnUiThread(()->{message.setVisibility(View.GONE);testRecord("status.txt","");});
         } finally {loading=false;}
@@ -234,6 +343,7 @@ public class MiniActivity extends Activity {
     }
   }
   @Override public void onPause(){
+    if(inspectionOverlay!=null)inspectionOverlay.clear();inspectionTree=null;
     paused=true;Choreographer.getInstance().removeFrameCallback(frameCallback);touch(3,0,0,0);
     final boolean ending=isFinishing() || isChangingConfigurations();
     if(ending){closed=true;if(network!=null)network.shutdownNow();}

@@ -11,7 +11,7 @@ export function writeNativeProject(directory: string, upstream: string, library:
  archiveVersion = 1; classes = {}; objectVersion = 56;
  objects = {
   A001 = {isa = PBXProject; buildConfigurationList = A020; compatibilityVersion = "Xcode 14.0"; developmentRegion = en; hasScannedForEncodings = 0; knownRegions = (en, Base); mainGroup = A002; productRefGroup = A003; projectDirPath = ""; projectRoot = ""; targets = (A010, A011); attributes = {LastUpgradeCheck = 1640; TargetAttributes = {A011 = {TestTargetID = A010; }; }; }; };
-  A002 = {isa = PBXGroup; children = (A004, A005, A006, A007, A054, A056, A058, A065, A067, A069, A071, ${installed ? "A080, A082, A084, A086," : ""} A003); sourceTree = "<group>"; };
+  A002 = {isa = PBXGroup; children = (A004, A005, A006, A007, A054, A056, A058, A065, A067, A069, A071, A073, A075, A077, A088, A090, A092, ${installed ? "A080, A082, A084, A086," : ""} A003); sourceTree = "<group>"; };
   A003 = {isa = PBXGroup; name = Products; children = (A008, A009); sourceTree = "<group>"; };
   A004 = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
   A005 = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = PocketSurfaceView.m; sourceTree = "<group>"; };
@@ -31,6 +31,18 @@ export function writeNativeProject(directory: string, upstream: string, library:
   A070 = {isa = PBXBuildFile; fileRef = A069; };
   A071 = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = InstalledController.m; sourceTree = "<group>"; };
   A072 = {isa = PBXBuildFile; fileRef = A071; };
+  A073 = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = DirectMetalRenderer.m; sourceTree = "<group>"; };
+  A074 = {isa = PBXBuildFile; fileRef = A073; };
+  A075 = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = GpuResourceBudget.m; sourceTree = "<group>"; };
+  A076 = {isa = PBXBuildFile; fileRef = A075; };
+  A077 = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = VerifiedLocation.m; sourceTree = "<group>"; };
+  A078 = {isa = PBXBuildFile; fileRef = A077; };
+  A088 = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = VerifiedNetwork.m; sourceTree = "<group>"; };
+  A089 = {isa = PBXBuildFile; fileRef = A088; };
+  A090 = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = MediaImage.m; sourceTree = "<group>"; };
+  A091 = {isa = PBXBuildFile; fileRef = A090; };
+  A092 = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = VerifiedMedia.m; sourceTree = "<group>"; };
+  A093 = {isa = PBXBuildFile; fileRef = A092; };
   ${installed ? ["main.pocket", "manifest.json", "publisher.key", "app.id"].map((path,index)=>{
     const id=80+index*2;
     return `A0${id} = {isa = PBXFileReference; lastKnownFileType = file; path = ${q(path)}; sourceTree = "<group>"; };\n  A0${id+1} = {isa = PBXBuildFile; fileRef = A0${id}; };`;
@@ -41,7 +53,7 @@ export function writeNativeProject(directory: string, upstream: string, library:
   A011 = {isa = PBXNativeTarget; name = MiniTests; productName = MiniTests; productReference = A009; productType = "com.apple.product-type.bundle.ui-testing"; buildConfigurationList = A022; buildPhases = (A031, A033, A035); buildRules = (); dependencies = (A040); };
   A040 = {isa = PBXTargetDependency; target = A010; targetProxy = A041; };
   A041 = {isa = PBXContainerItemProxy; containerPortal = A001; proxyType = 1; remoteGlobalIDString = A010; remoteInfo = Mini; };
-  A030 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A050, A051, A055, A057, A059, A066, A068, A070, A072); runOnlyForDeploymentPostprocessing = 0; };
+  A030 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A050, A051, A055, A057, A059, A066, A068, A070, A072, A074, A076, A078, A089, A091, A093); runOnlyForDeploymentPostprocessing = 0; };
   A031 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A052, A053); runOnlyForDeploymentPostprocessing = 0; };
   A032 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
   A033 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
@@ -58,7 +70,7 @@ export function writeNativeProject(directory: string, upstream: string, library:
   A061 = {isa = XCBuildConfiguration; name = ${configuration}; buildSettings = {
    PRODUCT_BUNDLE_IDENTIFIER = ${q(bundle)}; PRODUCT_NAME = Mini; INFOPLIST_FILE = Info.plist; SWIFT_VERSION = 5.0; DEFINES_MODULE = YES; PRODUCT_MODULE_NAME = Mini;
    TARGETED_DEVICE_FAMILY = 1; HEADER_SEARCH_PATHS = ("$(PROJECT_DIR)");
-   OTHER_LDFLAGS = ("$(inherited)", ${q(library)}, "-framework", UIKit, "-framework", Foundation, "-framework", QuartzCore, "-framework", CoreGraphics, "-framework", Metal, "-lc++");
+   OTHER_LDFLAGS = ("$(inherited)", ${q(library)}, "-framework", UIKit, "-framework", Foundation, "-framework", QuartzCore, "-framework", CoreGraphics, "-framework", CoreLocation, "-framework", Network, "-framework", ImageIO, "-framework", PhotosUI, "-framework", AVFoundation, "-framework", Metal, "-lc++");
   }; };
   A062 = {isa = XCBuildConfiguration; name = ${configuration}; buildSettings = {
    PRODUCT_BUNDLE_IDENTIFIER = dev.pjm.tests; PRODUCT_NAME = MiniTests; GENERATE_INFOPLIST_FILE = YES;
@@ -85,6 +97,8 @@ export function writeNativeProject(directory: string, upstream: string, library:
 <key>UISceneConfigurationName</key><string>Mini</string><key>UISceneDelegateClassName</key><string>MiniScene</string>
 </dict></array></dict></dict>
 <key>UISupportedInterfaceOrientations</key><array><string>UIInterfaceOrientationPortrait</string><string>UIInterfaceOrientationLandscapeLeft</string><string>UIInterfaceOrientationLandscapeRight</string></array>
+<key>NSCameraUsageDescription</key><string>Capture an image for a signed mini app after you approve access.</string>
+<key>NSLocationWhenInUseUsageDescription</key><string>Allow a signed mini app to request your location after you approve access.</string>
 ${installed ? "" : "<key>NSAppTransportSecurity</key><dict><key>NSAllowsLocalNetworking</key><true/></dict>\n<key>NSLocalNetworkUsageDescription</key><string>Connect to your Mac to run and reload your PocketJS project.</string>"}
 </dict></plist>`);
   writeFileSync(join(directory, "Mini.xcodeproj/xcshareddata/xcschemes/Mini.xcscheme"), `<?xml version="1.0" encoding="UTF-8"?>

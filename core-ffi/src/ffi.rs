@@ -1,4 +1,16 @@
 use crate::Instance;
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn mp_gpu_snapshot(
+    handle: *mut MpInstance,
+    max_side: u32,
+    callback: Option<crate::gpu_ffi::MpGpuCallback>,
+    context: *mut std::ffi::c_void,
+) -> i32 {
+    call(handle, -1, |state| {
+        unsafe { crate::gpu_ffi::deliver(&mut state.engine, max_side, callback, context) }?;
+        Ok(0)
+    })
+}
 use std::{
     ffi::{CString, c_char},
     panic::{AssertUnwindSafe, catch_unwind},
@@ -179,6 +191,9 @@ fn call<R>(
     failed: R,
     action: impl FnOnce(&mut MpInstance) -> Result<R, String>,
 ) -> R {
+    let Some(_guard) = crate::pool_ffi::CallGuard::enter(handle as usize) else {
+        return failed;
+    };
     if handle.is_null() {
         return failed;
     }
@@ -453,6 +468,9 @@ pub extern "C" fn mp_last_error(handle: *mut MpInstance) -> *const c_char {
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn mp_destroy(handle: *mut MpInstance) -> i32 {
+    let Some(_guard) = crate::pool_ffi::CallGuard::enter(handle as usize) else {
+        return -1;
+    };
     if handle.is_null() {
         return 0;
     }
@@ -461,9 +479,12 @@ pub unsafe extern "C" fn mp_destroy(handle: *mut MpInstance) -> i32 {
     }
     #[cfg(target_os = "android")]
     if unsafe { (*handle).engine.graphics.is_attached() } {
-        return call(handle, -1, |_| {
-            Err("Release GPU resources or report context loss before destroy".into())
-        });
+        unsafe {
+            (*handle).error =
+                CString::new("Release GPU resources or report context loss before destroy")
+                    .unwrap();
+        }
+        return -1;
     }
     let result = catch_unwind(AssertUnwindSafe(|| drop(unsafe { Box::from_raw(handle) })));
     if result.is_ok() { 0 } else { -1 }
@@ -482,6 +503,11 @@ pub extern "C" fn mp_resume(handle: *mut MpInstance) -> i32 {
         state.engine.resume()?;
         Ok(0)
     })
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn mp_system_back(handle: *mut MpInstance) -> i32 {
+    call(handle, -1, |state| Ok(i32::from(state.engine.system_back()?)))
 }
 
 #[unsafe(no_mangle)]

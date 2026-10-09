@@ -7,33 +7,25 @@ Mini owns this adapter so it can configure the exact service allowlist before
 guest evaluation through the public C ABI. The pinned upstream checkout remains
 unchanged. Compare changes against that revision when upgrading.
 
-This remains the software-framebuffer development view. The planned Swift/Metal
-production renderer remains a separate requirement.
+The embedded guest adapter uses Mini's `core-ffi` over the pinned Guest/UiSurface.
+The copied external-guest API has been removed; Mini does not expose a
+NativeScript or desktop host. Display-link/letterbox logic retains upstream
+provenance. The host latches initial touch hits, assigns contact lifetime IDs,
+preserves initial/final samples and sends explicit cancellation on UIKit
+cancellation/backgrounding. Effects drain after the guest turn.
 
-The embedded guest adapter now uses Mini's `core-ffi` instead of pocket-apple.
-The copied external-guest API has been removed from this Mini-only view; Mini
-does not expose a NativeScript or desktop host. Display-link/letterbox logic
-retains its upstream provenance. The host latches initial touch hits, assigns
-contact lifetime IDs, preserves quick taps, and sends explicit cancellations
-on UIKit cancellation/backgrounding. Service effects drain after the guest
-turn rather than reentering the engine during a callback.
+Current rendering uses `DirectMetalRenderer.m` with native owned GPU snapshots,
+triangle batches, glyph-page/image resources and logical clipping.
+`MetalPresenter.swift` supplies the CAMetalLayer view; its software pixel upload
+adapter remains available but PocketSurfaceView's normal path uses direct Metal.
+The surface limits outstanding submissions to three and fences prior work on
+activation, backgrounding, retirement and shutdown. Test-mode hashes come from
+actual GPU output through a blit/readback.
 
-The development renderer still copies full software frames into CALayer.
-Swift/Metal and incremental presentation remain unfinished. Shared-engine
-limits now apply to this source path, but the earlier native acceptance results
-prove the previous engine. Fresh shared-engine acceptance passes all three
-tests on iPhone 16 / iOS 18.5 Simulator; physical-device and other-OS evidence
-remain separate requirements.
-
-Swift Metal presentation continuation:
-
-The view now embeds `MetalPresenter.swift`, a CAMetalLayer-backed presenter
-with three texture slots protected until GPU completion. It uploads the shared
-engine's software BGRA pixels and renders an aspect-fitted textured quad.
-Acceptance hashes come from the rendered drawable using a test-only GPU blit
-and CPU readback on the first submission and every 30 submissions.
-
-`metal-ios18-2-1791045400.xcresult` passes all three native tests on iPhone 16 /
-iOS 18.5 Simulator, including coverage, taps/rotation, services and storage.
-Direct DrawList GPU rendering, incremental damage, Swift-owned engine/input
-lifecycle, global resource caps and physical performance remain unfinished.
+The earlier iOS 18.5 suites exercised the software-frame upload implementation.
+Current direct Metal evidence includes actual offscreen GPU rendering plus iOS
+26.4 simulator signed surface/lifecycle/services and production red/letterbox
+rejection/center-touch blue/warm blue/cold red screenshot tests. Evidence is in
+build/ios-validation/direct-metal-surface-20261005 and
+direct-metal-touch-20261005. Complex graphics, iOS 26 rotation, physical-device
+performance and process-wide resource accounting remain separate requirements.

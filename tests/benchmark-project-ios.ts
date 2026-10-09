@@ -1,0 +1,18 @@
+import {generateKeyPairSync} from 'node:crypto';
+import {existsSync,mkdirSync,writeFileSync} from 'node:fs';
+import {join,resolve} from 'node:path';
+import {compileApplication} from '../bin/compiler.ts';
+import {signPackage} from '../container/package.ts';
+import {writeInstalledProject} from '../bin/installed-project.ts';
+const [output,library,upstream]=process.argv.slice(2);
+if(!output||!library||!upstream)throw Error('benchmark-project-ios <new-output> <simulator-library> <isolated-pinned-compiler>');
+const directory=resolve(output);if(existsSync(directory))throw Error('Output already exists');
+mkdirSync(directory,{recursive:true});
+const result=await compileApplication({upstream:resolve(upstream),project:resolve(import.meta.dir,'../examples/benchmark'),directory:join(directory,'compiler'),window:{width:390,height:844,density:1},platform:'ios'});
+const keys=generateKeyPairSync('ed25519');
+const envelope=signPackage(result.packed,result.metadata,keys.privateKey);
+writeFileSync(join(directory,'main.pocket'),result.packed);
+writeFileSync(join(directory,'manifest.json'),JSON.stringify(envelope));
+writeFileSync(join(directory,'publisher.key'),keys.publicKey.export({format:'der',type:'spki'}).subarray(-32));
+writeInstalledProject({directory:join(directory,'project'),library:resolve(library),payload:join(directory,'main.pocket'),envelope:join(directory,'manifest.json'),publicKey:join(directory,'publisher.key'),bundle:'dev.pjm.benchmark.ios.validation'});
+console.log('Compiled and exported real iOS benchmark; private signing key was not saved');

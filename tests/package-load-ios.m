@@ -77,12 +77,22 @@ int main(int argc,char **argv){@autoreleasepool{
             assert([container advanceInput:&input frame:&frame damage:&damage effects:&effects error:&error]);
             assert(frame.pixels && frame.width==64 && frame.height==64 && damage.full_redraw);
             NSString *reply=[[NSString alloc] initWithData:effects.firstObject encoding:NSUTF8StringEncoding];assert([reply containsString:@"reply:"] && [reply containsString:@"123"]);
+            NSDictionary *completion=[NSJSONSerialization JSONObjectWithData:[[reply substringFromIndex:6] dataUsingEncoding:NSUTF8StringEncoding] options:0 error:&error];
+            assert([completion[@"ok"] isEqual:@YES] && completion[@"data"]==NSNull.null && !completion[@"error"]);
             assert([container postCompletion:[@"pump" dataUsingEncoding:NSUTF8StringEncoding] identity:package.metadata[@"appId"] generation:retained error:&error]);
             damage.size=sizeof(damage);
             assert([container advanceInput:&input frame:&frame damage:&damage effects:&effects error:&error] && effects.count==1);
             assert([[[NSString alloc] initWithData:effects.firstObject encoding:NSUTF8StringEncoding] hasPrefix:@"verified:"]);
             assert([container advanceInput:&input frame:&frame damage:&damage effects:&effects error:&error]);
             reply=[[NSString alloc] initWithData:effects.firstObject encoding:NSUTF8StringEncoding];assert([reply containsString:@"456"] && [reply containsString:@"live"]);
+            completion=[NSJSONSerialization JSONObjectWithData:[[reply substringFromIndex:6] dataUsingEncoding:NSUTF8StringEncoding] options:0 error:&error];
+            assert([completion[@"ok"] isEqual:@YES] && [completion[@"data"] isEqual:@"live"] && !completion[@"error"]);
+            NSData *invalidStorage=[NSJSONSerialization dataWithJSONObject:@{@"v":@1,@"id":@789,@"kind":@"storage.set.v1",@"args":@{@"key":@"live-proof"}} options:0 error:&error];
+            assert([container dispatchStorageRecord:invalidStorage identity:package.metadata[@"appId"] generation:retained error:&error]);
+            assert([container advanceInput:&input frame:&frame damage:&damage effects:&effects error:&error]);
+            reply=[[NSString alloc] initWithData:effects.firstObject encoding:NSUTF8StringEncoding];assert([reply hasPrefix:@"reply:"]);
+            completion=[NSJSONSerialization JSONObjectWithData:[[reply substringFromIndex:6] dataUsingEncoding:NSUTF8StringEncoding] options:0 error:&error];
+            assert([completion[@"ok"] isEqual:@NO] && [completion[@"error"][@"code"] isEqual:@"PROTOCOL"] && !completion[@"data"]);
             assert([container memoryWarning:&error] && container.activeGeneration==retained);
             error=nil;assert(![container dispatchStorageRecord:request identity:package.metadata[@"appId"] generation:retained+1 error:&error] && error);
         }

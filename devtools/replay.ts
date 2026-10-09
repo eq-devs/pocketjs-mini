@@ -8,6 +8,7 @@ export interface ReplayEngine {
  lifecycle(event:'show'|'hide'|'memoryWarning'):void;
  frame(contacts:readonly number[],hits:readonly number[],cancelled:readonly number[]):{pixels:Uint8Array;effects:readonly string[]};
  inspectTree?():Uint8Array;
+ hitTest?(x:number,y:number):number;
  close():void;
 }
 export interface ReplayFrame {frame:number;pixelsSha256:string;effectsSha256:string;}

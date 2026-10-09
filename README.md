@@ -5,6 +5,14 @@ PocketJS owns QuickJS, layout and rendering. Native hosts own the window, safe
 area, frame timing and touch. No Flutter, Dart, NativeScript or WebView is required.
 PocketJS upstream is pinned and never patched.
 
+The [v0.0.1 release audit](RELEASE-0.0.1.md) tracks current evidence and open
+release work. Additional DevTools work is deferred until after v0.0.1.
+
+The [navigation example](examples/navigation/README.md) demonstrates two TSX
+pages sharing one counter, route queries, page buttons and Android system Back.
+Its iOS simulator and Android emulator checks verify state retention through
+navigation/backgrounding and reset on cold reopen.
+
 ## First run
 
 Install Git, [Bun 1.3.11](https://bun.sh), a stable
@@ -151,6 +159,19 @@ mini.after(60, () => console.log("60 guest frames elapsed"));
 mini.navigation.push("/detail", { id: "example" });
 ```
 
+Navigation query objects allow up to 32 string fields, with keys up to 128
+characters and values up to 1024 characters. Each encoded path/query is limited
+to 4 KiB and must contain valid Unicode. Rejected queries preserve the existing
+page stack. Navigation allows 256 subscribed listeners; unsubscribe releases a
+slot.
+
+Android Back is handled on the native engine owner thread. It pops the SDK page
+stack; at the root, or without a connected SDK, it finishes the host Activity.
+Back callbacks share the bounded guest execution budget. Generated manifests
+use Android's legacy Back dispatch, without predictive Back animations.
+Development recording is discarded if Back occurs during capture, since the
+current tape format cannot represent that action.
+
 The iOS and Android development and installed hosts implement `device.info.v1`.
 The SDK validates its platform, model, logical viewport, density and four safe-area
 fields before resolving the request. Installed hosts fit their fixed logical
@@ -169,6 +190,46 @@ acceptance also switches app identities and verifies a guest-supplied identity
 cannot select another data directory. iOS currently verifies persistence,
 quotas, removal and failed-boot effects; its native identity isolation acceptance
 still needs expansion.
+The installed hosts also provide `mini.network.get().promise` and
+`mini.network.watch(listener)`. A watch returns its current snapshot through
+`promise`; subsequent native changes reach the listener at frame boundaries.
+Its `cancel()` removes the local listener and cancels a pending initial read.
+Snapshots are frozen `{connected, type, expensive}` records. Before native
+status is available, `connected` and `expensive` are null with type `unknown`.
+Offline uses false/`none`/null; a connected path uses a transport type and a
+boolean cost flag. Availability describes a native path, not proof that a
+particular Internet server is reachable.
+
+Each host owns one platform monitor and keeps only its latest snapshot.
+Monitoring stops while hidden and restarts on resume. Updates for an inactive
+iOS retained guest wait until that guest becomes active; retirement removes its
+watch registration. A full completion mailbox retries the latest state rather
+than retaining an unbounded change history. Development-host parity and
+physical connectivity transition acceptance remain pending. Native sources use
+Apple's [path monitor](https://developer.apple.com/documentation/network/nwpathmonitor/)
+and Android's [default network callback](https://developer.android.com/reference/android/net/ConnectivityManager).
+
+The SDK exposes a checked
+`mini.media.select({source: "library" | "camera", maxDimension: 1024, quality: 80})`
+contract returning `{mime: "image/jpeg", width, height, resource}`. The signed
+Android host asks for per-app consent, then opens the system document chooser or
+camera. It reads at most 8 MiB, normalizes orientation and transparency, removes
+source metadata, and returns a JPEG of at most 1 MiB through the same isolated
+resource pool as HTTP. The signed iOS host uses PHPicker for the library and
+UIImagePickerController with native camera authorization for capture. It applies
+the same source/output bounds and shares its HTTP resource pool. Release the handle
+when finished. One selection and one
+decode worker are admitted at a time; cancellation, retirement and a two-minute
+deadline stop the operation. Android preserves its own external chooser while
+hidden and delivers its result on resume. iOS preserves its own picker presentation;
+app backgrounding ends the pending operation with `BUSY`. Emulator checks cover native decoding,
+resource isolation, consent, denial and chooser cancellation; positive system
+image import and camera capture acceptance remain pending. iOS simulator checks
+also cover real consent/chooser cancellation, plus an owned synthetic file through
+NSItemProvider, normalization, SDK JPEG reads and resource release. That controlled
+provider test substitutes the picker result; it does not establish positive
+system-library selection or physical camera acceptance.
+
 The installed iOS and Android hosts additionally implement `request.v1`, exposed as
 `mini.http({url: "https://example.com/"}).promise`. The SDK exports `HttpRequest`
 and `HttpResponse` types, validates inline request bounds and canonical base64,
@@ -252,9 +313,9 @@ The container's bundle identity is `dev.pjm.host` on simulators and
 by a session lock. Application package identities remain
 separate. See [ECOSYSTEM.md](ECOSYSTEM.md) for what we borrow from mini-programs.
 
-The current iOS development view composites upstream's software framebuffer.
-The attached technical plan's Swift/Metal host and production container are
-tracked as remaining work in [PLAN.md](PLAN.md).
+The iOS development and installed views render shared-core DrawLists through
+Metal. Remaining services, resource limits and acceptance gates are tracked in
+[PLAN.md](PLAN.md).
 
 ## Validation
 
@@ -262,8 +323,8 @@ PocketJS is pinned to `fe971ebb8e14724d2a98d4df6b34c065caf11132`.
 The shell entrypoint is compatible with Bash 3.2 and Linux Bash. Internal Bun
 scripts use official manifest resolution, compiler and `.pocket` packaging APIs.
 `build/<name>.pocket` records a resolved device snapshot; the development host
-receives its JS/PAK sections. Native rendering/input reuses upstream
-the Mini-owned `PocketSurfaceView` adaptation and pinned `pocket-apple` C ABI.
+receives its JS/PAK sections. Native rendering/input uses the Mini-owned `PocketSurfaceView` adaptation and
+shared `core-ffi` C interface over the pinned Guest/UiSurface.
 
 The complete UIKit and SDK suites passed on iPhone 16 / iOS 18.5 Simulator.
 On iPhone 17 Pro / iOS 26.4 Simulator, service/protocol/SDK acceptance passed,
@@ -273,10 +334,13 @@ iOS 18.5 pass does not establish iOS 26 rotation support or physical performance
 Both native hosts now compose the pinned Rust Guest/UiSurface through Mini's
 shared C interface. Installed Android renders retained DrawLists directly through
 instance-owned GLES2; the development host still presents software frames.
-iOS uploads them through a Swift CAMetalLayer presenter. The shared rasterizer
-retains pixels and reports damage; Android uploads changed regions and Swift
-accumulates damage per texture, skipping unchanged presentations. Direct
-Metal DrawList rendering and broader GPU acceptance remain unfinished.
+iOS uses `MiniDirectMetalRenderer` for retained DrawList triangle batches and
+textures through the CAMetalLayer surface. Three outstanding submissions apply
+backpressure; lifecycle retirement fences GPU completion. The software rasterizer
+remains available for replay and compatibility adapters. Direct Metal passes
+actual offscreen GPU tests and simple iOS 26.4 simulator surface/touch/lifecycle
+tests; complex graphics, physical-device performance and total GPU memory
+acceptance remain unfinished.
 Upstream tracked files stay unchanged.
 
 Both hosts limit each QuickJS heap to 24 MiB and release stack to 256 KiB.
@@ -362,12 +426,13 @@ signed-only Activity with bundled authenticated bytes, then checks GLES color
 presentation, touch delivery, retained background/resume and a fresh launch
 following close using screenshot pixel assertions. It removes its temporary
 app and saves evidence under `build/android-validation/signed-surface-*`.
-`InstalledActivity` uses copied software frames and a fixed viewport fitted
+`InstalledActivity` uses direct GLES DrawLists and a fixed viewport fitted
 inside the platform surface. Android cold loading now uses a signed cache with staged updates, rollback,
 reverification and cleanup of unused slots. Package file operations use native
 no-follow directory traversal; adversarial parent replacement is covered by the
-store test. Global cache quotas, release export, older signature-provider support and direct GPU draw-list
-rendering remain pending. Current evidence uses the API 37 emulator.
+store test. Global cache quotas, older signature-provider support and broader
+GPU acceptance remain pending. Direct GLES surface/lifecycle evidence includes
+Pixel 8 Pro/API 36; benchmark timing/input acceptance remains incomplete.
 
 Android app-data snapshots now use the same native no-follow file operations,
 with per-app locks, bounded atomic writes and legacy backup recovery. Run
@@ -459,8 +524,9 @@ before Foundation parsing. Installed and development iOS service requests use
 the same strict parser before dispatch, so duplicate fields cannot admit a network
 operation. Native iOS and JavaScript storage snapshots also use strict byte parsing;
 malformed snapshots are preserved when operations fail. Complete canonical-number
-parity and client-side internal package/build-plan admission before publication
-remain pending.
+parity is now enforced for iOS signed manifests and build-plan hashes, including
+ECMAScript fixed/exponent thresholds, negative zero and UTF-16 key ordering.
+Android edge-case number parity and remote distribution integration remain pending.
 
 Expanded Android signature and authenticated package admission checks also pass
 on a physical Pixel 8 Pro (API 36), including correctly signed malformed build
@@ -487,7 +553,9 @@ passes an end-to-end headless regression against the current release core:
 three matching software frames, input/completion/lifecycle tape, PNG output,
 literal tree inspection and changed-golden rejection. Run it after building the
 release core with `bun tests/replay-native-cli.ts`. This does not establish mobile
-hardware acceptance; host recording hooks and the replay interface are pending.
+hardware acceptance; host recording hooks remain pending.
+The standard Darwin `tests/check.sh` gate builds/tests the current native core and
+runs this real FFI replay regression through `tests/native-core.sh`.
 
 Replay has a 60-second total execution deadline, adjustable with
 `--timeout-ms 1..300000`. The monotonic deadline is checked between turns and
@@ -497,14 +565,97 @@ engine and does not publish a successful golden.
 
 Replay source also supports `--png-frame N --png-output new.png` to export a
 selected framebuffer, including a divergent frame. PNG output preserves native
-BGRA colour/alpha and refuses existing paths. Encoder and orchestration tests
-pass; actual native frame capture through the command remains unverified.
+BGRA colour/alpha and refuses existing paths. `bash tests/native-core.sh` runs
+the command through the compiled native FFI and verifies the decoded pixels.
 
 Replay tree export uses `--tree-frame N --tree-output new-tree.json`. The native
 inspector entry point is loaded only when tree export is requested. Snapshots
 are strictly validated before exclusive persistence, preserving original node
 IDs, parent/child order, text and layout. Tree capture orchestration and argument
-checks pass; actual native inspector execution is still unverified.
+checks pass, and `bash tests/native-core.sh` executes the native inspector path
+and validates the retained tree and deliberate replay divergence.
+
+`ReplaySession` provides the owner-thread control model for interactive replay.
+Sessions start paused, can step one tape action, play through bounded host ticks,
+pause between actions, and seek to an exact action. Every seek closes and
+rebuilds the native engine before replaying the validated prefix, including
+backward seeks. Immutable snapshots expose action/frame progress and current
+frame hashes. `bash tests/native-core.sh` verifies step, resumed play and
+backward seek against the compiled engine and deterministic golden.
+
+The token-bound development server exposes bounded replay load/play/pause/step/
+seek/close commands. Open `pjm devtools`, choose a native tape for the active
+compiled build, and use the Replay panel to inspect action/frame progress and
+current hashes. Tape uploads are capped at 8 MiB, seek bodies are strict JSON,
+package bytes are snapshotted before execution, and publishing
+a new build closes the old session. The panel renders diagnostics as text.
+For opt-in iOS development capture, run `PJM_RECORD=1 pjm run`. Each cold
+revision captures its first 600 frames, accepted service completions and
+lifecycle events on the UIKit engine owner thread, then uploads a bounded tape
+to the token-bound session. DevTools shows a download link when it is available.
+The tape binds the exact compiled package hash and original development launch
+data. A rebuilt package invalidates the stored tape. Run
+`bun tests/recording-native-ios.ts <booted simulator UUID>` to build a temporary
+host and verify real capture. The current iPhone simulator run captured 600
+frames, an SDK device-info reply, a UIKit tap and ordered hide/show events,
+then reproduced identical frame/effect hashes in two fresh native replays.
+The recorded touch changes the replayed pixels. Evidence is in
+`build/ios-validation/recording-input-20261008`, including the XCTest result bundle.
+Host GPU pixel comparison and physical-device performance remain unverified.
+For Android development capture, run `PJM_RECORD=1 pjm run --device android`.
+JNI records exact sampled inputs and cancellation frames after successful engine
+entry; service replies and lifecycle events join the tape on the same GL owner
+thread. Capture is capped at 36,000 actions/8 MiB and uploads after 600 frames.
+The launcher supplies the opt-in intent extra; ordinary runs skip capture
+allocations. Run `bun tests/recording-native-android.ts <adb serial>` for real
+host acceptance. The API 37 ARM64/16-KiB emulator run passes sampled tap input,
+hide/show, SDK device-info completion, upload/download and two matching native
+replays. Evidence: `build/android-validation/recording-20261008`. Host GPU pixel
+comparison and physical-device performance remain unverified. Signed-container
+recording and live component highlighting remain pending.
+
+Enable read-only native inspection with `PJM_INSPECT=1 pjm run` (add
+`--device android` for Android). Hosts snapshot the committed native tree on
+their engine owner thread every 60 frames, with at most one upload in flight.
+The token-bound server retains one strictly validated current-revision tree,
+rejects stale frame/revision/target uploads, and clears it on a new build.
+DevTools displays original node IDs, parents, text and logical layout for the
+first 200 nodes, with a full snapshot download. All guest text renders literally.
+The iOS simulator run verifies the snapshot reflects the tapped counter through
+its separate `"Count: "` and `"1"` nodes. Evidence:
+`build/ios-validation/inspection-20261008-retry/inspection.json`.
+The Android API 37 emulator also verifies the tapped counter in a live native
+snapshot; evidence is `build/android-validation/inspection-20261008/inspection.json`.
+Click a node button to display its full details, or Clear selection to remove it.
+Selection binds to the exact revision and snapshot frame; later snapshots clear
+it to prevent reused native IDs from targeting a different node. The server rejects
+stale and unknown-node selections. Native highlighting and browser visual acceptance
+remain pending.
+
+Current native snapshots also export `bounds`: a visible node's logical screen
+rectangle after parent transforms, perspective and ancestor clipping, or null
+when no visible rectangle is available. `layout` retains parent-relative engine
+coordinates. Both development overlay implementations consume these shared bounds;
+transformed-node and Android overlay screenshot acceptance remain pending.
+
+The iOS simulator root overlay now has runtime evidence in
+`build/ios-validation/highlight-20261008`: XCTest observes root selection and
+clearing, saves both screenshots, and verifies clearing after background/resume.
+Visual review confirms the root border follows the fitted app viewport. Transformed
+node screenshots, Android overlays and browser visual acceptance remain open.
+
+Android root selection/clearing also has screenshot evidence in
+`build/android-validation/highlight-20261008-retry`. The emulator fixture renews
+snapshot-bound selection during screenshot capture, verifies cyan viewport edge
+pixels while selected and zero after clear, then passes capture/lifecycle/replay
+checks. Transformed-node screenshots and browser visual acceptance remain open.
+
+Browser verification of selection/clear, literal logs, activity filters and native
+replay load/play/pause/step/backward seek/close is saved in
+`build/browser-validation/devtools-20261009`. Its screenshot uses a saved native
+tree fixture and an actual temporary compiler/native replay session; it does not
+establish live mobile or responsive-breakpoint acceptance. Transformed-node mobile
+screenshots remain pending.
 
 The native SDK caps active frame timers and total service-event listeners at 256 each. Applications can configure lower `maxTimers` and `maxListeners` limits. Exceeding capacity returns `BUSY`; cancelling a timer, firing it, or removing a listener releases its slot. These SDK bounds do not establish a process-wide native memory budget.
 
@@ -512,7 +663,9 @@ Lifecycle hooks have a separate listener pool with the same configured `maxListe
 
 Run `bash tests/reference-check.sh` with Bun on PATH and pinned upstream dependencies installed to check SDK, reference container, publication and devtools/replay TypeScript and regressions together. This gate does not invoke native builds or devices; it cannot substitute for `tests/check.sh`, compiler integration checks or physical acceptance measurements.
 
-`mini.location.get({timeoutMs, maximumAgeMs, highAccuracy})` defines the versioned SDK location contract. Replies contain latitude, longitude, accuracy in meters, and a Unix timestamp in milliseconds. The SDK contract is tested and the installed Android host wires native app/OS consent and FusedLocation with the original request ownership and frame-delivered replies. Android provider execution and device acceptance remain unverified; the iOS location adapter is still pending.
+`mini.location.get({timeoutMs, maximumAgeMs, highAccuracy})` defines the versioned SDK location contract. Replies contain latitude, longitude, accuracy in meters, and a Unix timestamp in milliseconds. Both installed hosts enforce signed declaration, persisted app consent, current OS authorization, bounded concurrency/rate, original request ownership, cancellation and frame-delivered replies. Android uses FusedLocation. iOS uses one-shot Core Location with cache-age, accuracy and foreground guards. The generated iOS simulator host executes controlled fresh/cached fixes, denial, timer timeout, cancellation followed by a stale callback, lifecycle rejection and protocol rejection in `tests/package-surface-ios.sh`. It also grants When In Use access to the temporary bundle, sets a simulator coordinate and verifies the complete `mini.location.get` path: signed TSX guest request, installed controller dispatch, production `CLLocationManager`, later-frame mailbox delivery and validated SDK promise result. These tests do not show the real system permission dialog, read physical sensors or establish physical-device acceptance.
+
+The same signed simulator guest writes `PocketJS SDK 😀` with `mini.clipboard.write`, waits for the frame-delivered acknowledgement, then reads it through an authenticated, pre-approved `clipboard.read` request and validates the exact Unicode result in the SDK promise. This exercises the real simulator `UIPasteboard` and installed controller. It does not exercise the first-call app approval alert, cross-app paste privacy UI or physical-device clipboard behavior.
 
 `bash tests/fused-location-types.sh` checks the Android location provider against checksum-pinned cached Google API AARs. It requires those exact artifacts in the Gradle cache (or `GRADLE_USER_HOME`), Android API 34 and a JDK. This separate compile-only check does not replace the bundled runtime lock, APK packaging check or pending device acceptance.
 

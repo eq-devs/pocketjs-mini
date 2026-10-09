@@ -35,10 +35,9 @@ pub struct MpPool {
 thread_local! {
     static ACTIVE_POOLS: RefCell<std::collections::HashSet<usize>> = RefCell::new(std::collections::HashSet::new());
 }
-struct CallGuard(usize);
+pub(crate) struct CallGuard(usize);
 impl CallGuard {
-    fn enter(handle: *mut MpPool) -> Option<Self> {
-        let key = handle as usize;
+    pub(crate) fn enter(key: usize) -> Option<Self> {
         let inserted = ACTIVE_POOLS.with(|active| active.borrow_mut().insert(key));
         if inserted { Some(Self(key)) } else { None }
     }
@@ -65,7 +64,7 @@ fn call_inner<T>(
 ) -> T {
     // Reject reentry before dereferencing a handle already borrowed by the
     // outer call, including while destruction callbacks run.
-    let Some(_guard) = CallGuard::enter(handle) else {
+    let Some(_guard) = CallGuard::enter(handle as usize) else {
         return failed;
     };
     if handle.is_null()
@@ -261,6 +260,14 @@ pub unsafe extern "C" fn mp_pool_activate(
         Ok(0)
     })
 }
+#[unsafe(no_mangle)]
+pub extern "C" fn mp_pool_system_back(handle: *mut MpPool) -> i32 {
+    call(handle, -1, |state| {
+        let handled = state.pool.foreground().ok_or("No foreground guest")?.system_back()?;
+        Ok(i32::from(handled))
+    })
+}
+
 #[unsafe(no_mangle)]
 pub extern "C" fn mp_pool_set_cleanup(
     handle: *mut MpPool,
@@ -521,7 +528,7 @@ pub unsafe extern "C" fn mp_pool_destroy(handle: *mut MpPool) -> i32 {
     if handle.is_null() {
         return 0;
     }
-    let Some(_guard) = CallGuard::enter(handle) else {
+    let Some(_guard) = CallGuard::enter(handle as usize) else {
         return -1;
     };
     if unsafe { std::ptr::addr_of!((*handle).owner).read() } != thread::current().id() {
@@ -608,6 +615,23 @@ pub unsafe extern "C" fn mp_pool_frame_input(
                 Some(&input.hits[..count]),
                 &input.cancelled[..input.cancelled_count as usize],
             )?;
+        Ok(0)
+    })
+}
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn mp_pool_gpu_snapshot(
+    handle: *mut MpPool,
+    max_side: u32,
+    callback: Option<crate::gpu_ffi::MpGpuCallback>,
+    context: *mut std::ffi::c_void,
+) -> i32 {
+    call(handle, -1, |state| {
+        let engine = state
+            .pool
+            .foreground()
+            .ok_or("No foreground guest")?
+            .engine()?;
+        unsafe { crate::gpu_ffi::deliver(engine, max_side, callback, context) }?;
         Ok(0)
     })
 }

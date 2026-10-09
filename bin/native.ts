@@ -72,6 +72,8 @@ export async function launchNative(options: Options) {
   launched = true;
   const launch = physical ? ["xcrun", "devicectl", "device", "process", "launch", "--device", device.id, "--terminate-existing", "--console", bundle, "--pjm-url", options.url]
     : ["xcrun", "simctl", "launch", "--terminate-running-process", "--console-pty", device.udid, bundle, "--pjm-url", options.url];
+  if(process.env.PJM_RECORD === "1")launch.push("--pjm-record");
+  if(process.env.PJM_INSPECT === "1")launch.push("--pjm-inspect");
   const child = Bun.spawn(launch, { stdout: "inherit", stderr: "inherit", detached: true });
   options.child(child);
   console.log(`Running native PocketJS on ${device.name}. Save TSX to reload; Ctrl+C stops the session.`);

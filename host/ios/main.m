@@ -18,6 +18,7 @@
 @property BOOL fetching, reporting;
 @property NSUInteger touches, pendingLogs;
 @property NSUInteger queuedServiceReplies, sdkReceipt;
+@property BOOL inspectionPending;
 @end
 
 @implementation MiniController
@@ -150,6 +151,10 @@
     NSString *compileError = [state[@"error"] isKindOfClass:NSString.class] ? state[@"error"] : nil;
     if (compileError) [self showError:compileError];
     NSUInteger next = [state[@"revision"] unsignedIntegerValue];
+    NSDictionary *selection=[state[@"inspectionSelection"] isKindOfClass:NSDictionary.class]?state[@"inspectionSelection"]:nil;
+    if(next==self.revision && [selection[@"revision"] unsignedIntegerValue]==self.revision)
+      [self.surface highlightInspectionNode:[selection[@"nodeId"] intValue] frame:[selection[@"frame"] unsignedLongLongValue]];
+    else [self.surface highlightInspectionNode:0 frame:0];
     if (next <= self.revision || next == self.failedRevision || ![state[@"window"] isEqual:metrics]) { self.fetching = NO; return; }
     NSError *identityError=nil;
     NSDictionary *metadata=state[@"metadata"];
@@ -164,6 +169,9 @@
         PocketSurfaceView *replacement = [PocketSurfaceView surfaceWithLogicalWidth:[metrics[@"width"] intValue]
           logicalHeight:[metrics[@"height"] intValue] density:[metrics[@"density"] intValue] hostId:@"pjm-ios" hostAbi:7];
         replacement.tickRate = 60;
+        BOOL recording=[NSProcessInfo.processInfo.arguments containsObject:@"--pjm-record"];
+        BOOL inspect=[NSProcessInfo.processInfo.arguments containsObject:@"--pjm-inspect"];
+        if(recording && ![replacement beginRecordingPackageHash:state[@"packageSha256"] density:[metrics[@"density"] intValue]]){self.failedRevision=next;[self showError:@"Recording configuration failed"];return;}
         __weak PocketSurfaceView *weakServiceSurface = replacement;
         replacement.onEffect = ^(NSString *line) { [weak queueService:line surface:weakServiceSurface metrics:metrics storage:storage]; };
         replacement.onCleanupEffect = ^(NSString *line) { [weak processService:line surface:weakServiceSurface metrics:metrics storage:storage]; };
@@ -184,17 +192,24 @@
         replacement.onError = ^(NSString *message) { [weak showError:message]; };
         __weak PocketSurfaceView *weakSurface = replacement;
         __block BOOL reportedFrame=NO;
+        __block BOOL sentRecording=NO;
         replacement.onFrame = ^(uint64_t frame, NSUInteger touchCount) {
           MiniController *self = weak; if (!self) return;
           if(!reportedFrame){reportedFrame=YES;NSData *event=[NSJSONSerialization dataWithJSONObject:@{@"revision":@(next),@"platform":@"ios",@"kind":@"frame-ready"} options:0 error:nil];[self request:@"device-event" body:event completion:^(NSData *data,NSError *error){(void)data;(void)error;}];}
           if (touchCount) self.touches++;
           PocketSurfaceView *replacement = weakSurface; if (!replacement) return;
+          if(inspect && frame%60==0 && !self.inspectionPending){
+            NSData *bytes=[replacement debugTree];id tree=bytes?[NSJSONSerialization JSONObjectWithData:bytes options:0 error:nil]:nil;
+            if(tree){NSData *body=[NSJSONSerialization dataWithJSONObject:@{@"revision":@(next),@"platform":@"ios",@"frame":@(frame),@"tree":tree} options:0 error:nil];
+              if(body.length<=4*1024*1024+1024){self.inspectionPending=YES;[self request:@"inspection" body:body completion:^(NSData *data,NSError *error){(void)data;(void)error;weak.inspectionPending=NO;}];}}
+          }
+          if(recording && !sentRecording && frame>=600){sentRecording=YES;NSData *tape=[replacement finishRecording];if(tape)[self request:@"recording" body:tape completion:^(NSData *data,NSError *error){(void)data;if(error)[weak showError:error.localizedDescription];}];}
           // Test-only receipt observes native pixels; it never changes guest state.
           if (PJM_TEST_MODE) {
             uint32_t hash = replacement.presentedHash;
-            replacement.accessibilityValue = [NSString stringWithFormat:@"revision=%lu hash=%u width=%u height=%u frames=%llu touches=%lu sdk=%lu",
+            replacement.accessibilityValue = [NSString stringWithFormat:@"revision=%lu hash=%u width=%u height=%u frames=%llu touches=%lu sdk=%lu highlight=%d",
               (unsigned long)self.revision, hash, replacement.logicalWidth, replacement.logicalHeight,
-              frame, (unsigned long)self.touches, (unsigned long)self.sdkReceipt];
+              frame, (unsigned long)self.touches, (unsigned long)self.sdkReceipt,replacement.highlightedInspectionNode];
           }
         };
         [replacement start];

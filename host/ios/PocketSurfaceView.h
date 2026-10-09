@@ -30,6 +30,8 @@ NS_ASSUME_NONNULL_BEGIN
 // Main-thread boundary before a signed guest advances. Service owners may post
 // bounded completions here; do not advance, activate or retire the container.
 @property(nonatomic, copy, nullable) void (^onVerifiedFrameStart)(void);
+@property(nonatomic,readonly,nullable) NSString *verifiedActiveIdentity;
+@property(nonatomic,readonly) uint64_t verifiedActiveGeneration;
 - (BOOL)setServiceNamespaces:(NSArray<NSString *> *)names;
 
 // density is the raster scale (1..4; use 2 or 3 to match screen scale).
@@ -54,6 +56,13 @@ NS_ASSUME_NONNULL_BEGIN
 // Feed assets before start. Returns NO with `lastError` set on failure.
 - (BOOL)loadPak:(NSData *)pak;
 - (BOOL)evalBundle:(NSString *)source label:(nullable NSString *)label;
+// Development-only cold-boot recording. Configure before evalBundle; no signed pool support.
+- (BOOL)beginRecordingPackageHash:(NSString *)hash density:(uint32_t)density;
+- (nullable NSData *)finishRecording;
+- (nullable NSData *)debugTree;
+// Host overlay for an exact captured development snapshot. Zero clears it.
+- (void)highlightInspectionNode:(int32_t)nodeId frame:(uint64_t)frame;
+@property(nonatomic, readonly) int32_t highlightedInspectionNode;
 
 // Shared engine currently advances at 60 Hz; 0 selects that default.
 @property(nonatomic) uint32_t tickRate;

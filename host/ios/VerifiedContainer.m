@@ -102,6 +102,16 @@ static void retired(void *context,const uint8_t *identity,size_t length,uint64_t
     }
     NSString *identity=_activeIdentity;uint64_t generation=_activeGeneration;
     if(![self engineStatus:mp_pool_frame_input(_pool,input) error:error] || ![self engineStatus:mp_pool_render_damage(_pool,frame,damage) error:error])return NO;
+    return [self drainEffects:effects identity:identity generation:generation error:error];
+}
+- (BOOL)advanceGpuInput:(const MpInput *)input maxSide:(uint32_t)maxSide callback:(MpGpuCallback)callback context:(void *)context effects:(NSArray<NSData *> **)effects error:(NSError **)error {
+    if(effects)*effects=@[];if(![self ownerReady:error])return NO;
+    if(!input||!callback||!_activeGeneration)return [self engineStatus:-1 error:error];
+    NSString *identity=_activeIdentity;uint64_t generation=_activeGeneration;
+    if(![self engineStatus:mp_pool_frame_input(_pool,input) error:error]||![self engineStatus:mp_pool_gpu_snapshot(_pool,maxSide,callback,context) error:error])return NO;
+    return [self drainEffects:effects identity:identity generation:generation error:error];
+}
+- (BOOL)drainEffects:(NSArray<NSData *> **)effects identity:(NSString *)identity generation:(uint64_t)generation error:(NSError **)error {
     uint8_t *records=_serviceBuffer.mutableBytes;ptrdiff_t length=mp_pool_svc_take(_pool,records,_serviceBuffer.length);
     if(length<0)return [self engineStatus:-1 error:error];
     NSMutableArray<NSData *> *external=[NSMutableArray array];
@@ -142,7 +152,7 @@ static void retired(void *context,const uint8_t *identity,size_t length,uint64_t
     valid=valid && isfinite(number) && number>=1 && number<=9007199254740991.0 && floor(number)==number && [@[@"storage.get.v1",@"storage.set.v1",@"storage.remove.v1"] containsObject:kind];
     if(!valid){if(error)*error=[NSError errorWithDomain:@"MiniProtocol" code:1 userInfo:@{NSLocalizedDescriptionKey:@"Invalid retained storage request"}];return NO;}
     NSError *failure=nil;id result=[_storages[@(generation)] dispatch:kind arguments:request[@"args"] error:&failure];
-    NSMutableDictionary *reply=[@{@"v":@1,@"id":identifier} mutableCopy];
+    NSMutableDictionary *reply=[@{@"v":@1,@"id":identifier,@"ok":result?@YES:@NO} mutableCopy];
     if(result)reply[@"data"]=result;
     else reply[@"error"]=@{@"code":[failure.domain isEqual:@"MiniBusy"]?@"BUSY":[failure.domain isEqual:@"MiniProtocol"]?@"PROTOCOL":@"FAILED",@"message":failure.localizedDescription?:@"Storage unavailable"};
     NSData *encoded=[NSJSONSerialization dataWithJSONObject:reply options:0 error:error];

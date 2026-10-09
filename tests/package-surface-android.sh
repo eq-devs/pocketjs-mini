@@ -86,6 +86,19 @@ bun "$ROOT/tests/assert-frame-png.ts" "$EVIDENCE/resumed.png" 0,0,255
 "$ADB" -s "$SERIAL" logcat -d --pid="$PID" -s PocketJS AndroidRuntime > "$EVIDENCE/warm-runtime.log"
 "$ADB" -s "$SERIAL" shell input keyevent KEYCODE_BACK
 sleep 1
+if [ "${PJM_PACKAGE_BACK_TEST:-}" = 1 ]; then
+  "$ADB" -s "$SERIAL" shell screencap -p "/data/local/tmp/$TOKEN.png"
+  "$ADB" -s "$SERIAL" pull "/data/local/tmp/$TOKEN.png" "$EVIDENCE/back-root.png" >/dev/null 2>&1
+  bun "$ROOT/tests/assert-frame-png.ts" "$EVIDENCE/back-root.png" 0,255,0
+  "$ADB" -s "$SERIAL" shell uiautomator dump "/data/local/tmp/$TOKEN.xml" >/dev/null 2>&1
+  "$ADB" -s "$SERIAL" pull "/data/local/tmp/$TOKEN.xml" "$EVIDENCE/back-root.xml" >/dev/null 2>&1
+  rg -q "package=\"$BUNDLE\"" "$EVIDENCE/back-root.xml" || { echo 'First Back exited instead of returning to root' >&2;exit 1; }
+  "$ADB" -s "$SERIAL" shell input keyevent KEYCODE_BACK
+  sleep 1
+  "$ADB" -s "$SERIAL" shell uiautomator dump "/data/local/tmp/$TOKEN.xml" >/dev/null 2>&1
+  "$ADB" -s "$SERIAL" pull "/data/local/tmp/$TOKEN.xml" "$EVIDENCE/back-exit.xml" >/dev/null 2>&1
+  if rg -q "package=\"$BUNDLE\"" "$EVIDENCE/back-exit.xml"; then echo 'Root Back did not exit' >&2;exit 1;fi
+fi
 "$ADB" -s "$SERIAL" shell am start -n "$BUNDLE/${TEST_ACTIVITY}" >/dev/null
 sleep 1
 "$ADB" -s "$SERIAL" shell screencap -p "/data/local/tmp/$TOKEN.png"

@@ -3,6 +3,11 @@ import Foundation
     static func main() throws {
         let data = try Data(contentsOf: URL(fileURLWithPath: CommandLine.arguments[1]))
         let cases = try JSONSerialization.jsonObject(with: data) as! [[String: Any]]
+        var unsigned = cases[0]["manifest"] as! [String: Any]
+        unsigned.removeValue(forKey: "signature")
+        let nativeCanonical = String(data: try NativePackageVerifier.canonicalJSON(unsigned), encoding: .utf8)!
+        let expectedCanonical = cases[0]["canonicalExpected"] as! String
+        precondition(nativeCanonical == expectedCanonical, "Signed canonical bytes: \(nativeCanonical) != \(expectedCanonical)")
         for (index, item) in cases.enumerated() {
             let payload = Data(base64Encoded: item["payload"] as! String)!
             let key = Data(base64Encoded: item["key"] as! String)!
@@ -11,7 +16,7 @@ import Foundation
             do {
                 _ = try PackageVerifier.verify(payload: payload, envelope: envelope, trustedKey: key, abi: item["abi"] as! Int, target: item["target"] as! String)
                 accepted = true
-            } catch { }
+            } catch { if item["valid"] as! Bool { print("Admission error: \(error)") } }
             if accepted != item["valid"] as! Bool { print("Unexpected admission: \(index), bytes \(Array(envelope.prefix(8)))"); fflush(stdout) }
             precondition(accepted == item["valid"] as! Bool, "Package case \(index)")
         }
@@ -22,6 +27,11 @@ import Foundation
         var invalidUTF8Rejected = false
         do { _ = try NativePackageVerifier.parseStrictJSON(Data([34,255,34])) } catch { invalidUTF8Rejected = true }
         precondition(invalidUTF8Rejected)
+        let numbers: [Any] = [0, -0.0, 1e-7, 1e-6, 1e20, 1e21, 333333333.33333329, 4.50, 2e-3, 1e30, 1e-27, 9007199254740991, 0.000001234567890123456, Double.leastNonzeroMagnitude, Double.greatestFiniteMagnitude, 2.2250738585072014e-308]
+        let canonicalNumbers = String(data: try NativePackageVerifier.canonicalJSON(numbers), encoding: .utf8)!
+        precondition(canonicalNumbers == "[0,0,1e-7,0.000001,100000000000000000000,1e+21,333333333.3333333,4.5,0.002,1e+30,1e-27,9007199254740991,0.000001234567890123456,5e-324,1.7976931348623157e+308,2.2250738585072014e-308]", "ECMAScript number canonicalization: \(canonicalNumbers)")
+        let ordered = String(data: try NativePackageVerifier.canonicalJSON(["\u{e000}": 2, "😀": 1]), encoding: .utf8)!
+        precondition(ordered == "{\"😀\":1,\"\u{e000}\":2}", "UTF-16 key ordering: \(ordered)")
         print("Native iOS package verification: \(cases.count) interoperability and rejection cases passed")
     }
 }

@@ -24,101 +24,10 @@ use es2::Pipeline;
 use std::{vec, vec::Vec};
 
 use pocketjs_core::spec;
+use crate::gpu_texture::texture_rgba;
+use crate::gpu_frame::*;
 use pocketjs_core::{TexView, Ui};
 
-const MAX_DRAW_WORDS: usize = 262144;
-const MAX_DRAW_VERTICES: usize = 262144;
-const MAX_CLIP_DEPTH: usize = 256;
-const MAX_TEXTURE_SLOTS: usize = 512;
-const MAX_TEXTURE_BYTES: usize = 16 * 1024 * 1024;
-const MAX_GPU_IMAGE_BYTES: usize = 64 * 1024 * 1024;
-
-fn texture_bytes(width: u32, height: u32, max_side: u32) -> Option<usize> {
-    if width == 0 || height == 0 || width > max_side || height > max_side {
-        return None;
-    }
-    let bytes = (width as usize)
-        .checked_mul(height as usize)?
-        .checked_mul(4)?;
-    (bytes <= MAX_TEXTURE_BYTES).then_some(bytes)
-}
-
-/// Conservative RGBA storage admission, including generated glyph pages.
-/// Actual driver allocation and process-wide accounting need host measurements.
-fn admitted_image_bytes(ui: &Ui, max_side: u32) -> Option<usize> {
-    let slots = ui.texture_slot_count();
-    if slots > MAX_TEXTURE_SLOTS {
-        return None;
-    }
-    let mut bytes = 4usize; // Renderer-owned opaque white texel.
-    for slot in 0..slots {
-        if let Some((_, _, view)) = ui.texture_at_versioned(slot as u32) {
-            bytes = bytes.checked_add(texture_bytes(view.w, view.h, max_side)?)?;
-            if bytes > MAX_GPU_IMAGE_BYTES {
-                return None;
-            }
-        }
-    }
-    Some(bytes)
-}
-
-/// Count expanded geometry before font preparation, cache uploads or VBO growth.
-/// This validates the core-produced stream; guests do not receive a raw GL API.
-fn admitted_vertices(words: &[u32]) -> Option<usize> {
-    if words.len() > MAX_DRAW_WORDS {
-        return None;
-    }
-    let (mut index, mut vertices, mut depth) = (0usize, 0usize, 0usize);
-    while index < words.len() {
-        let (length, added) = match words[index] {
-            spec::draw_op::RECT => (4, 6),
-            spec::draw_op::GRAD_RECT => (6, 6),
-            spec::draw_op::TRI => (7, 3),
-            spec::draw_op::TEX_QUAD => (9, 6),
-            spec::draw_op::TEX_TRI => (12, 3),
-            spec::draw_op::GLYPH_RUN if index + 3 <= words.len() => {
-                let count = (words[index + 1] >> 16) as usize;
-                (3 + count * 2, count * 6)
-            }
-            spec::draw_op::SCISSOR => {
-                depth += 1;
-                if depth > MAX_CLIP_DEPTH {
-                    return None;
-                }
-                (3, 0)
-            }
-            spec::draw_op::SCISSOR_POP => {
-                depth = depth.saturating_sub(1);
-                (1, 0)
-            }
-            // Same-layer native controls are outside this host's supported scope.
-            _ => return None,
-        };
-        if length > words.len() - index {
-            return None;
-        }
-        let finite_uv = match words[index] {
-            spec::draw_op::TEX_QUAD => {
-                (4..8).all(|offset| f32::from_bits(words[index + offset]).is_finite())
-            }
-            spec::draw_op::TEX_TRI => (0..3).all(|vertex| {
-                (1..3).all(|offset| {
-                    f32::from_bits(words[index + 2 + vertex * 3 + offset]).is_finite()
-                })
-            }),
-            _ => true,
-        };
-        if !finite_uv {
-            return None;
-        }
-        vertices += added;
-        if vertices > MAX_DRAW_VERTICES {
-            return None;
-        }
-        index += length;
-    }
-    Some(vertices)
-}
 
 type GLenum = u32;
 type GLuint = u32;
@@ -314,58 +223,6 @@ unsafe fn upload_texture(
         clear_errors();
         None
     }
-}
-
-fn texture_rgba(view: TexView<'_>) -> Option<Vec<u8>> {
-    let count = (view.w as usize).checked_mul(view.h as usize)?;
-    let mut rgba = vec![0u8; count.checked_mul(4)?];
-    match view.psm {
-        spec::psm::PSM_5650 => {
-            if view.pixels.len() < count * 2 {
-                return None;
-            }
-            for (index, bytes) in view.pixels[..count * 2].chunks_exact(2).enumerate() {
-                let pixel = u16::from_le_bytes([bytes[0], bytes[1]]) as u32;
-                let red = pixel & 0x1f;
-                let green = (pixel >> 5) & 0x3f;
-                let blue = (pixel >> 11) & 0x1f;
-                rgba[index * 4] = ((red << 3) | (red >> 2)) as u8;
-                rgba[index * 4 + 1] = ((green << 2) | (green >> 4)) as u8;
-                rgba[index * 4 + 2] = ((blue << 3) | (blue >> 2)) as u8;
-                rgba[index * 4 + 3] = 255;
-            }
-        }
-        spec::psm::PSM_8888 => {
-            if view.pixels.len() < rgba.len() {
-                return None;
-            }
-            rgba.copy_from_slice(&view.pixels[..count * 4]);
-        }
-        spec::psm::PSM_4444 => {
-            if view.pixels.len() < count * 2 {
-                return None;
-            }
-            for (index, bytes) in view.pixels[..count * 2].chunks_exact(2).enumerate() {
-                let pixel = u16::from_le_bytes([bytes[0], bytes[1]]) as u32;
-                rgba[index * 4] = ((pixel & 0x0f) * 17) as u8;
-                rgba[index * 4 + 1] = (((pixel >> 4) & 0x0f) * 17) as u8;
-                rgba[index * 4 + 2] = (((pixel >> 8) & 0x0f) * 17) as u8;
-                rgba[index * 4 + 3] = (((pixel >> 12) & 0x0f) * 17) as u8;
-            }
-        }
-        spec::psm::PSM_T8 => {
-            let palette = view.palette?;
-            if palette.len() < 1024 || view.pixels.len() < count {
-                return None;
-            }
-            for (index, &palette_index) in view.pixels[..count].iter().enumerate() {
-                let source = palette_index as usize * 4;
-                rgba[index * 4..index * 4 + 4].copy_from_slice(&palette[source..source + 4]);
-            }
-        }
-        _ => return None,
-    }
-    Some(rgba)
 }
 
 // Coverage-only indexed images (including shared glyph pages) need two
@@ -1256,6 +1113,9 @@ mod tests {
 
     #[test]
     fn psm_fixtures_expand_to_rgba_and_reject_short_input() {
+        assert_eq!(texture_rgba(view(&[], 0, 1, spec::psm::PSM_8888, None)), None);
+        assert_eq!(texture_rgba(view(&[], u32::MAX, u32::MAX, spec::psm::PSM_8888, None)), None);
+        assert_eq!(texture_rgba(view(&[], 4096, 4096, spec::psm::PSM_8888, None)), None);
         let psm5650 = [
             0x1f, 0x00, // red
             0xe0, 0x07, // green

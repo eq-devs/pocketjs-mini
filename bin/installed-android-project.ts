@@ -15,22 +15,26 @@ export function writeInstalledAndroidProject(options:{directory:string;library:s
   for(const part of ["src","assets","lib/arm64-v8a"])mkdirSync(join(directory,part),{recursive:true});
   copyAndroidHttp(directory);
   copyAndroidLocation(directory);
-  for(const name of ["FrameMeasurements","FramePacer","AppStorage","PackageVerifier","VerifiedPackage","VerifiedContainer","VerifiedPresenter","InstalledActivity","PackageStore","PackageFiles","BoundedJson","VerifiedHttp","ManagedResources","VerifiedClipboard","PermissionGate","VerifiedLocation","LocationApproval","LocationContract","LocationMailbox","LocationRate","LocationStops","FusedLocationProvider"])cpSync(join(root,"host/android",name+".java"),join(directory,"src",name+".java"));
+  for(const name of ["TouchContact","FrameMeasurements","FramePacer","AppStorage","PackageVerifier","VerifiedPackage","VerifiedContainer","VerifiedPresenter","InstalledActivity","PackageStore","PackageFiles","BoundedJson","VerifiedHttp","ManagedResources","VerifiedClipboard","PermissionGate","VerifiedLocation","LocationApproval","LocationContract","LocationMailbox","LocationRate","LocationStops","FusedLocationProvider","VerifiedNetwork","MediaContract","MediaImage","MediaInput","MediaPicker","VerifiedMedia"])cpSync(join(root,"host/android",name+".java"),join(directory,"src",name+".java"));
   writeFileSync(join(directory,"assets/main.pocket"),payload);writeFileSync(join(directory,"assets/manifest.json"),canonical(manifest));writeFileSync(join(directory,"assets/publisher.key"),key);
   cpSync(resolve(options.library),join(directory,"lib/arm64-v8a/libpocketjs.so"));
   writeFileSync(join(directory,"AndroidManifest.xml"),`<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="${bundle}" android:versionCode="1" android:versionName="1.0">
 <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="34"/>
 <uses-permission android:name="android.permission.INTERNET"/>
+<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
 <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
 <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+<queries><intent><action android:name="android.media.action.IMAGE_CAPTURE"/></intent><intent><action android:name="android.intent.action.OPEN_DOCUMENT"/><data android:mimeType="image/*"/></intent></queries>
 <uses-feature android:glEsVersion="0x00020000" android:required="true"/>
-<application android:label="PocketJS Mini" android:debuggable="false" android:allowBackup="false" android:usesCleartextTraffic="false" android:theme="@android:style/Theme.Material.NoActionBar" android:appComponentFactory="androidx.core.app.CoreComponentFactory">
+<application android:label="PocketJS Mini" android:debuggable="false" android:allowBackup="false" android:usesCleartextTraffic="false" android:enableOnBackInvokedCallback="false" android:theme="@android:style/Theme.Material.NoActionBar" android:appComponentFactory="androidx.core.app.CoreComponentFactory">
+<provider android:name="androidx.core.content.FileProvider" android:authorities="${bundle}.pjm.media" android:exported="false" android:grantUriPermissions="true"><meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/pjm_media_paths"/></provider>
 <meta-data android:name="com.google.android.gms.version" android:value="@integer/google_play_services_version"/>
 <activity android:name="com.google.android.gms.common.api.GoogleApiActivity" android:theme="@android:style/Theme.Translucent.NoTitleBar" android:exported="false"/>
 <activity android:name="dev.pjm.android.InstalledActivity" android:exported="true" android:configChanges="orientation|screenSize|keyboardHidden">
 <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
 </activity></application></manifest>
 `);
+  mkdirSync(join(directory,"resources/mini/res/xml"),{recursive:true});writeFileSync(join(directory,"resources/mini/res/xml/pjm_media_paths.xml"),'<paths xmlns:android="http://schemas.android.com/apk/res/android"><cache-path name="media-capture" path="pjm-media-camera/"/></paths>');
   writeFileSync(join(directory,"build-apk.sh"),`#!/bin/bash
 set -eu
 PROJECT_ROOT=$(cd "$(dirname "$0")" && pwd)

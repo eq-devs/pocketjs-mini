@@ -13,8 +13,8 @@ trap 'rm -rf "$TEMP"' EXIT
   "$ROOT/host/android/PackageStore.java" "$ROOT/host/android/PackageFiles.java" \
   "$ROOT/host/android/PermissionGate.java" "$ROOT/host/android/LocationApproval.java" "$ROOT/host/android/FusedLocationProvider.java" \
   "$ROOT/host/android/LocationContract.java" "$ROOT/host/android/LocationMailbox.java" "$ROOT/host/android/LocationRate.java" "$ROOT/host/android/LocationStops.java" "$ROOT/host/android/VerifiedLocation.java" \
-  "$ROOT/host/android/FrameMeasurements.java" "$ROOT/host/android/FramePacer.java" "$ROOT/host/android/InstalledActivity.java" "$ROOT/host/android/MiniActivity.java" "$ROOT/host/android/VerifiedContainer.java" \
-  "$ROOT/host/android/VerifiedPresenter.java" "$ROOT/host/android/VerifiedHttp.java" \
+  "$ROOT/host/android/TouchContact.java" "$ROOT/host/android/FrameMeasurements.java" "$ROOT/host/android/FramePacer.java" "$ROOT/host/android/InstalledActivity.java" "$ROOT/host/android/MiniActivity.java" "$ROOT/host/android/VerifiedContainer.java" \
+  "$ROOT/host/android/MediaInput.java" "$ROOT/host/android/VerifiedMedia.java" "$ROOT/host/android/MediaPicker.java" "$ROOT/host/android/MediaContract.java" "$ROOT/host/android/MediaImage.java" "$ROOT/host/android/VerifiedNetwork.java" "$ROOT/host/android/VerifiedPresenter.java" "$ROOT/host/android/VerifiedHttp.java" \
   "$ROOT/host/android/ManagedResources.java" "$ROOT/host/android/AppStorage.java" \
   "$ROOT/tests/NativeClipboardTest.java" "$ROOT/tests/NativeLocationTest.java" "$ROOT/tests/NativePackageStoreTest.java"
 echo 'Android installed host, clipboard and permission Java sources compile; runtime tests were not executed.'

@@ -59,6 +59,7 @@ JNIEXPORT jlong JNICALL Java_dev_pjm_android_VerifiedContainer_gpuEpoch(JNIEnv *
   (void)env;(void)type;return (jlong)mp_pool_gles_epoch(peer(value)->pool);
 }
 JNIEXPORT jint JNICALL Java_dev_pjm_android_VerifiedContainer_hitTest(JNIEnv *env,jclass type,jlong value,jfloat x,jfloat y){(void)type;int32_t hit=0;if(mp_pool_hit_test(peer(value)->pool,x,y,&hit)!=0)error(env);return hit;}
+JNIEXPORT jboolean JNICALL Java_dev_pjm_android_VerifiedContainer_back(JNIEnv *env,jclass type,jlong value){(void)type;int32_t status=mp_pool_system_back(peer(value)->pool);if(status<0){error(env);return JNI_FALSE;}return status==1?JNI_TRUE:JNI_FALSE;}
 JNIEXPORT void JNICALL Java_dev_pjm_android_VerifiedContainer_post(JNIEnv *env,jclass type,jlong value,jbyteArray identity,jlong generation,jbyteArray record){(void)type;jsize a=0,b=0;jbyte *id=bytes(env,identity,128,&a),*data=NULL;if(id)data=bytes(env,record,4096,&b);if(data && mp_pool_svc_post(peer(value)->pool,(uint8_t *)id,(size_t)a,(uint64_t)generation,(uint8_t *)data,(size_t)b)!=0)error(env);if(data)(*env)->ReleaseByteArrayElements(env,record,data,JNI_ABORT);if(id)(*env)->ReleaseByteArrayElements(env,identity,id,JNI_ABORT);}
 JNIEXPORT void JNICALL Java_dev_pjm_android_VerifiedContainer_control(JNIEnv *env,jclass type,jlong value,jint operation,jbyteArray identity){
   (void)type;Peer *p=peer(value);int status=-1;

@@ -4,7 +4,7 @@ import okhttp3.*;
 
 /** Test-only controlled transport. Never copied into installed host exports. */
 public final class HttpSurfaceActivity extends InstalledActivity {
-  @Override protected VerifiedHttp createHttp(){
+  @Override protected VerifiedHttp createHttp(ManagedResources resources){
     OkHttp.INSTANCE.initialize(getApplicationContext());
     OkHttpClient client=new OkHttpClient.Builder().addInterceptor(chain->{
       Request request=chain.request();String path=request.url().encodedPath(),location=null;int status=200;byte[] bytes="hello".getBytes(StandardCharsets.UTF_8);
@@ -15,6 +15,6 @@ public final class HttpSurfaceActivity extends InstalledActivity {
       if(path.equals("/final") && request.header("Authorization")!=null)throw new AssertionError("Redirect leaked authorization");
       Response.Builder response=new Response.Builder().request(request).protocol(Protocol.HTTP_1_1).code(status).message("fixture").body(ResponseBody.create(bytes,null));if(location!=null)response.header("Location",location);return response.build();
     }).build();
-    return new VerifiedHttp(client);
+    return new VerifiedHttp(client,resources);
   }
 }

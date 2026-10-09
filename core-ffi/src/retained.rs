@@ -82,6 +82,15 @@ impl RetainedEngine {
             .collect();
         Ok(())
     }
+    pub fn system_back(&mut self) -> Result<bool, String> {
+        let result = self.engine()?.system_back();
+        if let Err(error) = &result {
+            if self.engine.as_ref().is_some_and(|engine| !engine.ready) {
+                self.failure = Some(error.clone());
+            }
+        }
+        result
+    }
     fn record(&mut self, result: Result<(), String>) {
         if let Err(error) = result {
             self.failure = Some(error);
@@ -251,6 +260,20 @@ mod tests {
         pool.background();
         pool.resume();
         assert_eq!(tick(&mut pool), "1:123");
+    }
+    #[test]
+    fn failed_back_is_unscheduled_and_other_retained_guest_recovers() {
+        let mut pool = InstancePool::new(3);
+        pool.activate("healthy", || guest("healthy")).unwrap();
+        pool.activate("bad-back", || {
+            let mut engine = Instance::new(64, 64, 1, 24 * 1024 * 1024, "pjm-android")?;
+            engine.boot("globalThis.frame=()=>{};globalThis.__miniBack=()=>{while(true){}}", &[])?;
+            Ok::<_, String>(RetainedEngine::new(engine))
+        }).unwrap();
+        assert!(pool.foreground().unwrap().system_back().is_err());
+        assert!(pool.foreground().is_none());
+        pool.activate::<String>("healthy", || panic!("must reuse healthy realm")).unwrap();
+        assert_eq!(tick(&mut pool), "healthy:1");
     }
     #[test]
     fn terminal_frame_failure_is_unscheduled_but_invalid_input_is_recoverable() {

@@ -21,7 +21,11 @@ test("installed host export bundles separate trust and excludes the development 
     for(const name of ["main.pocket","manifest.json","publisher.key","app.id"])expect(project).toContain(name);
     expect(project).toContain("A081, A083, A085, A087");
     expect(project).toContain("$(PROJECT_DIR)/libmini_core_ffi.a");
+    expect(project).toContain("VerifiedLocation.m");
+    expect(project).toContain('"-framework", CoreLocation');
     expect(project).toContain("name = Release");
+    expect(readFileSync(join(directory,"Info.plist"),"utf8")).toContain("NSLocationWhenInUseUsageDescription");
+    expect(readFileSync(join(directory,"VerifiedLocation.m"),"utf8")).toContain("requestWhenInUseAuthorization");
     expect(readFileSync(join(directory,"Mini.xcodeproj/xcshareddata/xcschemes/Mini.xcscheme"),"utf8")).toContain('ArchiveAction buildConfiguration="Release"');
     expect(readFileSync(join(directory,"libmini_core_ffi.a"),"utf8")).toBe("test archive");
     writeFileSync(payload,"tampered");const rejected=join(root,"rejected");

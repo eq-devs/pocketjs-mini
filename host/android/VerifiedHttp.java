@@ -23,7 +23,8 @@ final class VerifiedHttp implements AutoCloseable {
     if(times==null){if(rates.size()>=64)return false;times=new ArrayDeque<>();rates.put(identity,times);}
     if(times.size()>=32)return false;times.addLast(now);return true;
   }
-  private final ManagedResources resources=new ManagedResources();
+  private final ManagedResources resources;
+  private final boolean ownsResources;
   private final HashMap<String,Task> tasks=new HashMap<>();
   private final ThreadPoolExecutor workers=new ThreadPoolExecutor(0,8,20,TimeUnit.SECONDS,new SynchronousQueue<Runnable>(),work->{Thread thread=new Thread(work,"pjm-http");thread.setDaemon(true);return thread;});
   private final OkHttpClient client;private boolean closed;
@@ -33,10 +34,13 @@ final class VerifiedHttp implements AutoCloseable {
     Task(VerifiedPackage source,long generation,long id,Request request,ManagedResources.Slot resource){this.source=source;this.generation=generation;this.id=id;this.request=request;this.resource=resource;}
     synchronized void cancel(){cancelled=true;if(call!=null)call.cancel();reply=null;}
   }
-  VerifiedHttp(Context context){this(initialized(context));}
+  VerifiedHttp(Context context){this(initialized(context),new ManagedResources(),true);}
+  VerifiedHttp(Context context,ManagedResources resources){this(initialized(context),resources,false);}
   private static OkHttpClient initialized(Context context){OkHttp.INSTANCE.initialize(context.getApplicationContext());return new OkHttpClient();}
   // Injected client is host-owned; permits deterministic native transport tests.
-  VerifiedHttp(OkHttpClient source){client=source.newBuilder().cookieJar(CookieJar.NO_COOKIES).cache(null).authenticator(Authenticator.NONE).proxyAuthenticator(Authenticator.NONE).followRedirects(false).followSslRedirects(false).callTimeout(15,TimeUnit.SECONDS).connectTimeout(15,TimeUnit.SECONDS).readTimeout(15,TimeUnit.SECONDS).writeTimeout(15,TimeUnit.SECONDS).connectionPool(new ConnectionPool(0,1,TimeUnit.SECONDS)).build();}
+  VerifiedHttp(OkHttpClient source){this(source,new ManagedResources(),true);}
+  VerifiedHttp(OkHttpClient source,ManagedResources resources){this(source,resources,false);}
+  private VerifiedHttp(OkHttpClient source,ManagedResources resources,boolean ownsResources){this.resources=Objects.requireNonNull(resources);this.ownsResources=ownsResources;client=source.newBuilder().cookieJar(CookieJar.NO_COOKIES).cache(null).authenticator(Authenticator.NONE).proxyAuthenticator(Authenticator.NONE).followRedirects(false).followSslRedirects(false).callTimeout(15,TimeUnit.SECONDS).connectTimeout(15,TimeUnit.SECONDS).readTimeout(15,TimeUnit.SECONDS).writeTimeout(15,TimeUnit.SECONDS).connectionPool(new ConnectionPool(0,1,TimeUnit.SECONDS)).build();}
   private void check(){if(Thread.currentThread()!=owner || closed)throw new IllegalStateException("HTTP requires its live owner thread");}
   private static JSONObject failure(long id,String code,String message){try{return new JSONObject().put("v",1).put("id",id).put("ok",false).put("error",new JSONObject().put("code",code).put("message",message));}catch(Exception impossible){throw new IllegalStateException(impossible);}}
   private static String key(long generation,long id){return generation+":"+id;}
@@ -94,9 +98,9 @@ final class VerifiedHttp implements AutoCloseable {
   }
   void drain(Sink sink){check();for(String key:new ArrayList<>(tasks.keySet())){Task task=tasks.get(key);byte[] reply=task.reply;if(reply!=null && sink.post(task.source,task.generation,reply)){tasks.remove(key);if(task.resource!=null && !task.resource.ready)resources.discard(task.resource);}}}
   void cancel(long generation,long id){check();Task task=tasks.remove(key(generation,id));if(task!=null){task.cancel();resources.discard(task.resource);}}
-  void retire(long generation){check();for(String key:new ArrayList<>(tasks.keySet())){Task task=tasks.get(key);if(task.generation==generation){tasks.remove(key);task.cancel();resources.discard(task.resource);}}resources.retire(generation);}
+  void retire(long generation){check();for(String key:new ArrayList<>(tasks.keySet())){Task task=tasks.get(key);if(task.generation==generation){tasks.remove(key);task.cancel();resources.discard(task.resource);}}if(ownsResources)resources.retire(generation);}
   Object resourceRead(String identity,long generation,Object args)throws Exception{return resources.read(identity,generation,args);}
   Object resourceRelease(String identity,long generation,Object args)throws Exception{return resources.release(identity,generation,args);}
   int pending(){check();return tasks.size();}
-  public void close(){if(closed)return;check();for(Task task:tasks.values())task.cancel();tasks.clear();resources.close();closed=true;workers.shutdownNow();client.connectionPool().evictAll();}
+  public void close(){if(closed)return;check();for(Task task:tasks.values()){task.cancel();resources.discard(task.resource);}tasks.clear();if(ownsResources)resources.close();closed=true;workers.shutdownNow();client.connectionPool().evictAll();}
 }

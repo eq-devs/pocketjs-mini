@@ -23,6 +23,8 @@ impl Instance {
             return Err("Inspector guest unavailable".into());
         }
         self.surface.with_ui(|ui| {
+            let (width, height) = ui.viewport();
+            let bounds = crate::inspection_geometry::screen_bounds(ui, width, height)?;
             let mut stack = vec![spec::ROOT_ID];
             let mut seen = HashSet::new();
             let mut result = String::from("{\"format\":1,\"nodes\":[");
@@ -56,6 +58,13 @@ impl Instance {
                         result.push_str(&format!("[{x},{y},{w},{h}]"))
                     }
                     Some(_) => return Err("Inspector non-finite layout".into()),
+                    None => result.push_str("null"),
+                }
+                result.push_str(",\"bounds\":");
+                match bounds.get(&id).copied().flatten() {
+                    Some([x, y, right, bottom]) => {
+                        result.push_str(&format!("[{x},{y},{},{}]", right - x, bottom - y))
+                    }
                     None => result.push_str("null"),
                 }
                 result.push('}');

@@ -1,7 +1,9 @@
 import { FrameRuntime, ServiceError, utf8Bytes, type Limits } from "./runtime.ts";
-import { Navigation } from "./navigation.ts";
+import { Navigation, checkedPageQuery } from "./navigation.ts";
 import {strictJsonEncode,strictJsonText} from './json.ts';
 import {checkedLocationOptions,checkedLocationPosition,type LocationOptions} from './location.ts';
+import {checkedNetworkState,type NetworkState} from './network.ts';
+import {checkedMediaOptions,checkedMediaImage,type MediaOptions} from './media.ts';
 import { checkedHttpRequest, checkedHttpResponse, checkedResourceRead, checkedResourceChunk, checkedResourceHandle, type ResourceRead, type HttpRequest } from "./http.ts";
 
 export interface NativeMailbox {
@@ -11,7 +13,7 @@ export interface NativeMailbox {
 }
 export type LifecycleEvent = "launch" | "show" | "hide" | "unload" | "memoryWarning";
 export interface LaunchOptions { source: string; path: string; query: Readonly<Record<string,string>>; }
-export interface FrameHost { frame?: (...args: any[]) => unknown; ui?: NativeMailbox; __miniLifecycle?: (event: LifecycleEvent, data?: unknown) => void; }
+export interface FrameHost { frame?: (...args: any[]) => unknown; ui?: NativeMailbox; __miniLifecycle?: (event: LifecycleEvent, data?: unknown) => void; __miniBack?: () => boolean; }
 export interface DeviceInfo {
   platform: "ios" | "android"; model: string; width: number; height: number; density: number;
   safeTop: number; safeBottom: number; safeLeft: number; safeRight: number;
@@ -75,6 +77,9 @@ export function connectMiniApp(options: { host?: FrameHost; pages?: readonly str
   } }, { maxMessageBytes: 4096, maxPending: 32, maxQueued: 32, ...options.limits }, () => sequence.next++);
   if (runtime.limits.maxMessageBytes > 4096 || runtime.limits.maxPending > 32 || runtime.limits.maxQueued > 32 || runtime.limits.maxTimers>256 || runtime.limits.maxListeners>256) throw new ServiceError("PROTOCOL", "SDK limits exceed the native mailbox contract");
   let closed = false;
+  const previousBack = host.__miniBack;
+  const back = () => !closed && navigation.back();
+  host.__miniBack = back;
   const lifecycleListeners = new Map<LifecycleEvent, Set<(data: LaunchOptions | undefined) => void>>();
   let launchOptions: LaunchOptions | undefined=state.launch;
   const previousLifecycle = host.__miniLifecycle;
@@ -91,6 +96,7 @@ export function connectMiniApp(options: { host?: FrameHost; pages?: readonly str
       if(utf8Bytes(JSON.stringify(snapshot))>4096)throw new ServiceError("PROTOCOL","Launch parameters exceed byte limit");
       // Validation happens before either launch metadata or the route changes.
       if(!state.pages.includes(path))throw new ServiceError("PROTOCOL","Undeclared launch page");
+      checkedPageQuery(path, query);
       launchOptions=snapshot;
       state.launch=snapshot;
       navigation.reset(path,{...snapshot.query});
@@ -123,7 +129,17 @@ export function connectMiniApp(options: { host?: FrameHost; pages?: readonly str
       release: (handle: string) => {const request=runtime.request<unknown>("resource.release.v1",{handle:checkedResourceHandle(handle)});return {promise:request.promise.then(value=>{if(value!==null)throw new ServiceError("PROTOCOL","Invalid resource release reply");return null;}),cancel:request.cancel};},
     },
     deviceInfo: () => {const request=runtime.request<unknown>("device.info.v1");return {promise:request.promise.then(checkedDeviceInfo),cancel:request.cancel};},
+    network: {
+      get: () => {const work=runtime.request<unknown>('device.network.v1');return {promise:work.promise.then(checkedNetworkState),cancel:work.cancel};},
+      watch: (listener:(state:Readonly<NetworkState>)=>void) => {
+        if(typeof listener!=='function')throw new ServiceError('PROTOCOL','Invalid network listener');
+        const unsubscribe=runtime.on('device.network.v1',value=>listener(checkedNetworkState(value)));
+        try{const work=runtime.request<unknown>('device.network.v1');let cancelled=false;return {promise:work.promise.then(checkedNetworkState).catch(error=>{unsubscribe();throw error;}),cancel:()=>{if(cancelled)return;cancelled=true;unsubscribe();work.cancel();}};}
+        catch(error){unsubscribe();throw error;}
+      },
+    },
     location: {get:(options:LocationOptions={})=>{const work=runtime.request<unknown>('location.get.v1',checkedLocationOptions(options));return {promise:work.promise.then(checkedLocationPosition),cancel:work.cancel};}},
+    media: {select:(options:MediaOptions={})=>{const args=checkedMediaOptions(options),work=runtime.request<unknown>('media.select.v1',args,7200);return {promise:work.promise.then(value=>checkedMediaImage(value,args)),cancel:work.cancel};}},
     clipboard: {
       read:()=>{const request=runtime.request<unknown>('clipboard.read.v1');return {promise:request.promise.then(value=>{if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).join(',')!=='text')throw new ServiceError('PROTOCOL','Invalid clipboard reply');return checkedClipboardText((value as {text:unknown}).text);}),cancel:request.cancel};},
       write:(text:string)=>{const request=runtime.request<unknown>('clipboard.write.v1',{text:checkedClipboardText(text)});return {promise:request.promise.then(value=>{if(value!==null)throw new ServiceError('PROTOCOL','Invalid clipboard write reply');return null;}),cancel:request.cancel};},
@@ -149,6 +165,7 @@ export function connectMiniApp(options: { host?: FrameHost; pages?: readonly str
       if (closed) return;
       closed = true;runtime.dispose();owners.delete(host);
       lifecycleListeners.clear();if(host.__miniLifecycle===lifecycle)host.__miniLifecycle=previousLifecycle;
+      if(host.__miniBack===back)host.__miniBack=previousBack;
       if(anchor.pump===pump)anchor.pump=undefined;
     },
   };

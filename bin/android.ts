@@ -113,7 +113,9 @@ export async function launchAndroid(options: { root: string; upstream: string; d
   await run(adb("reverse", `tcp:${port}`, `tcp:${port}`)); forwarded = true;
   await run(adb("install", "-r", apk));
   const launchOutput=await run(adb("shell", "am", "start", "-W", "-S", "-n", "dev.pjm.android/.MiniActivity", "--es", "pjm-url", options.url,
-    ...(process.env.PJM_ANDROID_TEST === "1" ? ["--ez", "pjm-test", "true"] : [])));requireAndroidLaunch(launchOutput); launched = true;
+    ...(process.env.PJM_ANDROID_TEST === "1" ? ["--ez", "pjm-test", "true"] : []),
+    ...(process.env.PJM_RECORD === "1" ? ["--ez", "pjm-record", "true"] : []),
+    ...(process.env.PJM_INSPECT === "1" ? ["--ez", "pjm-inspect", "true"] : [])));requireAndroidLaunch(launchOutput); launched = true;
   console.log(`Running PocketJS on ${options.device.name}. Save TSX to restart; Ctrl+C stops the session.`);
   const child = Bun.spawn(adb("logcat", "-v", "brief", "PocketJS:V", "AndroidRuntime:E", "*:S"), { stdout: "inherit", stderr: "inherit", detached: true });
   options.child(child); const status = await child.exited; options.child(undefined); options.stopped(status);

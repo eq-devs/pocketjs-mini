@@ -38,6 +38,20 @@ int32_t mp_frame_input(MpInstance*,const MpInput*);
 /* Logical coordinates; status is separate from the returned node ID. */
 int32_t mp_hit_test(MpInstance*,float x,float y,int32_t *output);
 int32_t mp_render(MpInstance*,MpFrame *out);
+/* Direct GPU handoff. Callback runs synchronously on the owner thread and must
+ * copy/upload all needed bytes before returning; no pointers may be retained.
+ * Callback must not reenter this handle or unwind across C. Zero accepts;
+ * nonzero rejects without stopping the guest. No guest turn is advanced.
+ * max_side is the driver's supported texture dimension, in [1,16384].
+ * Vertex colors are RGBA bytes (little-endian 0xAABBGGRR); clips are logical
+ * top-left rectangles. Texture UINT32_MAX means host-owned opaque white.
+ * Empty slices have count zero; never dereference their pointers. */
+typedef struct { float position[2],uv[2]; uint32_t color; } MpGpuVertex;
+typedef struct { uint32_t texture; int32_t first,count,x,y,width,height; } MpGpuCommand;
+typedef struct { uint32_t handle; uint64_t revision; uint32_t width,height,linear; const uint8_t *pixels; size_t length; } MpGpuTexture;
+typedef struct { uint32_t size; float width,height; const MpGpuVertex *vertices; size_t vertex_count; const MpGpuCommand *commands; size_t command_count; const MpGpuTexture *textures; size_t texture_count; } MpGpuSnapshot;
+typedef int32_t (*MpGpuCallback)(void *context,const MpGpuSnapshot*);
+int32_t mp_gpu_snapshot(MpInstance*,uint32_t max_side,MpGpuCallback,void *context);
 /* Optional direct GLES2 backend (Android). Other platforms return -1.
  * All calls use the instance owner thread. attach/render/release require the
  * attached context current. Epochs are nonzero, strictly increasing binding
@@ -83,6 +97,7 @@ int32_t mp_destroy(MpInstance*);
  * Same-pool reentry is rejected with the operation's failure sentinel without
  * updating last_error; last_error itself returns NULL during an active call. */
 typedef struct MpPool MpPool;
+int32_t mp_pool_gpu_snapshot(MpPool*,uint32_t max_side,MpGpuCallback,void *context);
 /* Synchronous after the final guest turn, before realm destruction. Up to 32
  * records per guest. Callback must not reenter the pool or retain borrowed
  * pointers. Store effects use this identity; no further guest frame is run. */
@@ -119,6 +134,10 @@ uint64_t mp_pool_generation(MpPool*,const uint8_t *id,size_t id_len);
 int32_t mp_pool_svc_post(MpPool*,const uint8_t *id,size_t id_len,uint64_t generation,const uint8_t *line,size_t length);
 int32_t mp_pool_background(MpPool*);
 int32_t mp_pool_resume(MpPool*);
+/* Owner-thread bounded SDK Back hook: 1 handled, 0 delegate to host, -1 error.
+ * Requires a foreground guest; never advances the guest frame counter. */
+int32_t mp_system_back(MpInstance*);
+int32_t mp_pool_system_back(MpPool*);
 int32_t mp_pool_memory_warning(MpPool*);
 const char *mp_pool_last_error(MpPool*);
 int32_t mp_pool_destroy(MpPool*);

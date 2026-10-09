@@ -123,8 +123,30 @@ test("reconnection retains launch context and page stack within one guest",()=>{
   assert.equal(other.launchOptions,undefined);assert.equal(other.navigation.current.path,"/");other.dispose();
 });
 
+test("host Back pops the retained guest page stack and SDK disposal restores the hook", () => {
+  const originalBack = () => false;
+  const host: FrameHost = { frame() {}, __miniBack: originalBack };
+  const app = connectMiniApp({ host, pages: ["/", "/detail", "/settings"] });
+  app.navigation.push("/detail", { id: "kept" });
+  app.navigation.push("/settings");
+  assert.equal(host.__miniBack!(), true);
+  assert.equal(app.navigation.current.path, "/detail");
+  assert.equal(app.navigation.current.query.id, "kept");
+  assert.equal(app.runtime.currentFrame, 0);
+  const oldHook = host.__miniBack!;
+  app.dispose();
+  assert.equal(host.__miniBack, originalBack);
+  assert.equal(oldHook(), false);
+  const next = connectMiniApp({ host });
+  assert.equal(next.navigation.current.path, "/detail");
+  assert.equal(host.__miniBack!(), true);
+  assert.equal(host.__miniBack!(), false);
+  assert.equal(next.navigation.current.path, "/");
+  next.dispose();
+});
+
 test("invalid first launch preserves entry and allows a later valid launch",()=>{
-  for(const data of [{query:{id:1}},{source:"qr",path:"/undeclared",query:{}},{source:"qr",path:"/",query:{a:"😀".repeat(1000),b:"😀".repeat(1000)}}]){
+  for(const data of [{query:{id:1}},{source:"qr",path:"/undeclared",query:{}},{query:{id:"\ud800"}},{source:"qr",path:"/",query:{a:"😀".repeat(1000),b:"😀".repeat(1000)}}]){
     const host:FrameHost={frame(){}};const app=connectMiniApp({host});
     assert.throws(()=>host.__miniLifecycle!("launch",data),{code:"PROTOCOL"});
     assert.equal(app.launchOptions,undefined);assert.equal(app.navigation.current.path,"/");

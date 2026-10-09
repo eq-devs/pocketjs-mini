@@ -8,6 +8,7 @@ test ! -e "$evidence"
 SDK=${ANDROID_SDK_ROOT:-$HOME/Library/Android/sdk}
 JAVA=${JAVA_HOME:-/Library/Java/JavaVirtualMachines/jdk-17.jdk/Contents/Home}
 adb="$SDK/platform-tools/adb";bundle=dev.pjm.benchmark.validation
+test "$("$adb" -s "$serial" get-state)" = device || { echo 'Selected device unavailable' >&2;exit 1; }
 if "$adb" -s "$serial" shell pm path "$bundle" | rg -q '^package:';then echo 'Benchmark bundle already installed; refusing replacement' >&2;exit 1;fi
 temporary=$(mktemp -d /private/tmp/pjm-benchmark-device.XXXXXX)
 remote=/data/local/tmp/$(basename "$temporary")
@@ -35,7 +36,9 @@ case "$pid" in ''|*[!0-9]*) echo 'Owned process missing or ambiguous' >&2;exit 1
 "$adb" -s "$serial" pull "$remote/screen.png" "$evidence/screen.png" >/dev/null
 test "$found" = 1
 read -r sx sy ex ey tx ty <<< "$(bun tests/benchmark-input-points.ts "$evidence/screen.xml")"
-for ((swipe=0;swipe<6;swipe++));do "$adb" -s "$serial" shell input swipe "$sx" "$sy" "$ex" "$ey" 1000;done
+swipes=${PJM_BENCHMARK_SWIPES:-6}
+case "$swipes" in 0|1|2|3|4|5|6) ;; *) echo 'Use 0 through 6 swipes' >&2;exit 1;; esac
+for ((swipe=0;swipe<swipes;swipe++));do "$adb" -s "$serial" shell input swipe "$sx" "$sy" "$ex" "$ey" 1000;done
 "$adb" -s "$serial" shell screencap -p "$remote/scroll.png"
 "$adb" -s "$serial" pull "$remote/scroll.png" "$evidence/scroll.png" >/dev/null
 "$adb" -s "$serial" shell input tap "$tx" "$ty"

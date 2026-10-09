@@ -6,3 +6,5 @@ export { connectMiniApp } from "./native.ts";
 export type { DeviceInfo, NativeMailbox, FrameHost, LifecycleEvent, LaunchOptions } from "./native.ts";
 export type { HttpRequest, HttpResponse, ResourceHandle, ResourceRead, ResourceChunk } from "./http.ts";
 export type {LocationOptions,LocationPosition} from './location.ts';
+export type {NetworkState} from './network.ts';
+export type {MediaOptions,MediaImage} from './media.ts';

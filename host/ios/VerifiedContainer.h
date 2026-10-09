@@ -9,6 +9,7 @@ NS_ASSUME_NONNULL_BEGIN
 /* Frame pixels borrow the active guest until the next frame, activation or
  * retirement. Effects are copied and retain their originating generation.
  * Storage effects are dispatched here; other effects are returned to the host. */
+- (BOOL)advanceGpuInput:(const MpInput *)input maxSide:(uint32_t)maxSide callback:(MpGpuCallback)callback context:(void *)context effects:(NSArray<NSData *> * _Nullable * _Nullable)effects error:(NSError **)error;
 - (BOOL)advanceInput:(const MpInput *)input frame:(MpFrame *)frame damage:(MpDamage *)damage effects:(NSArray<NSData *> * _Nullable * _Nullable)effects error:(NSError **)error;
 - (BOOL)background:(NSError **)error;
 - (BOOL)resume:(NSError **)error;
