@@ -9,3 +9,12 @@ test('location SDK bounds options and position replies while preserving frame de
  for(const data of [null,{...position,latitude:91},{...position,longitude:-181},{...position,accuracyMeters:-1},{...position,timestampMs:1.5},{...position,extra:true}]){const request=app.location.get(),failure=assert.rejects(request.promise,{code:'PROTOCOL'});reply=JSON.stringify({v:1,id:sent.at(-1).id,ok:true,data});host.frame!();await failure;}
  const pending=app.location.get(),cancelled=assert.rejects(pending.promise,{code:'CANCELLED'});pending.cancel();await cancelled;expect(sent.at(-1).kind).toBe('cancel.v1');app.dispose();
 });
+
+test('location fallback leaves the native timeout and completion delivery time, then cancels a silent host',async()=>{
+ const sent:any[]=[];let reply='';const host:FrameHost={frame(){},ui:{svcOpen:()=>true,svcSend:line=>sent.push(JSON.parse(line)),svcPoll:()=>{const line=reply;reply='';return line;}}};const app=connectMiniApp({host});
+ const request=app.location.get({timeoutMs:15000});let settled=false;request.promise.then(()=>{settled=true;});
+ for(let frame=0;frame<650;frame++)host.frame!();await Promise.resolve();expect(settled).toBe(false);expect(sent.filter(record=>record.kind==='cancel.v1')).toHaveLength(0);
+ reply=JSON.stringify({v:1,id:sent[0].id,ok:true,data:{latitude:43.25,longitude:76.95,accuracyMeters:20,timestampMs:1760000000000}});host.frame!();expect((await request.promise).latitude).toBe(43.25);
+ const silent=app.location.get({timeoutMs:15000}),failed=assert.rejects(silent.promise,{code:'TIMEOUT'});
+ for(let frame=0;frame<960;frame++)host.frame!();await failed;expect(sent.at(-1).kind).toBe('cancel.v1');app.dispose();
+});

@@ -98,7 +98,7 @@ export function writeNativeProject(directory: string, upstream: string, library:
 </dict></array></dict></dict>
 <key>UISupportedInterfaceOrientations</key><array><string>UIInterfaceOrientationPortrait</string><string>UIInterfaceOrientationLandscapeLeft</string><string>UIInterfaceOrientationLandscapeRight</string></array>
 <key>NSCameraUsageDescription</key><string>Capture an image for a signed mini app after you approve access.</string>
-<key>NSLocationWhenInUseUsageDescription</key><string>Allow a signed mini app to request your location after you approve access.</string>
+<key>NSLocationWhenInUseUsageDescription</key><string>Allow a mini app to request your location after you approve access.</string>
 ${installed ? "" : "<key>NSAppTransportSecurity</key><dict><key>NSAllowsLocalNetworking</key><true/></dict>\n<key>NSLocalNetworkUsageDescription</key><string>Connect to your Mac to run and reload your PocketJS project.</string>"}
 </dict></plist>`);
   writeFileSync(join(directory, "Mini.xcodeproj/xcshareddata/xcschemes/Mini.xcscheme"), `<?xml version="1.0" encoding="UTF-8"?>

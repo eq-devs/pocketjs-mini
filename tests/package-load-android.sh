@@ -12,6 +12,7 @@ ADB="$SDK/platform-tools/adb"
 cleanup(){ "$ADB" -s "$SERIAL" shell rm -rf "/data/local/tmp/$TOKEN" >/dev/null 2>&1 || true;rm -rf "$TEMP"; }
 trap cleanup EXIT
 PJM_PACKAGE_TARGET=android PJM_PACKAGE_LOCATION_TEST=1 PJM_PACKAGE_REAL= bun "$ROOT/tests/package-load-fixtures.ts" "$TEMP/cases.json"
+if [ -n "${PJM_PACKAGE_LOAD_EVIDENCE:-}" ]; then mkdir -p "$PJM_PACKAGE_LOAD_EVIDENCE";cp "$TEMP/cases.json" "$PJM_PACKAGE_LOAD_EVIDENCE/cases.json";fi
 export RUSTC=$(rustup which --toolchain stable rustc)
 export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="$NDK/aarch64-linux-android23-clang"
 export RUSTFLAGS="${RUSTFLAGS:-} -C link-arg=-Wl,-z,max-page-size=16384"

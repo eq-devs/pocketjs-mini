@@ -6,10 +6,32 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <assert.h>
+static NSMutableArray *MiniRuntimeAttackResults;
+static void RuntimeAttacks(MiniVerifiedPackage *healthy,NSDictionary *item,NSData *key,NSString *root){
+    for(NSDictionary *entry in item[@"runtimeAttacks"]){
+        NSError *error=nil;NSData *payload=[[NSData alloc] initWithBase64EncodedString:entry[@"payload"] options:0];NSData *envelope=[NSJSONSerialization dataWithJSONObject:entry[@"manifest"] options:0 error:&error];
+        MiniVerifiedPackage *attack=[[MiniVerifiedPackage alloc] initWithPayload:payload envelope:envelope trustedKey:key error:&error];assert(attack && !error);
+        MiniVerifiedContainer *pool=[[MiniVerifiedContainer alloc] initWithStorageRoot:root];NSData *launch=[@"{}" dataUsingEncoding:NSUTF8StringEncoding];assert(pool && [pool activatePackage:healthy launchData:launch error:&error]);uint64_t generation=pool.activeGeneration;
+        MpInput input={0};input.size=sizeof(input);MpFrame frame={0};MpDamage damage={0};damage.size=sizeof(damage);NSArray<NSData *> *effects=nil;
+        assert([pool advanceInput:&input frame:&frame damage:&damage effects:&effects error:&error]);assert([pool activatePackage:attack launchData:launch error:&error]);
+        double started=NSProcessInfo.processInfo.systemUptime;error=nil;damage.size=sizeof(damage);
+        assert(![pool advanceInput:&input frame:&frame damage:&damage effects:&effects error:&error] && error);
+        NSString *failure=error.localizedDescription;assert([failure.lowercaseString containsString:entry[@"expected"]]);double elapsed=NSProcessInfo.processInfo.systemUptime-started;assert(elapsed<5);
+        uint8_t discarded[128];assert(effects.count==0 && mp_pool_svc_take(pool.pool,discarded,sizeof(discarded))<0);
+        error=nil;damage.size=sizeof(damage);assert(![pool advanceInput:&input frame:&frame damage:&damage effects:&effects error:&error] && error);
+        error=nil;assert([pool activatePackage:healthy launchData:launch error:&error] && pool.activeGeneration==generation);damage.size=sizeof(damage);
+        assert([pool advanceInput:&input frame:&frame damage:&damage effects:&effects error:&error] && frame.width==64 && frame.height==64);
+        NSString *receipt=[[NSString alloc] initWithData:effects.firstObject encoding:NSUTF8StringEncoding];assert([receipt containsString:@"verified:1:2"] && ![receipt containsString:@"attack-must-not-dispatch"]);
+        assert([pool closeIdentity:attack.metadata[@"appId"] error:&error]);[pool shutdown];
+        if(!MiniRuntimeAttackResults)MiniRuntimeAttackResults=[NSMutableArray new];[MiniRuntimeAttackResults addObject:@{@"name":entry[@"name"],@"failure":failure,@"elapsedMs":@(elapsed*1000),@"healthyGenerationRetained":@YES}];
+        NSLog(@"RUNTIME_ATTACK %@ blocked healthy-retained elapsedMs=%.3f",entry[@"name"],elapsed*1000);
+    }
+}
 int main(int argc,char **argv){@autoreleasepool{
     assert(argc==2);NSError *error=nil;
     NSArray *cases=[NSJSONSerialization JSONObjectWithData:[NSData dataWithContentsOfFile:@(argv[1])] options:0 error:&error];assert(cases && !error);
     for(NSDictionary *item in cases){
+        NSLog(@"PJM_PACKAGE_CASE %@ expected=%@",item[@"name"]?:@"unnamed",item[@"valid"]);
         NSMutableData *payload=[[NSMutableData alloc] initWithBase64EncodedString:item[@"payload"] options:0];
         NSData *envelope=[NSJSONSerialization dataWithJSONObject:item[@"manifest"] options:0 error:&error];
         NSData *key=[[NSData alloc] initWithBase64EncodedString:item[@"key"] options:0];error=nil;
@@ -21,6 +43,7 @@ int main(int argc,char **argv){@autoreleasepool{
             assert(![rejected stagePayload:payload envelope:envelope error:&error] && error);
             assert([NSFileManager.defaultManager contentsOfDirectoryAtPath:rejectedRoot error:nil].count==0);continue;
         }
+        if(item[@"runtimeAttacks"])RuntimeAttacks(package,item,key,[@(argv[1]) stringByDeletingLastPathComponent]);
         if([package.metadata[@"appId"] isEqual:@"dev.pjm.fixture"]){
             assert([package authorizeURL:@"https://example.com/path" error:&error]);
             assert([package authorizeURL:@"https://EXAMPLE.com:443/path" error:&error]);

@@ -11,6 +11,15 @@ import okhttp3.*;
 
 /** Owner-thread admission/drain; workers never enter a guest or queue UI work. */
 final class VerifiedHttp implements AutoCloseable {
+  interface UrlAccess {String identity();void authorizeUrl(String address)throws Exception;}
+  interface DevelopmentSink {boolean post(String identity,long generation,byte[] reply);}
+  static UrlAccess developmentAccess(String identity,org.json.JSONArray declared)throws Exception {
+    if(identity==null || identity.length()>128 || !identity.matches("[A-Za-z0-9][A-Za-z0-9._-]*"))throw new IllegalArgumentException("Invalid development identity");
+    final Set<String> domains=new HashSet<>();
+    if(declared==null || declared.length()>128)throw new IllegalArgumentException("Invalid development domains");
+    for(int i=0;i<declared.length();i++){Object item=declared.opt(i);if(!(item instanceof String) || ((String)item).length()>253 || !((String)item).matches("[a-z0-9]+(?:[a-z0-9-]*[a-z0-9])?(?:\\.[a-z0-9]+(?:[a-z0-9-]*[a-z0-9])?)*") || !domains.add((String)item))throw new IllegalArgumentException("Invalid development domain");}
+    return new UrlAccess(){public String identity(){return identity;}public void authorizeUrl(String address)throws Exception {java.net.URI uri=new java.net.URI(address);String host=uri.getHost();if(!"https".equalsIgnoreCase(uri.getScheme()) || uri.getRawUserInfo()!=null || (uri.getPort()!=-1 && uri.getPort()!=443) || host==null || !domains.contains(host.toLowerCase(Locale.ROOT)))throw new SecurityException("Development URL denied");}};
+  }
   interface Sink {boolean post(VerifiedPackage source,long generation,byte[] reply);}
   private final Thread owner=Thread.currentThread();
   // Process-wide, so reopening or replacing a generation cannot reset a quota.
@@ -29,9 +38,9 @@ final class VerifiedHttp implements AutoCloseable {
   private final ThreadPoolExecutor workers=new ThreadPoolExecutor(0,8,20,TimeUnit.SECONDS,new SynchronousQueue<Runnable>(),work->{Thread thread=new Thread(work,"pjm-http");thread.setDaemon(true);return thread;});
   private final OkHttpClient client;private boolean closed;
   private static final class Task {
-    final VerifiedPackage source;final long generation,id;final Request request;final ManagedResources.Slot resource;
+    final VerifiedPackage source;final UrlAccess access;final String identity;final long generation,id;final Request request;final ManagedResources.Slot resource;
     volatile boolean cancelled;volatile byte[] reply;Call call;
-    Task(VerifiedPackage source,long generation,long id,Request request,ManagedResources.Slot resource){this.source=source;this.generation=generation;this.id=id;this.request=request;this.resource=resource;}
+    Task(VerifiedPackage source,UrlAccess access,long generation,long id,Request request,ManagedResources.Slot resource){this.source=source;this.access=access;this.identity=access.identity();this.generation=generation;this.id=id;this.request=request;this.resource=resource;}
     synchronized void cancel(){cancelled=true;if(call!=null)call.cancel();reply=null;}
   }
   VerifiedHttp(Context context){this(initialized(context),new ManagedResources(),true);}
@@ -45,7 +54,12 @@ final class VerifiedHttp implements AutoCloseable {
   private static JSONObject failure(long id,String code,String message){try{return new JSONObject().put("v",1).put("id",id).put("ok",false).put("error",new JSONObject().put("code",code).put("message",message));}catch(Exception impossible){throw new IllegalStateException(impossible);}}
   private static String key(long generation,long id){return generation+":"+id;}
   JSONObject start(VerifiedPackage source,long generation,long id,Object arguments){
-    check();if(source==null || generation<=0 || id<1 || id>9007199254740991L)return failure(id,"PROTOCOL","Invalid HTTP binding");
+    check();if(source==null)return failure(id,"PROTOCOL","Invalid HTTP binding");
+    return start(source,new UrlAccess(){public String identity(){return source.identity;}public void authorizeUrl(String address)throws Exception {source.policy.authorizeUrl(address);}},generation,id,arguments);
+  }
+  JSONObject startDevelopment(UrlAccess access,long generation,long id,Object arguments){return start(null,access,generation,id,arguments);}
+  private JSONObject start(VerifiedPackage source,UrlAccess access,long generation,long id,Object arguments){
+    check();if(access==null || access.identity()==null || generation<=0 || id<1 || id>9007199254740991L)return failure(id,"PROTOCOL","Invalid HTTP binding");
     Request request;boolean resourceMode;
     try{
       if(!(arguments instanceof JSONObject))throw new IllegalArgumentException();JSONObject args=(JSONObject)arguments;
@@ -54,7 +68,7 @@ final class VerifiedHttp implements AutoCloseable {
       Object address=args.opt("url"),method=args.has("method")?args.opt("method"):"GET",headers=args.has("headers")?args.opt("headers"):new JSONObject(),encoded=args.has("bodyBase64")?args.opt("bodyBase64"):"";
       if(!(address instanceof String) || ((String)address).isEmpty() || ((String)address).getBytes(StandardCharsets.UTF_8).length>2048 || !Arrays.asList("GET","HEAD","POST","PUT","PATCH","DELETE").contains(method) || !(headers instanceof JSONObject) || ((JSONObject)headers).length()>16 || !(encoded instanceof String) || ((String)encoded).length()>2048)throw new IllegalArgumentException();
       byte[] body=Base64.decode((String)encoded,Base64.NO_WRAP);if(body.length>1536 || !Base64.encodeToString(body,Base64.NO_WRAP).equals(encoded) || ((method.equals("GET") || method.equals("HEAD")) && body.length!=0))throw new IllegalArgumentException();
-      try{source.policy.authorizeUrl((String)address);}catch(Exception denied){return failure(id,"DENIED","HTTP URL denied by package policy");}
+      try{access.authorizeUrl((String)address);}catch(Exception denied){return failure(id,"DENIED","HTTP URL denied by package policy");}
       Request.Builder builder=new Request.Builder().url((String)address);Set<String> names=new HashSet<>();int bytes=0;JSONObject values=(JSONObject)headers;
       Iterator<String> iterator=values.keys();while(iterator.hasNext()){String name=iterator.next(),lower=name.toLowerCase(Locale.ROOT);Object field=values.opt(name);
         if(!name.matches("[A-Za-z0-9-]{1,64}") || !(field instanceof String) || ((String)field).getBytes(StandardCharsets.UTF_8).length>256 || !names.add(lower) || Arrays.asList("host","cookie","content-length","connection","transfer-encoding","proxy-authorization").contains(lower))throw new IllegalArgumentException();
@@ -66,9 +80,9 @@ final class VerifiedHttp implements AutoCloseable {
     }catch(Exception malformed){return failure(id,"PROTOCOL","Invalid HTTP arguments");}
     int count=0;for(Task task:tasks.values())if(task.generation==generation)count++;
     String key=key(generation,id);if(tasks.containsKey(key) || tasks.size()>=8 || count>=4)return failure(id,"BUSY","Too many HTTP requests");
-    if(!admitRate(source.identity,System.nanoTime()))return failure(id,"BUSY","Application HTTP rate limit exceeded");
-    ManagedResources.Slot slot=resourceMode?resources.reserve(source.identity,generation):null;if(resourceMode && slot==null)return failure(id,"BUSY","Resource capacity exceeded");
-    Task task=new Task(source,generation,id,request,slot);tasks.put(key,task);
+    if(!admitRate(access.identity(),System.nanoTime()))return failure(id,"BUSY","Application HTTP rate limit exceeded");
+    ManagedResources.Slot slot=resourceMode?resources.reserve(access.identity(),generation):null;if(resourceMode && slot==null)return failure(id,"BUSY","Resource capacity exceeded");
+    Task task=new Task(source,access,generation,id,request,slot);tasks.put(key,task);
     try{workers.execute(()->run(task));}catch(RejectedExecutionException busy){tasks.remove(key);if(slot!=null){slot.finish(-1);resources.discard(slot);}return failure(id,"BUSY","HTTP workers are busy");}return null;
   }
   private void run(Task task){
@@ -76,13 +90,13 @@ final class VerifiedHttp implements AutoCloseable {
     try{
       for(int redirects=0;;){
         if(task.cancelled)return;if(System.nanoTime()>=deadline)throw new InterruptedIOException();
-        try{task.source.policy.authorizeUrl(request.url().toString());}catch(Exception denied){result=failure(task.id,"DENIED","HTTP redirect denied");break;}
+        try{task.access.authorizeUrl(request.url().toString());}catch(Exception denied){result=failure(task.id,"DENIED","HTTP redirect denied");break;}
         Call call; synchronized(task){if(task.cancelled)return;call=client.newCall(request);call.timeout().deadlineNanoTime(deadline);task.call=call;}
         try(Response response=call.execute()){
           int status=response.code();String location=response.header("Location");
           if(Arrays.asList(301,302,303,307,308).contains(status) && location!=null){
             HttpUrl next=request.url().resolve(location);if(next==null || ++redirects>5){result=failure(task.id,"DENIED","HTTP redirect denied");break;}
-            try{task.source.policy.authorizeUrl(next.toString());}catch(Exception denied){result=failure(task.id,"DENIED","HTTP redirect denied");break;}
+            try{task.access.authorizeUrl(next.toString());}catch(Exception denied){result=failure(task.id,"DENIED","HTTP redirect denied");break;}
             Request.Builder builder=request.newBuilder().url(next).removeHeader("Authorization").removeHeader("Cookie");
             if(status==303 && !request.method().equals("HEAD") || ((status==301 || status==302) && request.method().equals("POST")))builder.method("GET",null).removeHeader("Content-Type");
             request=builder.build();continue;
@@ -96,7 +110,8 @@ final class VerifiedHttp implements AutoCloseable {
     }catch(Exception failed){result=failure(task.id,failed instanceof InterruptedIOException?"TIMEOUT":"FAILED","HTTP request failed");}finally{if(task.resource!=null)task.resource.finish(resourceLength);}
     if(!task.cancelled && result!=null){byte[] bytes=result.toString().replace("\\/","/").getBytes(StandardCharsets.UTF_8);task.reply=bytes.length<=4096?bytes:failure(task.id,"FAILED","HTTP reply exceeds limit").toString().getBytes(StandardCharsets.UTF_8);}
   }
-  void drain(Sink sink){check();for(String key:new ArrayList<>(tasks.keySet())){Task task=tasks.get(key);byte[] reply=task.reply;if(reply!=null && sink.post(task.source,task.generation,reply)){tasks.remove(key);if(task.resource!=null && !task.resource.ready)resources.discard(task.resource);}}}
+  void drain(Sink sink){check();for(String key:new ArrayList<>(tasks.keySet())){Task task=tasks.get(key);byte[] reply=task.reply;if(task.source!=null && reply!=null && sink.post(task.source,task.generation,reply)){tasks.remove(key);if(task.resource!=null && !task.resource.ready)resources.discard(task.resource);}}}
+  void drainDevelopment(DevelopmentSink sink){check();for(String key:new ArrayList<>(tasks.keySet())){Task task=tasks.get(key);byte[] reply=task.reply;if(task.source==null && reply!=null && sink.post(task.identity,task.generation,reply)){tasks.remove(key);if(task.resource!=null && !task.resource.ready)resources.discard(task.resource);}}}
   void cancel(long generation,long id){check();Task task=tasks.remove(key(generation,id));if(task!=null){task.cancel();resources.discard(task.resource);}}
   void retire(long generation){check();for(String key:new ArrayList<>(tasks.keySet())){Task task=tasks.get(key);if(task.generation==generation){tasks.remove(key);task.cancel();resources.discard(task.resource);}}if(ownsResources)resources.retire(generation);}
   Object resourceRead(String identity,long generation,Object args)throws Exception{return resources.read(identity,generation,args);}

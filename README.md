@@ -7,6 +7,14 @@ PocketJS upstream is pinned and never patched.
 
 The [v0.0.1 release audit](RELEASE-0.0.1.md) tracks current evidence and open
 release work. Additional DevTools work is deferred until after v0.0.1.
+Production resource-limit stress passes on both mobile platforms with controlled
+producers; live HTTP/media stress and physical-device acceptance remain open.
+Development clipboard writes pass actual SDK checks on both platforms, including
+cold reopen and hot reload. Both development hosts pass clipboard declaration
+checks, native consent and persisted readback.
+A 26-case signed-package admission matrix passes on both native platforms;
+signed heap/loop attacks also pass native isolation checks, preserving a healthy
+retained guest. Physical memory acceptance remains open.
 
 The [navigation example](examples/navigation/README.md) demonstrates two TSX
 pages sharing one counter, route queries, page buttons and Android system Back.
@@ -190,7 +198,7 @@ acceptance also switches app identities and verifies a guest-supplied identity
 cannot select another data directory. iOS currently verifies persistence,
 quotas, removal and failed-boot effects; its native identity isolation acceptance
 still needs expansion.
-The installed hosts also provide `mini.network.get().promise` and
+The installed and development hosts also provide `mini.network.get().promise` and
 `mini.network.watch(listener)`. A watch returns its current snapshot through
 `promise`; subsequent native changes reach the listener at frame boundaries.
 Its `cancel()` removes the local listener and cancels a pending initial read.
@@ -204,10 +212,21 @@ Each host owns one platform monitor and keeps only its latest snapshot.
 Monitoring stops while hidden and restarts on resume. Updates for an inactive
 iOS retained guest wait until that guest becomes active; retirement removes its
 watch registration. A full completion mailbox retries the latest state rather
-than retaining an unbounded change history. Development-host parity and
-physical connectivity transition acceptance remain pending. Native sources use
+than retaining an unbounded change history. Development guests reset their
+watch registration on hot reload. Both development hosts pass native snapshot,
+protocol rejection, background/resume, cold reopen and hot-reload checks; Android
+also passes real offline/restored events on an owned emulator. Physical
+connectivity transitions and iOS connectivity-change acceptance remain pending. Native sources use
 Apple's [path monitor](https://developer.apple.com/documentation/network/nwpathmonitor/)
 and Android's [default network callback](https://developer.android.com/reference/android/net/ConnectivityManager).
+Android API 23 returns `unknown` because the default-path callback is available
+from API 24; older device compatibility remains unverified.
+
+Repeat the Android development check with
+`bun tests/network-development-android.ts`; it owns a temporary read-only
+`Pixel_2` emulator and restores its connectivity before stopping it. For iOS,
+run `PJM_DEVELOPMENT_NETWORK=1 bun tests/navigation-native-ios.ts <booted-simulator-UUID>`.
+The test installs/removes its own app and leaves the existing simulator running.
 
 The SDK exposes a checked
 `mini.media.select({source: "library" | "camera", maxDimension: 1024, quality: 80})`
@@ -223,12 +242,27 @@ decode worker are admitted at a time; cancellation, retirement and a two-minute
 deadline stop the operation. Android preserves its own external chooser while
 hidden and delivers its result on resume. iOS preserves its own picker presentation;
 app backgrounding ends the pending operation with `BUSY`. Emulator checks cover native decoding,
-resource isolation, consent, denial and chooser cancellation; positive system
-image import and camera capture acceptance remain pending. iOS simulator checks
-also cover real consent/chooser cancellation, plus an owned synthetic file through
-NSItemProvider, normalization, SDK JPEG reads and resource release. That controlled
-provider test substitutes the picker result; it does not establish positive
-system-library selection or physical camera acceptance.
+resource isolation, consent, denial and chooser cancellation. The iOS signed host
+also passes actual Photos-library selection of an owned 64×32 image, JPEG handle
+reads/release and cold reopening. Separate controlled-provider checks cover input
+bounds, late-callback cancellation, slot quotas and guest-generation retirement.
+The signed Android host also passes actual DocumentsUI selection of an owned
+64×32 PNG, JPEG reads/release and selection after cold reopening. Physical
+camera acceptance remains pending.
+
+With Bun, the pinned upstream and native libraries built, run
+`bun tests/media-library-ios.ts` on macOS with iOS 26.4 and the iPhone 17 Pro
+simulator type installed. It creates its own device, imports an owned PNG, runs
+the actual signed host/picker test, and removes that device and library even when
+the test fails. Existing simulators are left in place. `PJM_MEDIA_LIBRARY_EVIDENCE`
+selects the output directory; `PJM_MEDIA_LIBRARY_RUNTIME` overrides the runtime.
+
+`bun tests/media-library-android.ts` uses the installed `Pixel_2` AVD on a
+temporary read-only emulator at port 5580. A test-only activity provisions and
+verifies its owned PNG through MediaStore; the real installed host then selects
+it through DocumentsUI. Cleanup deletes that exact MediaStore item, uninstalls
+the temporary app and stops the owned emulator. Existing devices are left in
+place. The runner rejects an occupied port and retains native failure diagnostics.
 
 The installed iOS and Android hosts additionally implement `request.v1`, exposed as
 `mini.http({url: "https://example.com/"}).promise`. The SDK exports `HttpRequest`
@@ -674,3 +708,44 @@ Android `LocationApproval` supplies native app consent and coarse/fine OS permis
 `bun tests/android-location-apk.ts` builds a relocated installed export with the pinned offline Google/AndroidX runtime, resources and generated resource classes. It verifies Java compilation, dex generation and unsigned APK packaging using a deliberately non-executable engine fixture; it does not run a native engine, install an app or test location. The runtime includes compatible shared Kotlin/annotation versions and checks every extracted dependency file before export. Distribution still needs review of the original dependency metadata and licenses retained under `vendor/android-location/metadata`.
 
 `tests/package-load-android.sh <serial>` runs signed package, retained-engine and location-wrapper checks in Android's framework runner. Current checks pass on a physical Pixel 8 Pro (API 36), including a separately authenticated location fixture with a controlled provider. The wrapper checks protocol rejection, cancellation/retirement, consent persistence guards, original reply ownership/backpressure, authorization revocation, suspend and close. They do not access the sensor, show OS/native consent dialogs or test timer expiry; those platform checks remain pending.
+
+
+Development hosts dispatch the same `mini.location.get` SDK contract. Android
+passes actual native app/OS approval and fused-provider coordinates after a
+fresh request following permission approval, including cold/hot reopening;
+its first permission-stage request timed out. iOS shares the bounded Core
+Location service and passes native consent/declaration denial and actual app/OS
+approval with SDK coordinates through initial/cold/hot execution. Authorized
+callbacks received while inactive wait for activation within the original deadline. Development consent is separate from signed-package
+consent. These are emulator/simulator checks, not physical GPS acceptance.
+Run `bun tests/location-development-ios.ts <booted simulator UUID>` for the
+iOS declaration, denial and approval checks (`PJM_LOCATION_CASES=allow` selects
+only approval); current evidence is linked in the v0.0.1 release audit.
+
+
+The iOS development host now dispatches `mini.media.select` through the same
+native picker and bounded JPEG worker as the signed host, with separate
+persisted development consent. Media and HTTP share resource limits (four per
+guest generation, sixteen per process). Native controlled JPEG/resource,
+cancellation and retirement checks pass; real SDK declaration/native-consent
+denial passes cold reopen and hot reload. Actual development library selection also passes SDK JPEG header read/release,
+cold reopening and live reload in one UIKit test. Actual development chooser
+cancellation also passes all three stages in one UIKit test. Physical camera
+acceptance remains open. Run
+`PJM_MEDIA_DEVELOPMENT=1 PJM_MEDIA_DEVELOPMENT_CASE=cancel bun tests/media-library-ios.ts`
+for the owned-simulator cancellation case. The Android development host also
+shares its bounded native picker/JPEG worker and HTTP resource registry, with
+separate persisted development consent. Actual SDK declaration/native denial
+and system image selection pass initial launch, cold reopen and live reload,
+including JPEG header reads, release and rejected reads after release.
+Run `PJM_MEDIA_DEVELOPMENT=1 bun tests/media-library-android.ts` on its owned
+emulator for the real Android library checks. Android development chooser
+cancellation also passes at initial/cold/live stages; run
+`PJM_MEDIA_CASES=cancel bun tests/media-development-android.ts` for that case.
+Run `bun tests/media-development-ios.ts <booted simulator UUID>` for the current
+iOS declaration and native-denial checks. The release audit links their evidence.
+
+Run `PJM_MEDIA_DEVELOPMENT=1 bun tests/media-library-ios.ts` for real iOS
+development image-selection acceptance. It creates and deletes its own simulator,
+adds an owned 64x32 fixture, and checks SDK JPEG resources across cold reopen
+and live guest reload while preserving existing simulators and their libraries.

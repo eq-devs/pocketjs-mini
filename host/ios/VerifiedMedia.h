@@ -9,6 +9,12 @@ NS_ASSUME_NONNULL_BEGIN
  reserve:(id _Nullable (^)(NSString *,uint64_t))reserve
  complete:(NSDictionary * _Nullable (^)(id,MiniMediaImage *))complete
  discard:(void (^)(id))discard;
+- (nullable instancetype)initDevelopmentWithIdentity:(NSString *)identity declared:(BOOL)declared presenter:(UIViewController *)presenter
+ reserve:(id _Nullable (^)(NSString *,uint64_t))reserve
+ complete:(NSDictionary * _Nullable (^)(id,MiniMediaImage *))complete
+ discard:(void (^)(id))discard;
+- (nullable NSDictionary *)startDevelopment:(id)arguments identifier:(NSNumber *)identifier generation:(uint64_t)generation;
+- (void)drainDevelopment:(BOOL (^)(NSString *,uint64_t,NSString *))receiver;
 - (nullable NSDictionary *)start:(id)arguments identifier:(NSNumber *)identifier package:(MiniVerifiedPackage *)package generation:(uint64_t)generation;
 - (void)drain:(BOOL (^)(MiniVerifiedPackage *,uint64_t,NSString *))receiver;
 - (void)cancelGeneration:(uint64_t)generation identifier:(NSNumber *)identifier;

@@ -1,5 +1,7 @@
+import {copyAndroidMedia} from './android-media.ts';
+import {copyAndroidLocation} from './android-location.ts';
 import {requireAndroidLaunch} from "./android-launch.ts";
-import {androidHttpFiles} from "./android-http.ts";
+import {copyAndroidHttp} from "./android-http.ts";
 import { existsSync, mkdirSync, readFileSync, writeFileSync, cpSync, rmSync, lstatSync, readdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { homedir, tmpdir } from "node:os";
@@ -93,13 +95,21 @@ export async function launchAndroid(options: { root: string; upstream: string; d
   await compile(join(options.root,"host/android/store_bridge.c"),"mini_store",["-Wall","-Wextra","-Werror"]);
   await run([clang, "-shared", "-Wl,--gc-sections", "-Wl,--exclude-libs,ALL", "-Wl,--no-undefined", "-Wl,-z,max-page-size=16384", ...compiled,
     join(rustBuild, "aarch64-linux-android/release/libmini_core_ffi.a"), "-o", join(staging, "lib/arm64-v8a/libpocketjs.so"), "-lEGL", "-lGLESv2", "-llog", "-ldl", "-lm"]);
-  await run([join(java, "bin/javac"), "-encoding", "UTF-8", "-source", "8", "-target", "8", "-classpath", [androidJar,...Array.from(androidHttpFiles().files.keys()).filter(name=>name.endsWith(".jar")).map(name=>join(options.root,"vendor/android-http",name))].join(":"), "-d", classes, join(options.root, "host/android/MiniActivity.java"), join(options.root, "host/android/AppStorage.java"), join(options.root, "host/android/PackageVerifier.java"), join(options.root,"host/android/VerifiedPackage.java"),join(options.root,"host/android/VerifiedContainer.java"),join(options.root,"host/android/VerifiedPresenter.java"),join(options.root,"host/android/PackageStore.java"),join(options.root,"host/android/PackageFiles.java"),join(options.root,"host/android/BoundedJson.java"),join(options.root,"host/android/VerifiedHttp.java"),join(options.root,"host/android/ManagedResources.java")]);
+  const runtime=join(build,"runtime"),generated=join(build,"generated"),resourceBuild=join(build,"resources");
+  copyAndroidHttp(runtime);copyAndroidLocation(runtime);copyAndroidMedia(runtime);mkdirSync(generated,{recursive:true});mkdirSync(resourceBuild,{recursive:true});
+  const resourceArgs:string[]=[];
+  for(const name of readdirSync(join(runtime,"resources"))){const directory=join(runtime,"resources",name,"res");if(!existsSync(directory))continue;const archive=join(resourceBuild,name+".zip");await run([join(tools,"aapt2"),"compile","--dir",directory,"-o",archive]);resourceArgs.push("-R",archive);}
+  const mediaRes=join(resourceBuild,"media","res","xml");mkdirSync(mediaRes,{recursive:true});writeFileSync(join(mediaRes,"pjm_media_paths.xml"),'<paths xmlns:android="http://schemas.android.com/apk/res/android"><cache-path name="capture" path="pjm-media-camera/"/></paths>');
+  const mediaArchive=join(resourceBuild,"media.zip");await run([join(tools,"aapt2"),"compile","--dir",join(resourceBuild,"media","res"),"-o",mediaArchive]);resourceArgs.push("-R",mediaArchive);
+  const unsigned=join(build,"unsigned.apk"),aligned=join(build,"aligned.apk"),apk=join(build,"Mini.apk");
+  await run([join(tools,"aapt2"),"link","-o",unsigned,"--manifest",join(options.root,"host/android/AndroidManifest.xml"),"-I",androidJar,"-A",join(runtime,"assets"),"--auto-add-overlay","--java",generated,"--extra-packages",readFileSync(join(runtime,"packages.txt"),"utf8").trim(),...resourceArgs]);
+  const generatedSources:string[]=[];function collect(directory:string){for(const entry of readdirSync(directory,{withFileTypes:true})){const path=join(directory,entry.name);if(entry.isDirectory())collect(path);else if(entry.name.endsWith(".java"))generatedSources.push(path);}}collect(generated);
+  const runtimeJars=readdirSync(join(runtime,"deps")).filter(name=>name.endsWith(".jar")).map(name=>join(runtime,"deps",name));
+  await run([join(java, "bin/javac"), "-encoding", "UTF-8", "-source", "8", "-target", "8", "-classpath", [androidJar,...runtimeJars].join(":"), "-d", classes, join(options.root, "host/android/MiniActivity.java"), join(options.root, "host/android/AppStorage.java"), join(options.root, "host/android/PackageVerifier.java"), join(options.root,"host/android/VerifiedPackage.java"),join(options.root,"host/android/VerifiedContainer.java"),join(options.root,"host/android/VerifiedPresenter.java"),join(options.root,"host/android/PackageStore.java"),join(options.root,"host/android/PackageFiles.java"),join(options.root,"host/android/BoundedJson.java"),join(options.root,"host/android/VerifiedHttp.java"),join(options.root,"host/android/ManagedResources.java"),join(options.root,"host/android/VerifiedNetwork.java"),join(options.root,"host/android/VerifiedClipboard.java"),join(options.root,"host/android/PermissionGate.java"),...generatedSources,...["VerifiedMedia","MediaPicker","MediaImage","MediaInput","MediaContract","VerifiedLocation","LocationApproval","FusedLocationProvider","LocationContract","LocationMailbox","LocationRate","LocationStops"].map(name=>join(options.root,"host/android",name+".java"))]);
   await run([join(java, "bin/jar"), "cf", join(build, "classes.jar"), "-C", classes, "."]);
-  await run([join(tools, "d8"), "--min-api", "23", "--lib", androidJar, "--output", dex, join(build, "classes.jar"),...Array.from(androidHttpFiles().files.keys()).filter(name=>name.endsWith(".jar")).map(name=>join(options.root,"vendor/android-http",name))]);
+  await run([join(tools, "d8"), "--min-api", "23", "--lib", androidJar, "--output", dex, join(build, "classes.jar"),...runtimeJars]);
   for(const name of readdirSync(dex))if(/^classes[0-9]*\.dex$/.test(name))cpSync(join(dex,name),join(staging,name));
   mkdirSync(join(staging,"assets"),{recursive:true});cpSync(join(options.root,"vendor/android-http/PublicSuffixDatabase.list"),join(staging,"assets/PublicSuffixDatabase.list"));
-  const unsigned = join(build, "unsigned.apk"), aligned = join(build, "aligned.apk"), apk = join(build, "Mini.apk");
-  await run([join(tools, "aapt2"), "link", "-o", unsigned, "--manifest", join(options.root, "host/android/AndroidManifest.xml"), "-I", androidJar]);
   await run(["zip", "-q", "-r", unsigned, ...readdirSync(dex).filter(name=>/^classes[0-9]*\.dex$/.test(name)), "lib", "assets"], staging);
   await run([join(tools, "zipalign"), "-f", "-P", "16", "4", unsigned, aligned]);
   // One SDK-owned key keeps the shared development container installable

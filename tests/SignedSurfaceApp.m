@@ -3,6 +3,7 @@
 #import "PocketSurfaceView.h"
 #import "InstalledController.h"
 #import "VerifiedLocation.h"
+#import "VerifiedMedia.h"
 #import <CoreLocation/CoreLocation.h>
 #include <assert.h>
 @interface MiniVerifiedLocation (LocationTestHooks)
@@ -19,7 +20,7 @@
 @implementation SurfaceLocationManager
 - (CLAuthorizationStatus)authorizationStatus {return _testStatus;}
 - (CLLocation *)location {return _testLocation;}
-- (void)requestWhenInUseAuthorization {}
+- (void)requestWhenInUseAuthorization {_capturedDelegate=self.delegate;}
 - (void)requestLocation {_requests++;_capturedDelegate=self.delegate;if(!_waitForCompletion&&_testLocation){CLLocation *fix=[[CLLocation alloc] initWithCoordinate:_testLocation.coordinate altitude:_testLocation.altitude horizontalAccuracy:_testLocation.horizontalAccuracy verticalAccuracy:_testLocation.verticalAccuracy timestamp:[NSDate date]];[self.delegate locationManager:self didUpdateLocations:@[fix]];}}
 - (void)stopUpdatingLocation {}
 @end
@@ -35,6 +36,22 @@
 @end
 @implementation SurfaceRealLocationService
 - (BOOL)foreground {return YES;}
+@end
+@interface MiniDevelopmentHTTP (MediaResourceTests)
+- (id)reserveDevelopmentResource:(NSString *)identity generation:(uint64_t)generation;
+- (NSDictionary *)completeDevelopmentMedia:(id)slot image:(MiniMediaImage *)image;
+- (void)discardDevelopmentMedia:(id)slot;
+@end
+@interface MiniVerifiedMedia (MediaTestHooks)
+- (void)launch:(id)work;
+- (void)finish:(id)work image:(MiniMediaImage *)image code:(NSString *)code;
+@end
+@interface SurfaceDevelopmentMedia : MiniVerifiedMedia
+@property id heldWork;
+@end
+@implementation SurfaceDevelopmentMedia
+- (BOOL)foreground {return YES;}
+- (void)launch:(id)work {_heldWork=work;}
 @end
 @interface MiniInstalledController (ServiceTest)
 - (void)dispatchService:(NSString *)line package:(MiniVerifiedPackage *)package generation:(uint64_t)generation;
@@ -94,10 +111,68 @@
 - (NSDictionary *)drainLocation:(MiniVerifiedLocation *)service package:(MiniVerifiedPackage *)package generation:(uint64_t)generation {
     __block NSDictionary *result=nil;[service drain:^BOOL(MiniVerifiedPackage *bound,uint64_t boundGeneration,NSString *reply){assert(bound==package&&boundGeneration==generation);result=[NSJSONSerialization JSONObjectWithData:[reply dataUsingEncoding:NSUTF8StringEncoding] options:0 error:nil];return YES;}];return result;
 }
+- (NSDictionary *)drainDevelopmentLocation:(MiniVerifiedLocation *)service identity:(NSString *)identity generation:(uint64_t)generation {
+    __block NSDictionary *result=nil;[service drainDevelopment:^BOOL(NSString *bound,uint64_t owner,NSString *reply){assert([bound isEqual:identity]&&owner==generation);result=[NSJSONSerialization JSONObjectWithData:[reply dataUsingEncoding:NSUTF8StringEncoding] options:0 error:nil];return YES;}];return result;
+}
+- (NSDictionary *)drainDevelopmentMedia:(MiniVerifiedMedia *)service identity:(NSString *)identity generation:(uint64_t)generation {
+    __block NSDictionary *result=nil;[service drainDevelopment:^BOOL(NSString *bound,uint64_t owner,NSString *reply){assert([bound isEqual:identity]&&owner==generation);result=[NSJSONSerialization JSONObjectWithData:[reply dataUsingEncoding:NSUTF8StringEncoding] options:0 error:nil];return YES;}];return result;
+}
+- (void)verifyDevelopmentMedia {
+    NSString *identity=@"dev.pjm.media.controlled";uint64_t generation=501;NSDictionary *args=@{@"source":@"library",@"maxDimension":@64,@"quality":@75};
+    id previous=[NSUserDefaults.standardUserDefaults objectForKey:@"pjm-development-media-consent"];
+    MiniDevelopmentHTTP *resources=[[MiniDevelopmentHTTP alloc] initWithIdentity:identity domains:@[] generation:generation];assert(resources);
+    MiniVerifiedMedia *undeclared=[resources mediaWithPresenter:self.controller declared:NO];assert([[undeclared startDevelopment:args identifier:@1 generation:generation][@"error"][@"code"] isEqual:@"DENIED"]);assert([[resources valueForKey:@"resources"] count]==0);[undeclared close];
+    [NSUserDefaults.standardUserDefaults setObject:@{identity:@NO} forKey:@"pjm-development-media-consent"];
+    MiniVerifiedMedia *deny=[[SurfaceDevelopmentMedia alloc] initDevelopmentWithIdentity:identity declared:YES presenter:self.controller reserve:^id(NSString *bound,uint64_t gen){return [resources reserveDevelopmentResource:bound generation:gen];} complete:^NSDictionary *(id slot,MiniMediaImage *image){return [resources completeDevelopmentMedia:slot image:image];} discard:^(id slot){[resources discardDevelopmentMedia:slot];}];assert(![deny startDevelopment:args identifier:@2 generation:generation]);assert([[self drainDevelopmentMedia:deny identity:identity generation:generation][@"error"][@"code"] isEqual:@"DENIED"]);assert([[resources valueForKey:@"resources"] count]==0);[deny close];
+    [NSUserDefaults.standardUserDefaults setObject:@{identity:@YES} forKey:@"pjm-development-media-consent"];
+    SurfaceDevelopmentMedia *service=[[SurfaceDevelopmentMedia alloc] initDevelopmentWithIdentity:identity declared:YES presenter:self.controller reserve:^id(NSString *bound,uint64_t gen){return [resources reserveDevelopmentResource:bound generation:gen];} complete:^NSDictionary *(id slot,MiniMediaImage *image){return [resources completeDevelopmentMedia:slot image:image];} discard:^(id slot){[resources discardDevelopmentMedia:slot];}];assert(service);
+    assert(([[service startDevelopment:@{@"source":@"library",@"maxDimension":@0,@"quality":@75} identifier:@3 generation:generation][@"error"][@"code"] isEqual:@"PROTOCOL"]));
+    NSMutableArray *held=[NSMutableArray new];for(NSUInteger index=0;index<3;index++){id slot=[resources reserveDevelopmentResource:identity generation:generation];assert(slot);[held addObject:slot];}
+    assert(![service startDevelopment:args identifier:@4 generation:generation]);assert(service.heldWork);assert(![resources reserveDevelopmentResource:identity generation:generation]);
+    UIGraphicsImageRendererFormat *format=[UIGraphicsImageRendererFormat defaultFormat];format.scale=1;format.opaque=YES;UIGraphicsImageRenderer *renderer=[[UIGraphicsImageRenderer alloc] initWithSize:CGSizeMake(64,32) format:format];UIImage *image=[renderer imageWithActions:^(UIGraphicsImageRendererContext *context){(void)context;[UIColor.redColor setFill];UIRectFill(CGRectMake(0,0,64,32));}];MiniMediaImage *decoded=[MiniMediaImage decode:UIImagePNGRepresentation(image) maxDimension:64 quality:75 error:nil];assert(decoded&&decoded.width==64&&decoded.height==32);
+    [service finish:service.heldWork image:decoded code:nil];__block BOOL signedSink=NO;[service drain:^BOOL(MiniVerifiedPackage *package,uint64_t gen,NSString *reply){(void)package;(void)gen;(void)reply;signedSink=YES;return YES;}];assert(!signedSink);
+    NSDictionary *reply=[self drainDevelopmentMedia:service identity:identity generation:generation];assert([reply[@"ok"] boolValue]&&[reply[@"id"] isEqual:@4]);NSString *handle=reply[@"data"][@"resource"][@"handle"];assert(handle);
+    NSDictionary *read=[resources resource:@"resource.read.v1" arguments:@{@"handle":handle,@"offset":@0,@"count":@1536}];assert([read[@"ok"] boolValue]);NSData *chunk=[[NSData alloc] initWithBase64EncodedString:read[@"data"][@"bodyBase64"] options:0];assert(chunk.length>2&&((const uint8_t *)chunk.bytes)[0]==255&&((const uint8_t *)chunk.bytes)[1]==216);
+    assert([[resources resource:@"resource.release.v1" arguments:@{@"handle":handle}][@"ok"] boolValue]);assert(([[resources resource:@"resource.read.v1" arguments:@{@"handle":handle,@"offset":@0,@"count":@1}][@"error"][@"code"] isEqual:@"DENIED"]));service.heldWork=nil;
+    for(id slot in held)[resources discardDevelopmentMedia:slot];[held removeAllObjects];
+    assert(![service startDevelopment:args identifier:@5 generation:generation]);id stale=service.heldWork;[service cancelGeneration:generation identifier:@5];assert([[resources valueForKey:@"resources"] count]==0);[service finish:stale image:decoded code:nil];assert(![self drainDevelopmentMedia:service identity:identity generation:generation]);service.heldWork=nil;stale=nil;
+    assert(![service startDevelopment:args identifier:@6 generation:generation]);stale=service.heldWork;[service retireGeneration:generation];[service finish:stale image:decoded code:nil];assert(![self drainDevelopmentMedia:service identity:identity generation:generation]);service.heldWork=nil;stale=nil;[service close];
+    id old=[resources reserveDevelopmentResource:identity generation:generation];assert(old);[resources close];assert(![resources completeDevelopmentMedia:old image:decoded]);old=nil;
+    NSMutableArray *owners=[NSMutableArray new],*tokens=[NSMutableArray new];for(NSUInteger index=0;index<4;index++){NSString *name=[NSString stringWithFormat:@"dev.pjm.media.cap.%lu",(unsigned long)index];MiniDevelopmentHTTP *owner=[[MiniDevelopmentHTTP alloc] initWithIdentity:name domains:@[] generation:1];[owners addObject:owner];for(NSUInteger item=0;item<4;item++){id token=[owner reserveDevelopmentResource:name generation:1];assert(token);[tokens addObject:token];}}
+    MiniDevelopmentHTTP *extra=[[MiniDevelopmentHTTP alloc] initWithIdentity:@"dev.pjm.media.extra" domains:@[] generation:1];assert(![extra reserveDevelopmentResource:@"dev.pjm.media.extra" generation:1]);for(MiniDevelopmentHTTP *owner in owners)[owner close];assert(![extra reserveDevelopmentResource:@"dev.pjm.media.extra" generation:1]);[tokens removeAllObjects];assert([extra reserveDevelopmentResource:@"dev.pjm.media.extra" generation:1]);[extra close];
+    if(previous)[NSUserDefaults.standardUserDefaults setObject:previous forKey:@"pjm-development-media-consent"];else [NSUserDefaults.standardUserDefaults removeObjectForKey:@"pjm-development-media-consent"];
+    NSLog(@"PJM_DEVELOPMENT_MEDIA_CONTROLLED_PASS declaration consent JPEG resource-read-release shared-generation=4 process=16 late-producer ownership cancel retirement sinks");
+}
+- (void)verifyDevelopmentLocation:(MiniVerifiedPackage *)package {
+    NSString *identity=@"dev.pjm.location.controlled";NSDictionary *args=@{@"timeoutMs":@15000,@"maximumAgeMs":@0,@"highAccuracy":@YES};
+    assert(![[MiniVerifiedLocation alloc] initDevelopmentWithIdentity:@"" declared:YES presenter:self.controller]);
+    SurfaceLocationService *undeclared=[[SurfaceLocationService alloc] initDevelopmentWithIdentity:identity declared:NO presenter:self.controller];undeclared.visible=YES;
+    assert([[[undeclared startDevelopment:args identifier:@1 generation:1] objectForKey:@"error"][@"code"] isEqual:@"DENIED"]);assert(!undeclared.nextManager);[undeclared close];
+    // Controlled policy/provider coverage; this does not prove native consent UI.
+    id previousConsent=[NSUserDefaults.standardUserDefaults objectForKey:@"pjm-development-location-consent"];
+    [NSUserDefaults.standardUserDefaults setObject:@{identity:@NO} forKey:@"pjm-development-location-consent"];
+    SurfaceLocationService *service=[[SurfaceLocationService alloc] initDevelopmentWithIdentity:identity declared:YES presenter:self.controller];service.visible=YES;
+    assert(![service startDevelopment:args identifier:@2 generation:2]);assert([[self drainDevelopmentLocation:service identity:identity generation:2][@"error"][@"code"] isEqual:@"DENIED"]);
+    assert([[service start:args identifier:@3 package:package generation:2][@"error"][@"code"] isEqual:@"DENIED"]);
+    [NSUserDefaults.standardUserDefaults setObject:@{identity:@YES} forKey:@"pjm-development-location-consent"];
+    SurfaceLocationManager *fresh=[SurfaceLocationManager new];fresh.testStatus=kCLAuthorizationStatusAuthorizedWhenInUse;fresh.testLocation=[[CLLocation alloc] initWithCoordinate:CLLocationCoordinate2DMake(43.238949,76.889709) altitude:700 horizontalAccuracy:4 verticalAccuracy:8 timestamp:NSDate.date];service.nextManager=fresh;
+    assert(![service startDevelopment:args identifier:@4 generation:3]);__block BOOL signedReply=NO;[service drain:^BOOL(MiniVerifiedPackage *bound,uint64_t gen,NSString *reply){(void)bound;(void)gen;(void)reply;signedReply=YES;return YES;}];assert(!signedReply);
+    NSDictionary *reply=[self drainDevelopmentLocation:service identity:identity generation:3];assert([reply[@"ok"] boolValue]&&fresh.requests==1&&[reply[@"id"] isEqual:@4]);assert(fabs([reply[@"data"][@"latitude"] doubleValue]-43.238949)<1e-8);
+    SurfaceLocationManager *activation=[SurfaceLocationManager new];activation.testStatus=kCLAuthorizationStatusNotDetermined;activation.testLocation=fresh.testLocation;service.nextManager=activation;assert(![service startDevelopment:args identifier:@40 generation:40]);assert(activation.capturedDelegate);service.visible=NO;activation.testStatus=kCLAuthorizationStatusAuthorizedWhenInUse;[activation.capturedDelegate locationManagerDidChangeAuthorization:activation];assert(activation.requests==0 && ![self drainDevelopmentLocation:service identity:identity generation:40]);service.visible=YES;[service resume];assert([[self drainDevelopmentLocation:service identity:identity generation:40][@"ok"] boolValue] && activation.requests==1);
+    SurfaceLocationManager *retiredAuthorization=[SurfaceLocationManager new];retiredAuthorization.testStatus=kCLAuthorizationStatusNotDetermined;service.nextManager=retiredAuthorization;assert(![service startDevelopment:args identifier:@41 generation:41]);id<CLLocationManagerDelegate> retiredDelegate=retiredAuthorization.capturedDelegate;[service retireGeneration:41];retiredAuthorization.testStatus=kCLAuthorizationStatusAuthorizedWhenInUse;[retiredDelegate locationManagerDidChangeAuthorization:retiredAuthorization];[service resume];assert(retiredAuthorization.requests==0&&! [self drainDevelopmentLocation:service identity:identity generation:41]);
+    SurfaceLocationManager *expiredAuthorization=[SurfaceLocationManager new];expiredAuthorization.testStatus=kCLAuthorizationStatusNotDetermined;service.nextManager=expiredAuthorization;NSDictionary *shortArgs=@{@"timeoutMs":@1,@"maximumAgeMs":@0,@"highAccuracy":@NO};assert(![service startDevelopment:shortArgs identifier:@42 generation:42]);service.visible=NO;expiredAuthorization.testStatus=kCLAuthorizationStatusAuthorizedWhenInUse;[expiredAuthorization.capturedDelegate locationManagerDidChangeAuthorization:expiredAuthorization];NSDate *deadline=[NSDate dateWithTimeIntervalSinceNow:.05];NSDictionary *timeout=nil;while(deadline.timeIntervalSinceNow>0&&!timeout){[NSRunLoop.mainRunLoop runMode:NSDefaultRunLoopMode beforeDate:[NSDate dateWithTimeIntervalSinceNow:.005]];timeout=[self drainDevelopmentLocation:service identity:identity generation:42];}assert([timeout[@"error"][@"code"] isEqual:@"TIMEOUT"]);service.visible=YES;[service resume];assert(expiredAuthorization.requests==0&&! [self drainDevelopmentLocation:service identity:identity generation:42]);
+    SurfaceLocationManager *denied=[SurfaceLocationManager new];denied.testStatus=kCLAuthorizationStatusDenied;service.nextManager=denied;assert(![service startDevelopment:args identifier:@5 generation:4]);assert([[self drainDevelopmentLocation:service identity:identity generation:4][@"error"][@"code"] isEqual:@"DENIED"]&&denied.requests==0);
+    SurfaceLocationManager *pending=[SurfaceLocationManager new];pending.testStatus=kCLAuthorizationStatusAuthorizedWhenInUse;pending.testLocation=fresh.testLocation;pending.waitForCompletion=YES;service.nextManager=pending;assert(![service startDevelopment:args identifier:@6 generation:5]);id<CLLocationManagerDelegate> stale=pending.capturedDelegate;assert(stale);[service retireGeneration:5];[stale locationManager:pending didUpdateLocations:@[pending.testLocation]];assert(![self drainDevelopmentLocation:service identity:identity generation:5]);
+    SurfaceLocationManager *cancelled=[SurfaceLocationManager new];cancelled.testStatus=kCLAuthorizationStatusAuthorizedWhenInUse;cancelled.waitForCompletion=YES;service.nextManager=cancelled;assert(![service startDevelopment:args identifier:@7 generation:6]);stale=cancelled.capturedDelegate;[service cancelGeneration:6 identifier:@7];[stale locationManager:cancelled didUpdateLocations:@[fresh.testLocation]];assert(![self drainDevelopmentLocation:service identity:identity generation:6]);
+    for(NSUInteger index=0;index<4;index++){SurfaceLocationManager *held=[SurfaceLocationManager new];held.testStatus=kCLAuthorizationStatusAuthorizedWhenInUse;held.waitForCompletion=YES;service.nextManager=held;assert(![service startDevelopment:args identifier:@(20+index) generation:7]);}
+    assert([[service startDevelopment:args identifier:@24 generation:7][@"error"][@"code"] isEqual:@"BUSY"]);[service retireGeneration:7];[service close];
+    assert([[service startDevelopment:args identifier:@25 generation:8][@"error"][@"code"] isEqual:@"CLOSED"]);
+    if(previousConsent)[NSUserDefaults.standardUserDefaults setObject:previousConsent forKey:@"pjm-development-location-consent"];else [NSUserDefaults.standardUserDefaults removeObjectForKey:@"pjm-development-location-consent"];NSLog(@"PJM_DEVELOPMENT_LOCATION_CONTROLLED_PASS declaration consent os-denial sink-isolation original-owner cancel retirement quota closed");
+}
 - (void)verifyLocation:(NSDictionary *)fixture root:(NSString *)root key:(NSData *)key {
     NSDictionary *locationCase=fixture[@"locationCase"];assert(locationCase);NSError *error=nil;
     NSData *payload=[[NSData alloc] initWithBase64EncodedString:locationCase[@"payload"] options:0];NSData *envelope=[NSJSONSerialization dataWithJSONObject:locationCase[@"manifest"] options:0 error:&error];
-    MiniVerifiedPackage *package=[[MiniVerifiedPackage alloc] initWithPayload:payload envelope:envelope trustedKey:key error:&error];assert(package&&!error);self.locationPackage=package;assert([self.store setPermissionDecision:YES permission:@"location" identity:package.metadata[@"appId"] error:&error]);assert([self.store setPermissionDecision:YES permission:@"clipboard.read" identity:package.metadata[@"appId"] error:&error]);
+    MiniVerifiedPackage *package=[[MiniVerifiedPackage alloc] initWithPayload:payload envelope:envelope trustedKey:key error:&error];assert(package&&!error);self.locationPackage=package;[self verifyDevelopmentMedia];[self verifyDevelopmentLocation:package];assert([self.store setPermissionDecision:YES permission:@"location" identity:package.metadata[@"appId"] error:&error]);assert([self.store setPermissionDecision:YES permission:@"clipboard.read" identity:package.metadata[@"appId"] error:&error]);
     SurfaceLocationService *service=[[SurfaceLocationService alloc] initWithStore:self.store presenter:self.controller];service.visible=YES;
     NSDictionary *args=@{@"timeoutMs":@15000,@"maximumAgeMs":@0,@"highAccuracy":@YES};
     SurfaceLocationManager *fresh=[SurfaceLocationManager new];fresh.testStatus=kCLAuthorizationStatusAuthorizedWhenInUse;fresh.testLocation=[[CLLocation alloc] initWithCoordinate:CLLocationCoordinate2DMake(43.238949,76.889709) altitude:700 horizontalAccuracy:4 verticalAccuracy:8 timestamp:[NSDate date]];service.nextManager=fresh;

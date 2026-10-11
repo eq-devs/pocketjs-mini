@@ -34,10 +34,22 @@ final class MiniTests: XCTestCase {
             keep(cold ? "media-cold-picker" : "media-picker", app)
             cancel.tap()
         }
-        let code = pjmMediaUiCase == "deny" ? "DENIED" : pjmMediaUiCase == "provider" ? "SUCCESS" : pjmMediaUiCase == "overflow" ? "FAILED" : pjmMediaUiCase == "late" ? "RECOVERED" : "CANCELLED"
+        if pjmMediaUiCase == "library" {
+            // The disposable library's newest asset is the owned 64×32 fixture.
+            // SDK metadata checks reject accidentally selecting a stock image.
+            let photo = app.images.matching(identifier: "PXGGridLayout-Info").firstMatch
+            XCTAssertTrue(photo.waitForExistence(timeout: 20))
+            let hierarchy = XCTAttachment(string: app.debugDescription)
+            hierarchy.name = "media-library-hierarchy"; hierarchy.lifetime = .keepAlways; add(hierarchy)
+            keep(cold ? "media-cold-library" : "media-library", app)
+            photo.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+            let add = app.buttons["Add"].firstMatch
+            if add.waitForExistence(timeout: 3) { add.tap() }
+        }
+        let code = pjmMediaUiCase == "deny" ? "DENIED" : ["provider", "library"].contains(pjmMediaUiCase) ? "SUCCESS" : pjmMediaUiCase == "overflow" ? "OVERFLOW_RECOVERED" : pjmMediaUiCase == "quota" ? "QUOTA_RECOVERED" : pjmMediaUiCase == "retire" ? "RETIRED" : pjmMediaUiCase == "late" ? "RECOVERED" : "CANCELLED"
         XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
             surface.exists && (surface.value as? String)?.contains(" media=" + code) == true
-        }, object: nil)], timeout: 30), .completed)
+        }, object: nil)], timeout: 30), .completed, "Expected media \(code); observed \(String(describing: surface.value))")
         keep(cold ? "media-cold-result" : "media-result", app)
     }
     func testSignedTsxNavigationIgnoresDevelopmentURL() {

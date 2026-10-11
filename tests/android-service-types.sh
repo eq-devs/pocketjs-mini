@@ -7,7 +7,7 @@ JAVA=${JAVA_HOME:-/Library/Java/JavaVirtualMachines/jdk-17.jdk/Contents/Home}
 [ -x "$JAVA/bin/javac" ] || { echo 'Set JAVA_HOME to an installed JDK' >&2; exit 1; }
 TEMP=$(mktemp -d "${TMPDIR:-/private/tmp}/pjm-android-service-types.XXXXXX")
 trap 'rm -rf "$TEMP"' EXIT
-"$JAVA/bin/javac" -source 8 -target 8 -classpath "$SDK/platforms/android-34/android.jar:$ROOT/vendor/android-http/*:$ROOT/vendor/android-location/jars/*" -d "$TEMP" \
+"$JAVA/bin/javac" -source 8 -target 8 -classpath "$SDK/platforms/android-34/android.jar:$ROOT/vendor/android-http/*:$ROOT/vendor/android-location/jars/*:$ROOT/vendor/android-media/*" -d "$TEMP" \
   "$ROOT/host/android/VerifiedClipboard.java" "$ROOT/host/android/VerifiedPackage.java" \
   "$ROOT/host/android/PackageVerifier.java" "$ROOT/host/android/BoundedJson.java" \
   "$ROOT/host/android/PackageStore.java" "$ROOT/host/android/PackageFiles.java" \

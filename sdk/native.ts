@@ -138,7 +138,7 @@ export function connectMiniApp(options: { host?: FrameHost; pages?: readonly str
         catch(error){unsubscribe();throw error;}
       },
     },
-    location: {get:(options:LocationOptions={})=>{const work=runtime.request<unknown>('location.get.v1',checkedLocationOptions(options));return {promise:work.promise.then(checkedLocationPosition),cancel:work.cancel};}},
+    location: {get:(options:LocationOptions={})=>{const args=checkedLocationOptions(options);const work=runtime.request<unknown>('location.get.v1',args,Math.ceil(args.timeoutMs*60/1000)+60);return {promise:work.promise.then(checkedLocationPosition),cancel:work.cancel};}},
     media: {select:(options:MediaOptions={})=>{const args=checkedMediaOptions(options),work=runtime.request<unknown>('media.select.v1',args,7200);return {promise:work.promise.then(value=>checkedMediaImage(value,args)),cancel:work.cancel};}},
     clipboard: {
       read:()=>{const request=runtime.request<unknown>('clipboard.read.v1');return {promise:request.promise.then(value=>{if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).join(',')!=='text')throw new ServiceError('PROTOCOL','Invalid clipboard reply');return checkedClipboardText((value as {text:unknown}).text);}),cancel:request.cancel};},

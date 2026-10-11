@@ -5,6 +5,7 @@ bash -n "$ROOT/bin/pjm"
 if [ "$(uname -s)" = Darwin ]; then bash "$ROOT/tests/ios-service-types.sh"; fi
 if [ "$(uname -s)" = Darwin ]; then bash "$ROOT/tests/location-contract-java.sh"; fi
 if [ "$(uname -s)" = Darwin ]; then bash "$ROOT/tests/media-contract-java.sh"; fi
+if [ "$(uname -s)" = Darwin ]; then bash "$ROOT/tests/network-compat-java.sh"; fi
 if [ "$(uname -s)" = Darwin ]; then bash "$ROOT/tests/native-media-image-ios.sh"; fi
 if [ "$(uname -s)" = Darwin ]; then bash "$ROOT/tests/frame-pacer-java.sh"; fi
 if [ "$(uname -s)" = Darwin ]; then bash "$ROOT/tests/contact-latch.sh"; fi
@@ -41,3 +42,5 @@ bun test "$ROOT/tests/installed-project.test.ts"
 bun test "$ROOT/tests/installed-android-project.test.ts"
 bun test "$ROOT/tests/android-http.node.test.ts"
 bun test "$ROOT/tests/android-location-runtime.test.ts"
+
+bun test "$ROOT/tests/android-media-runtime.test.ts"

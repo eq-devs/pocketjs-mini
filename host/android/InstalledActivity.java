@@ -67,7 +67,7 @@ public class InstalledActivity extends Activity {
           public void write(String text){android.content.ClipboardManager manager=(android.content.ClipboardManager)getSystemService(CLIPBOARD_SERVICE);if(manager==null)throw new IllegalStateException("Clipboard unavailable");manager.setPrimaryClip(android.content.ClipData.newPlainText("Mini app",text));}
           public PermissionGate.Status permission(VerifiedPackage value)throws Exception{return permissions.check(value,"clipboard.read",true);}
           public PermissionGate.Status decide(VerifiedPackage value,boolean approved)throws Exception{return permissions.decide(value,"clipboard.read",approved,true);}
-          public Runnable prompt(VerifiedPackage value,java.util.function.Consumer<Boolean> decision){
+          public Runnable prompt(VerifiedPackage value,VerifiedClipboard.Decision decision){
             if(permissionDialog!=null||locationApproval.active()||mediaPicker.active())throw new IllegalStateException("Permission dialog already active");
             final Boolean[] selected={null};android.app.AlertDialog dialog=new android.app.AlertDialog.Builder(InstalledActivity.this).setTitle("Clipboard access").setMessage("Allow "+value.identity+" to read clipboard text?").setNegativeButton("Don’t allow",(view,which)->{selected[0]=false;}).setPositiveButton("Allow",(view,which)->{selected[0]=true;}).create();
             permissionDialog=dialog;dialog.setOnCancelListener(view->{selected[0]=false;});dialog.setOnDismissListener(view->{if(permissionDialog==dialog)permissionDialog=null;if(selected[0]!=null)getWindow().getDecorView().post(()->decision.accept(selected[0]));});dialog.show();return dialog::dismiss;

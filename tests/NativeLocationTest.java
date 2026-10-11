@@ -42,6 +42,22 @@ final class NativeLocationTest {
     ui.authorized=true;service.start(value,8,10,options);ui.flush();VerifiedLocation.Completion stopped=ui.completion;service.suspend();ui.flush();stopped.finish(LocationContract.position(1,2,3,4),null);ui.flush();error(drain(service,value,8,10),"BUSY");
     error(service.start(value,9,11,options),"BUSY");service.resume();
     service.start(value,9,12,options);ui.flush();VerifiedLocation.Completion closed=ui.completion;service.close();ui.flush();closed.finish(LocationContract.position(1,2,3,4),null);ui.flush();service.drain((bound,gen,bytes)->{throw new AssertionError("Closed location delivered");});error(service.start(value,10,13,options),"CLOSED");
+    developmentChecks();
     System.out.println("Android signed location wrapper: protocol, queued cancellation/retirement, consent fencing, frame backpressure, revoke, suspend and close passed with a controlled provider; no sensor/OS dialog/deadline firing executed");
   }
+  private static void developmentChecks()throws Exception {
+    UI ui=new UI();ui.authorized=false;VerifiedLocation service=new VerifiedLocation(ui);boolean[] declared={false};
+    VerifiedLocation.Access access=new VerifiedLocation.Access(){public String identity(){return "dev.pjm.development-location";}public void declared(){if(!declared[0])throw new SecurityException("Undeclared");}public boolean authorized(LocationContract.Options options){return ui.authorized;}public Runnable requestApproval(LocationContract.Options options,VerifiedLocation.Decision decision){return ui.requestApproval(null,options,decision);}};
+    JSONObject options=new JSONObject().put("timeoutMs",15000).put("maximumAgeMs",0).put("highAccuracy",false);
+    error(service.startDevelopment(access,100,1,options),"DENIED");if(!ui.queue.isEmpty())throw new AssertionError("Undeclared location reached UI");declared[0]=true;
+    service.startDevelopment(access,101,2,options);service.cancel(101,2);ui.flush();if(ui.starts!=0)throw new AssertionError("Cancelled development provider started");
+    service.startDevelopment(access,102,3,options);ui.flush();VerifiedLocation.Decision stale=ui.decision;service.retire(102);stale.finish(true,()->ui.persisted++);ui.flush();if(ui.persisted!=0||ui.starts!=0)throw new AssertionError("Retired development approval persisted");
+    service.startDevelopment(access,103,4,options);ui.flush();ui.decision.finish(true,()->{ui.persisted++;ui.authorized=true;});ui.flush();if(ui.starts!=1||ui.persisted!=1)throw new AssertionError("Development provider approval failed");
+    ui.completion.finish(LocationContract.position(43.238949,76.889709,4,1700000000000L),null);ui.flush();
+    service.drain((bound,gen,reply)->{throw new AssertionError("Development location entered signed sink");});int[] retries={0};service.drainDevelopment((identity,gen,reply)->{if(!identity.equals(access.identity())||gen!=103)throw new AssertionError("Wrong development owner");retries[0]++;return false;});
+    service.drainDevelopment((identity,gen,bytes)->{try{JSONObject reply=new JSONObject(new String(bytes,"UTF-8"));if(gen!=103||!identity.equals(access.identity())||reply.getLong("id")!=4||!reply.getBoolean("ok")||reply.getJSONObject("data").getDouble("latitude")!=43.238949)throw new AssertionError("Development position invalid");}catch(Exception failure){throw new AssertionError(failure);}return true;});if(retries[0]!=1||ui.providerStops!=1)throw new AssertionError("Development retry cleanup invalid");
+    service.startDevelopment(access,104,5,options);ui.flush();VerifiedLocation.Completion stopped=ui.completion;service.suspend();ui.flush();stopped.finish(LocationContract.position(1,2,3,4),null);ui.flush();service.drainDevelopment((identity,gen,bytes)->{try{error(new JSONObject(new String(bytes,"UTF-8")),"BUSY");}catch(Exception failure){throw new AssertionError(failure);}return true;});service.close();ui.flush();
+    System.out.println("Android development location: declaration, queued cancellation, retired consent, original ownership, sink isolation, retry and suspend passed with controlled provider");
+  }
+
 }

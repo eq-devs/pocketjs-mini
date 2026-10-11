@@ -13,6 +13,7 @@ static BOOL MiniMediaNumber(id value,double low,double high){if(![value isKindOf
 @interface MiniMediaWork : NSObject <PHPickerViewControllerDelegate,UIImagePickerControllerDelegate,UINavigationControllerDelegate,UIAdaptivePresentationControllerDelegate>
 @property(nonatomic,weak) MiniVerifiedMedia *owner;
 @property MiniVerifiedPackage *package;
+@property NSString *identity;
 @property uint64_t generation;
 @property NSNumber *identifier;
 @property NSDictionary *options;
@@ -32,6 +33,8 @@ static BOOL MiniMediaNumber(id value,double low,double high){if(![value isKindOf
 @property(copy) void (^discard)(id);
 @property MiniMediaWork *work;
 @property BOOL closed;
+@property(copy) NSString *developmentIdentity;
+@property BOOL developmentDeclared;
 - (void)finish:(MiniMediaWork *)work image:(nullable MiniMediaImage *)image code:(nullable NSString *)code;
 - (void)launch:(MiniMediaWork *)work;
 - (void)load:(NSItemProvider *)provider work:(MiniMediaWork *)work;
@@ -52,25 +55,52 @@ static BOOL MiniMediaNumber(id value,double low,double high){if(![value isKindOf
 @end
 @implementation MiniVerifiedMedia
 - (instancetype)initWithStore:(MiniPackageStore *)store presenter:(UIViewController *)presenter reserve:(id (^)(NSString *,uint64_t))reserve complete:(NSDictionary *(^)(id,MiniMediaImage *))complete discard:(void (^)(id))discard {
- if((self=[super init])){_store=store;_presenter=presenter;_reserve=[reserve copy];_complete=[complete copy];_discard=[discard copy];
+ self=[self initWithPresenter:presenter reserve:reserve complete:complete discard:discard];if(self)_store=store;return self;
+}
+- (instancetype)initWithPresenter:(UIViewController *)presenter reserve:(id (^)(NSString *,uint64_t))reserve complete:(NSDictionary *(^)(id,MiniMediaImage *))complete discard:(void (^)(id))discard {
+ if((self=[super init])){_presenter=presenter;_reserve=[reserve copy];_complete=[complete copy];_discard=[discard copy];
   [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(suspend) name:UIApplicationDidEnterBackgroundNotification object:nil];
  }return self;
 }
+- (nullable instancetype)initDevelopmentWithIdentity:(NSString *)identity declared:(BOOL)declared presenter:(UIViewController *)presenter reserve:(id (^)(NSString *,uint64_t))reserve complete:(NSDictionary *(^)(id,MiniMediaImage *))complete discard:(void (^)(id))discard {
+ if(![identity isKindOfClass:NSString.class]||!identity.length||identity.length>128||[identity rangeOfString:@"^[A-Za-z0-9][A-Za-z0-9._-]*$" options:NSRegularExpressionSearch].length!=identity.length)return nil;
+ self=[self initWithPresenter:presenter reserve:reserve complete:complete discard:discard];if(self){_developmentIdentity=[identity copy];_developmentDeclared=declared;}return self;
+}
+- (MiniPermissionStatus)permissionForWork:(MiniMediaWork *)work error:(NSError **)error {
+ if(work.package)return [_store permissionStatus:@"media" package:work.package osGranted:YES error:error];
+ if(!_developmentDeclared)return MiniPermissionDenied;
+ id values=[NSUserDefaults.standardUserDefaults objectForKey:@"pjm-development-media-consent"];id value=[values isKindOfClass:NSDictionary.class]?values[work.identity]:nil;
+ if(![value isKindOfClass:NSNumber.class]||CFGetTypeID((__bridge CFTypeRef)value)!=CFBooleanGetTypeID())return MiniPermissionPrompt;
+ return [value boolValue]?MiniPermissionGranted:MiniPermissionDenied;
+}
+- (MiniPermissionStatus)recordDecision:(BOOL)approved work:(MiniMediaWork *)work error:(NSError **)error {
+ if(work.package)return [_store recordPermissionApproval:approved permission:@"media" package:work.package osGranted:YES error:error];
+ id saved=[NSUserDefaults.standardUserDefaults objectForKey:@"pjm-development-media-consent"];NSMutableDictionary *values=[saved isKindOfClass:NSDictionary.class]?[saved mutableCopy]:[NSMutableDictionary new];
+ if(!values[work.identity]&&values.count>=64){if(error)*error=[NSError errorWithDomain:@"MiniBusy" code:1 userInfo:nil];return MiniPermissionPrompt;}
+ values[work.identity]=@(approved);[NSUserDefaults.standardUserDefaults setObject:values forKey:@"pjm-development-media-consent"];return approved?MiniPermissionGranted:MiniPermissionDenied;
+}
+- (nullable NSDictionary *)startDevelopment:(id)arguments identifier:(NSNumber *)identifier generation:(uint64_t)generation {
+ if(!_developmentIdentity)return [self failure:@"DENIED"];return [self startCommon:arguments identifier:identifier package:nil generation:generation];
+}
+- (nullable NSDictionary *)start:(id)arguments identifier:(NSNumber *)identifier package:(MiniVerifiedPackage *)package generation:(uint64_t)generation {
+ if(_developmentIdentity||!package)return [self failure:@"DENIED"];return [self startCommon:arguments identifier:identifier package:package generation:generation];
+}
 - (BOOL)foreground {return !_closed&&UIApplication.sharedApplication.applicationState==UIApplicationStateActive&&_presenter.viewIfLoaded.window!=nil;}
 - (NSDictionary *)failure:(NSString *)code {return @{@"ok":@NO,@"error":@{@"code":code,@"message":@"Media selection failed"}};}
-- (nullable NSDictionary *)start:(id)arguments identifier:(NSNumber *)identifier package:(MiniVerifiedPackage *)package generation:(uint64_t)generation {
+- (nullable NSDictionary *)startCommon:(id)arguments identifier:(NSNumber *)identifier package:(MiniVerifiedPackage *)package generation:(uint64_t)generation {
  NSAssert(NSThread.isMainThread,@"Media requires main owner");if(_closed)return [self failure:@"CLOSED"];
  if(![arguments isKindOfClass:NSDictionary.class]||[arguments count]!=3||![@[@"library",@"camera"] containsObject:arguments[@"source"]]||!MiniMediaNumber(arguments[@"maxDimension"],64,1024)||!MiniMediaNumber(arguments[@"quality"],25,90)||!MiniMediaNumber(identifier,1,9007199254740991.0)||!generation)return [self failure:@"PROTOCOL"];
- if(![package authorizePermission:@"media" hostGranted:YES error:nil])return [self failure:@"DENIED"];
- if(_work||![self foreground]||_presenter.presentedViewController||!MiniMediaRate(package.metadata[@"appId"]))return [self failure:@"BUSY"];
+ NSString *identity=package?package.metadata[@"appId"]:_developmentIdentity;
+ if(package?![package authorizePermission:@"media" hostGranted:YES error:nil]:!_developmentDeclared)return [self failure:@"DENIED"];
+ if(_work||![self foreground]||_presenter.presentedViewController||!MiniMediaRate(identity))return [self failure:@"BUSY"];
  @synchronized(MiniMediaWork.class){if(MiniMediaBusy)return [self failure:@"BUSY"];MiniMediaBusy=YES;}
- MiniMediaWork *work=[MiniMediaWork new];work.permit=YES;work.owner=self;work.package=package;work.generation=generation;work.identifier=identifier;work.options=[arguments copy];work.slot=_reserve(package.metadata[@"appId"],generation);if(!work.slot)return [self failure:@"BUSY"];_work=work;
+ MiniMediaWork *work=[MiniMediaWork new];work.permit=YES;work.owner=self;work.package=package;work.identity=identity;work.generation=generation;work.identifier=identifier;work.options=[arguments copy];work.slot=_reserve(identity,generation);if(!work.slot)return [self failure:@"BUSY"];_work=work;
  __weak MiniVerifiedMedia *weakSelf=self;__weak MiniMediaWork *weakWork=work;
  work.timer=[NSTimer timerWithTimeInterval:120 repeats:NO block:^(NSTimer *timer){(void)timer;[weakSelf finish:weakWork image:nil code:@"TIMEOUT"];}];[NSRunLoop.mainRunLoop addTimer:work.timer forMode:NSRunLoopCommonModes];
- NSError *error=nil;MiniPermissionStatus status=[_store permissionStatus:@"media" package:package osGranted:YES error:&error];
+ NSError *error=nil;MiniPermissionStatus status=[self permissionForWork:work error:&error];
  if(error){[self finish:work image:nil code:@"FAILED"];return nil;}if(status==MiniPermissionDenied){[self finish:work image:nil code:@"DENIED"];return nil;}if(status==MiniPermissionGranted){[self launch:work];return nil;}
- UIAlertController *alert=[UIAlertController alertControllerWithTitle:@"Image access" message:[NSString stringWithFormat:@"Allow %@ to select or capture an image?",package.metadata[@"appId"]] preferredStyle:UIAlertControllerStyleAlert];work.ui=alert;
- void (^decide)(BOOL)=^(BOOL approved){MiniVerifiedMedia *owner=weakSelf;MiniMediaWork *bound=weakWork;if(!owner||!bound||owner.work!=bound||bound.finished)return;bound.ui=nil;if(![owner foreground]){[owner finish:bound image:nil code:@"BUSY"];return;}NSError *failure=nil;MiniPermissionStatus selected=[owner.store recordPermissionApproval:approved permission:@"media" package:bound.package osGranted:YES error:&failure];if(failure){[owner finish:bound image:nil code:@"FAILED"];return;}if(selected!=MiniPermissionGranted){[owner finish:bound image:nil code:@"DENIED"];return;}dispatch_async(dispatch_get_main_queue(),^{[owner launch:bound];});};
+ UIAlertController *alert=[UIAlertController alertControllerWithTitle:@"Image access" message:[NSString stringWithFormat:@"Allow %@ to select or capture an image?",identity] preferredStyle:UIAlertControllerStyleAlert];work.ui=alert;
+ void (^decide)(BOOL)=^(BOOL approved){MiniVerifiedMedia *owner=weakSelf;MiniMediaWork *bound=weakWork;if(!owner||!bound||owner.work!=bound||bound.finished)return;bound.ui=nil;if(![owner foreground]){[owner finish:bound image:nil code:@"BUSY"];return;}NSError *failure=nil;MiniPermissionStatus selected=[owner recordDecision:approved work:bound error:&failure];if(failure){[owner finish:bound image:nil code:@"FAILED"];return;}if(selected!=MiniPermissionGranted){[owner finish:bound image:nil code:@"DENIED"];return;}dispatch_async(dispatch_get_main_queue(),^{[owner launch:bound];});};
  [alert addAction:[UIAlertAction actionWithTitle:@"Don’t allow" style:UIAlertActionStyleCancel handler:^(UIAlertAction *action){(void)action;decide(NO);}]];[alert addAction:[UIAlertAction actionWithTitle:@"Allow" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action){(void)action;decide(YES);}]];[_presenter presentViewController:alert animated:YES completion:nil];return nil;
 }
 - (void)present:(UIViewController *)picker work:(MiniMediaWork *)work {
@@ -79,7 +109,7 @@ static BOOL MiniMediaNumber(id value,double low,double high){if(![value isKindOf
 }
 - (void)launch:(MiniMediaWork *)work {
  if(_work!=work||work.finished||work.cancelled)return;if(![self foreground]){[self finish:work image:nil code:@"BUSY"];return;}
- if([_store permissionStatus:@"media" package:work.package osGranted:YES error:nil]!=MiniPermissionGranted){[self finish:work image:nil code:@"DENIED"];return;}
+ if([self permissionForWork:work error:nil]!=MiniPermissionGranted){[self finish:work image:nil code:@"DENIED"];return;}
  if([work.options[@"source"] isEqual:@"library"]){PHPickerConfiguration *config=[PHPickerConfiguration new];config.selectionLimit=1;config.filter=PHPickerFilter.imagesFilter;config.preferredAssetRepresentationMode=PHPickerConfigurationAssetRepresentationModeCurrent;PHPickerViewController *picker=[[PHPickerViewController alloc] initWithConfiguration:config];picker.delegate=work;[self present:picker work:work];return;}
  if(![UIImagePickerController isSourceTypeAvailable:UIImagePickerControllerSourceTypeCamera]){[self finish:work image:nil code:@"UNSUPPORTED"];return;}
  AVAuthorizationStatus status=[AVCaptureDevice authorizationStatusForMediaType:AVMediaTypeVideo];
@@ -112,7 +142,8 @@ static BOOL MiniMediaNumber(id value,double low,double high){if(![value isKindOf
  NSAssert(NSThread.isMainThread,@"Media completion requires main owner");if(!work||_work!=work||work.finished||work.cancelled)return;work.finished=YES;if(!image)work.cancelled=YES;[self stopUI:work];NSDictionary *data=image?_complete(work.slot,image):nil;if(!data){_discard(work.slot);code=code?:@"FAILED";}
  NSDictionary *body=data?@{@"ok":@YES,@"data":data}:[self failure:code];NSMutableDictionary *reply=[body mutableCopy];reply[@"v"]=@1;reply[@"id"]=work.identifier;NSData *encoded=[NSJSONSerialization dataWithJSONObject:reply options:NSJSONWritingWithoutEscapingSlashes error:nil];work.reply=[[NSString alloc] initWithData:encoded encoding:NSUTF8StringEncoding];
 }
-- (void)drain:(BOOL (^)(MiniVerifiedPackage *,uint64_t,NSString *))receiver {NSAssert(NSThread.isMainThread,@"Media requires main owner");MiniMediaWork *work=_work;if(work.reply&&receiver(work.package,work.generation,work.reply))_work=nil;}
+- (void)drain:(BOOL (^)(MiniVerifiedPackage *,uint64_t,NSString *))receiver {NSAssert(NSThread.isMainThread,@"Media requires main owner");MiniMediaWork *work=_work;if(work.package&&work.reply&&receiver(work.package,work.generation,work.reply))_work=nil;}
+- (void)drainDevelopment:(BOOL (^)(NSString *,uint64_t,NSString *))receiver {NSAssert(NSThread.isMainThread,@"Media requires main owner");MiniMediaWork *work=_work;if(_developmentIdentity&&!work.package&&work.reply&&receiver(work.identity,work.generation,work.reply))_work=nil;}
 - (void)cancelWork {MiniMediaWork *work=_work;if(!work)return;work.cancelled=YES;[self stopUI:work];_discard(work.slot);_work=nil;}
 - (void)cancelGeneration:(uint64_t)generation identifier:(NSNumber *)identifier {if(_work.generation==generation&&[_work.identifier isEqual:identifier])[self cancelWork];}
 - (void)retireGeneration:(uint64_t)generation {if(_work.generation==generation)[self cancelWork];}

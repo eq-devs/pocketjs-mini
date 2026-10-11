@@ -1,3 +1,4 @@
+import {androidMediaFiles,copyAndroidMedia} from './android-media.ts';
 import {cpSync,mkdirSync,writeFileSync} from "node:fs";
 import {join,resolve} from "node:path";
 import {fileURLToPath} from "node:url";
@@ -9,12 +10,12 @@ import {androidLocationFiles,copyAndroidLocation} from "./android-location.ts";
 /** Portable signed-only host; APK signing remains owned by the distributor. */
 export function writeInstalledAndroidProject(options:{directory:string;library:string;payload:string;envelope:string;publicKey:string;bundle?:string}){
   const {payload,key,manifest}=verifyInstalledInputs(options,"pjm-android"),bundle=options.bundle??"dev.pjm.installed";
-  androidHttpFiles();androidLocationFiles();
+  androidHttpFiles();androidLocationFiles();androidMediaFiles();
   if(!/^[a-zA-Z][a-zA-Z0-9_]*(?:\.[a-zA-Z][a-zA-Z0-9_]*)+$/.test(bundle))throw new Error("Invalid Android host package identity");
   const root=fileURLToPath(new URL("../",import.meta.url)),directory=resolve(options.directory);
   for(const part of ["src","assets","lib/arm64-v8a"])mkdirSync(join(directory,part),{recursive:true});
   copyAndroidHttp(directory);
-  copyAndroidLocation(directory);
+  copyAndroidLocation(directory);copyAndroidMedia(directory);
   for(const name of ["TouchContact","FrameMeasurements","FramePacer","AppStorage","PackageVerifier","VerifiedPackage","VerifiedContainer","VerifiedPresenter","InstalledActivity","PackageStore","PackageFiles","BoundedJson","VerifiedHttp","ManagedResources","VerifiedClipboard","PermissionGate","VerifiedLocation","LocationApproval","LocationContract","LocationMailbox","LocationRate","LocationStops","FusedLocationProvider","VerifiedNetwork","MediaContract","MediaImage","MediaInput","MediaPicker","VerifiedMedia"])cpSync(join(root,"host/android",name+".java"),join(directory,"src",name+".java"));
   writeFileSync(join(directory,"assets/main.pocket"),payload);writeFileSync(join(directory,"assets/manifest.json"),canonical(manifest));writeFileSync(join(directory,"assets/publisher.key"),key);
   cpSync(resolve(options.library),join(directory,"lib/arm64-v8a/libpocketjs.so"));

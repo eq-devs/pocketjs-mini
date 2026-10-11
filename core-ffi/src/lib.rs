@@ -16,6 +16,19 @@ use std::{
     time::{Duration, Instant},
 };
 
+// Diagnostic only: admission and interrupts remain bounded by elapsed wall time.
+fn thread_cpu_micros() -> Option<u64> {
+    #[cfg(any(target_os = "android", target_os = "linux", target_os = "macos", target_os = "ios"))]
+    {
+        let mut value = libc::timespec { tv_sec: 0, tv_nsec: 0 };
+        if unsafe { libc::clock_gettime(libc::CLOCK_THREAD_CPUTIME_ID, &mut value) } != 0
+            || value.tv_sec < 0 || value.tv_nsec < 0 { return None; }
+        (value.tv_sec as u64).checked_mul(1_000_000)?.checked_add(value.tv_nsec as u64 / 1_000)
+    }
+    #[cfg(not(any(target_os = "android", target_os = "linux", target_os = "macos", target_os = "ios")))]
+    { None }
+}
+
 const RECORD_BYTES: usize = 4096;
 const RECORD_COUNT: usize = 32;
 pub mod ffi;
@@ -290,20 +303,44 @@ impl Instance {
         milliseconds: u64,
         action: impl FnOnce() -> Result<(), String>,
     ) -> Result<(), String> {
+        self.turn_with_cpu_clock(milliseconds, action, thread_cpu_micros)
+    }
+    fn turn_with_cpu_clock(
+        &self,
+        milliseconds: u64,
+        action: impl FnOnce() -> Result<(), String>,
+        cpu_clock: impl Fn() -> Option<u64>,
+    ) -> Result<(), String> {
         self.budget.interrupted.set(false);
+        // Diagnostic system calls must never consume the guest execution budget.
+        let cpu_started = cpu_clock();
+        let started = Instant::now();
         self.budget
             .deadline
-            .set(Some(Instant::now() + Duration::from_millis(milliseconds)));
-        let result = action().and_then(|_| self.jobs());
+            .set(Some(started + Duration::from_millis(milliseconds)));
+        let action_result = action();
+        let action_elapsed = started.elapsed();
+        let result = action_result.and_then(|_| self.jobs());
+        let finished = Instant::now();
         let expired = self.budget.interrupted.get()
             || self
                 .budget
                 .deadline
                 .get()
-                .is_some_and(|end| Instant::now() >= end);
+                .is_some_and(|end| finished >= end);
         self.budget.deadline.set(None);
-        if expired && result.is_ok() {
-            Err("Guest turn deadline exceeded".into())
+        if expired {
+            let total_cpu = cpu_started.zip(cpu_clock()).map(|(start, end)| end.saturating_sub(start));
+            let diagnostic = format!(
+                "budget={}ms action={}us total={}us totalCpuUs={} interrupted={}",
+                milliseconds, action_elapsed.as_micros(), finished.duration_since(started).as_micros(),
+                total_cpu.map_or_else(|| "unavailable".into(), |value| value.to_string()),
+                self.budget.interrupted.get()
+            );
+            Err(match result {
+                Ok(()) => format!("Guest turn deadline exceeded ({diagnostic})"),
+                Err(error) => format!("{error} (deadline {diagnostic})"),
+            })
         } else if result.is_ok()
             && (!self.budget.rejections.borrow().is_empty() || self.budget.rejection_overflow.get())
         {
@@ -1428,6 +1465,43 @@ mod tests {
             "{error}"
         );
     }
+    #[test]
+    fn deadline_diagnostics_keep_wall_clock_enforcement() {
+        let engine = guest();
+        let error = engine.turn(1, || {
+            std::thread::sleep(Duration::from_millis(15));
+            Ok(())
+        }).unwrap_err();
+        assert!(error.starts_with("Guest turn deadline exceeded"), "{error}");
+        assert!(error.contains("budget=1ms") && error.contains("totalCpuUs="), "{error}");
+        let error = engine.turn(1, || {
+            std::thread::sleep(Duration::from_millis(15));
+            Err("original failure".into())
+        }).unwrap_err();
+        assert!(error.starts_with("original failure") && error.contains("deadline budget=1ms"), "{error}");
+    }
+
+    #[test]
+    fn slow_cpu_diagnostics_do_not_consume_guest_budget() {
+        let engine = guest();
+        let samples = Cell::new(0u64);
+        let slow_clock = || {
+            assert!(engine.budget.deadline.get().is_none(), "CPU sampling ran inside the guest deadline");
+            samples.set(samples.get() + 1);
+            std::thread::sleep(Duration::from_millis(80));
+            Some(samples.get() * 100)
+        };
+        engine.turn_with_cpu_clock(50, || Ok(()), slow_clock).unwrap();
+        assert_eq!(samples.get(), 1, "Successful turns need no ending diagnostic sample");
+        let error = engine.turn_with_cpu_clock(1, || {
+            std::thread::sleep(Duration::from_millis(5));
+            Ok(())
+        }, slow_clock).unwrap_err();
+        assert!(error.starts_with("Guest turn deadline exceeded"), "{error}");
+        assert!(error.contains("totalCpuUs=100"), "{error}");
+        assert_eq!(samples.get(), 3);
+    }
+
     #[test]
     fn quotas_and_failures_remain_local() {
         let mut looping = guest();

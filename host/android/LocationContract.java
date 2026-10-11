@@ -14,7 +14,7 @@ final class LocationContract {
   private static void require(boolean value){if(!value)throw new IllegalArgumentException("Invalid location service record");}
   private static long integer(Object value,long minimum,long maximum){
     require(value instanceof Number);double number=((Number)value).doubleValue();
-    require(Double.isFinite(number)&&number>=minimum&&number<=maximum&&Math.floor(number)==number);return (long)number;
+    require((!Double.isNaN(number)&&!Double.isInfinite(number))&&number>=minimum&&number<=maximum&&Math.floor(number)==number);return (long)number;
   }
   static Options options(Map<String,?> value){
     require(value!=null&&value.size()==3&&value.keySet().containsAll(Arrays.asList("timeoutMs","maximumAgeMs","highAccuracy")));
@@ -22,7 +22,7 @@ final class LocationContract {
     return new Options(timeout,age,(Boolean)accuracy);
   }
   static Position position(double latitude,double longitude,double accuracyMeters,long timestampMs){
-    require(Double.isFinite(latitude)&&latitude>=-90&&latitude<=90&&Double.isFinite(longitude)&&longitude>=-180&&longitude<=180&&Double.isFinite(accuracyMeters)&&accuracyMeters>=0&&accuracyMeters<=10000000&&timestampMs>=0&&timestampMs<=9007199254740991L);
+    require((!Double.isNaN(latitude)&&!Double.isInfinite(latitude))&&latitude>=-90&&latitude<=90&&(!Double.isNaN(longitude)&&!Double.isInfinite(longitude))&&longitude>=-180&&longitude<=180&&(!Double.isNaN(accuracyMeters)&&!Double.isInfinite(accuracyMeters))&&accuracyMeters>=0&&accuracyMeters<=10000000&&timestampMs>=0&&timestampMs<=9007199254740991L);
     return new Position(latitude,longitude,accuracyMeters,timestampMs);
   }
   /** Android Location.getElapsedRealtimeNanos and the host monotonic clock.

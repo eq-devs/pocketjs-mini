@@ -119,4 +119,29 @@ const peers=[1,2,3].map(index=>{
  decoded.variants[0].sections.find(section=>section.kind===2)!.bytes=Buffer.from(JSON.stringify(hashPlan(plan)));
  const bytes=Buffer.from(encodePocketPackage(decoded));return {payload:bytes.toString("base64"),manifest:signPackage(bytes,{...metadata,appId},keys.privateKey)};
 });
-writeFileSync(process.argv[2],JSON.stringify([...realCases,{...valid,update,peers},...rejectedPlans,{...valid,manifest:signPackage(payload,{...metadata,appId:"dev.other.app"},keys.privateKey),valid:false},{...valid,payload:Buffer.from("tampered").toString("base64"),valid:false},{...valid,payload:Buffer.from("not a pocket package").toString("base64"),manifest:signPackage(Buffer.from("not a pocket package"),metadata,keys.privateKey),valid:false}]));
+const runtimeAttacks=[
+ {name:'infinite-frame-loop',expected:'interrupted',source:"globalThis.frame=()=>{ui.svcSend('attack-must-not-dispatch');while(true){}}"},
+ {name:'heap-limit',expected:'out of memory',source:"globalThis.frame=()=>{ui.svcSend('attack-must-not-dispatch');globalThis.attackBuffer=new ArrayBuffer(1073741824)}"},
+].map(attack=>{
+ const appId=metadata.appId+'.'+(attack.name==='heap-limit'?'heapAttack':'loopAttack'),decoded=decodePocketPackage(payload),plan={...basePlan,app:{...basePlan.app,id:appId}};delete plan.planHash;
+ decoded.variants[0].sections.find(section=>section.kind===1)!.bytes=encodeIdentity({output:'attack',id:appId,title:attack.name});
+ decoded.variants[0].sections.find(section=>section.kind===2)!.bytes=Buffer.from(JSON.stringify(hashPlan(plan)));
+ decoded.variants[0].sections.find(section=>section.kind===3)!.bytes=Buffer.from(attack.source+'\0');
+ const bytes=Buffer.from(encodePocketPackage(decoded));return {name:attack.name,expected:attack.expected,payload:bytes.toString('base64'),manifest:signPackage(bytes,{...metadata,appId},keys.privateKey)};
+});
+const rejectedNames=['malformed-plan-hash','wrong-plan-hash','missing-primary-screen','unsupported-pointer','unsupported-buttons','invalid-analog-type','screen-viewport-mismatch','unsupported-feature','invalid-feature-type','unsupported-companion','unsupported-presentation','plan-version-mismatch','physical-viewport-mismatch','invalid-density-type','duplicate-plan-key','escaped-duplicate-plan-key','plan-bom'];
+if(rejectedNames.length!==rejectedPlans.length)throw Error('Package case labels out of sync');
+const wrongKey=Buffer.from(key,'base64');wrongKey[0]^=1;
+const wrongSignature=Buffer.from(valid.manifest.signature,'base64');wrongSignature[0]^=1;
+const truncated=payload.subarray(0,payload.length-1);
+const attacks=[
+ {...valid,name:'signed-identity-mismatch',manifest:signPackage(payload,{...metadata,appId:"dev.other.app"},keys.privateKey),valid:false},
+ {...valid,name:'payload-hash-mismatch',payload:Buffer.from("tampered").toString("base64"),valid:false},
+ {...valid,name:'signed-invalid-container',payload:Buffer.from("not a pocket package").toString("base64"),manifest:signPackage(Buffer.from("not a pocket package"),metadata,keys.privateKey),valid:false},
+ {...valid,name:'wrong-trusted-key',key:wrongKey.toString('base64'),valid:false},
+ {...valid,name:'signature-bit-flip',manifest:{...valid.manifest,signature:wrongSignature.toString('base64')},valid:false},
+ {...valid,name:'unsupported-minimum-host-abi',manifest:signPackage(payload,{...metadata,minHostAbi:8},keys.privateKey),valid:false},
+ {...valid,name:'wrong-signed-target',manifest:signPackage(payload,{...metadata,targets:[target==='pjm-ios'?'pjm-android':'pjm-ios']},keys.privateKey),valid:false},
+ {...valid,name:'signed-truncated-container',payload:truncated.toString('base64'),manifest:signPackage(truncated,metadata,keys.privateKey),valid:false},
+];
+writeFileSync(process.argv[2],JSON.stringify([...realCases.map((item,index)=>({...item,name:'real-package-'+index})),{...valid,name:'valid-retained-execution',update,peers,runtimeAttacks},...rejectedPlans.map((item,index)=>({...item,name:rejectedNames[index]})),...attacks]));

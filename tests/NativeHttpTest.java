@@ -78,8 +78,32 @@ public final class NativeHttpTest {
       slots[0].finish(-1);ManagedResources.Slot replacement=second.reserve(source.identity,200);require(replacement!=null);replacement.finish(0);
       for(int i=1;i<16;i++)slots[i].finish(0);first.retire(101);ManagedResources.Slot fresh=second.reserve(source.identity,201);require(fresh!=null);fresh.finish(0);
     }
+    developmentChecks(client);
     long now=System.nanoTime();for(int i=0;i<32;i++)require(VerifiedHttp.admitRate("dev.pjm.rate",now));require(!VerifiedHttp.admitRate("dev.pjm.rate",now));require(!VerifiedHttp.admitRate("dev.pjm.rate",now+TimeUnit.SECONDS.toNanos(60)-1));require(VerifiedHttp.admitRate("dev.pjm.rate",now+TimeUnit.SECONDS.toNanos(60)));
     now+=TimeUnit.SECONDS.toNanos(121);for(int i=0;i<64;i++)require(VerifiedHttp.admitRate("dev.pjm.slot"+i,now));require(!VerifiedHttp.admitRate("dev.pjm.overflow",now));require(VerifiedHttp.admitRate("dev.pjm.slot0",now));require(VerifiedHttp.admitRate("dev.pjm.overflow",now+TimeUnit.SECONDS.toNanos(60)));
     System.out.println("Native Android HTTP: bounded responses, redirects, capacity, generation ownership, cancellation resource handles, chunk ranges, process accounting and rolling app rate limits passed");
   }
+  private static void developmentChecks(OkHttpClient client)throws Exception {
+    JSONArray domains=new JSONArray().put("example.com");
+    VerifiedHttp.UrlAccess development=VerifiedHttp.developmentAccess("dev.pjm.development-http",domains);domains.put("denied.example");
+    for(String address:new String[]{"http://example.com/","https://example.com:444/","https://user@example.com/","https://sub.example.com/","https://denied.example/"}){try{development.authorizeUrl(address);throw new AssertionError("Development domain escaped");}catch(SecurityException expected){}}
+    development.authorizeUrl("https://EXAMPLE.COM:443/ok");
+    try{VerifiedHttp.developmentAccess("dev.pjm.test",new JSONArray().put("*.example.com"));throw new AssertionError("Wildcard accepted");}catch(IllegalArgumentException expected){}
+    try(VerifiedHttp http=new VerifiedHttp(client)){
+      require(http.startDevelopment(development,500,1,args("/").put("url","https://denied.example/")).getJSONObject("error").getString("code").equals("DENIED"));
+      require(http.startDevelopment(development,500,2,args("/big").put("responseMode","resource"))==null);
+      require(http.startDevelopment(development,500,3,args("/denied"))==null);
+      Map<Long,JSONObject> replies=new HashMap<>();boolean[] deferred={false};long deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(5);
+      while(replies.size()<2 && System.nanoTime()<deadline){http.drain((bound,generation,reply)->{throw new AssertionError("Development reply entered signed sink");});http.drainDevelopment((identity,generation,reply)->{require(identity.equals(development.identity()) && generation==500);if(!deferred[0]){deferred[0]=true;return false;}try{JSONObject value=new JSONObject(new String(reply,StandardCharsets.UTF_8));replies.put(value.getLong("id"),value);}catch(Exception invalid){throw new AssertionError(invalid);}return true;});Thread.sleep(5);}
+      require(deferred[0] && replies.size()==2 && replies.get(2L).getBoolean("ok") && replies.get(3L).getJSONObject("error").getString("code").equals("DENIED"));
+      String handle=replies.get(2L).getJSONObject("data").getJSONObject("resource").getString("handle");JSONObject range=new JSONObject().put("handle",handle).put("offset",0).put("count",1536);
+      require(((JSONObject)http.resourceRead(development.identity(),500,range)).getInt("nextOffset")==1536);
+      try{http.resourceRead("dev.pjm.foreign",500,range);throw new AssertionError("Foreign development identity read");}catch(SecurityException expected){}
+      http.retire(500);try{http.resourceRead(development.identity(),500,range);throw new AssertionError("Retired development read");}catch(SecurityException expected){}
+      require(http.startDevelopment(development,501,4,args("/hold").put("responseMode","resource"))==null);http.cancel(501,4);require(http.pending()==0);
+      require(http.startDevelopment(development,502,5,args("/ok"))==null);http.retire(502);require(http.pending()==0);
+    }
+    System.out.println("Development Android HTTP: immutable exact HTTPS domains, redirect denial, original ownership, sink isolation, retry, resource retirement and cancellation passed");
+  }
+
 }

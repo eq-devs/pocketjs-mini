@@ -95,6 +95,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 // Host -> guest: queued for the guest's next poll (frame-boundary delivery).
 - (void)postEvent:(NSString *)line;
+// Development-only admission: NO leaves the guest running so latest state can retry.
+- (BOOL)tryPostEvent:(NSString *)line;
 
 // Test-mode hash of the GPU-rendered drawable, after command completion.
 @property(nonatomic, readonly) uint32_t presentedHash;

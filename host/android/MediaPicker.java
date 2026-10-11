@@ -8,41 +8,47 @@ import android.provider.MediaStore;
 import java.io.*;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.BooleanSupplier;
 import androidx.core.content.FileProvider;
 
 /** Main-owner, user-mediated sources. No broad storage/camera permission. */
 final class MediaPicker {
+ interface State {boolean getAsBoolean();}
+ interface Consent {String identity();PermissionGate.Status check()throws Exception;PermissionGate.Status decide(boolean approved)throws Exception;}
  private static final AtomicInteger nextCode=new AtomicInteger(0x5000);
- private final Activity activity;private final PermissionGate permissions;private final BooleanSupplier foreground,otherDialog;
+ private final Activity activity;private final PermissionGate permissions;private final State foreground,otherDialog;
  private Pending pending;private volatile int externalCode=-1;
  private static final class Pending {
-  final VerifiedPackage value;final MediaContract.Options options;final VerifiedMedia.Completion completion;
+  final Consent consent;final MediaContract.Options options;final VerifiedMedia.Completion completion;
   AlertDialog dialog;File capture;Uri captureUri,result;int code=-1;boolean done,resultReady;String error;
-  Pending(VerifiedPackage value,MediaContract.Options options,VerifiedMedia.Completion completion){this.value=value;this.options=options;this.completion=completion;}
+  Pending(Consent consent,MediaContract.Options options,VerifiedMedia.Completion completion){this.consent=consent;this.options=options;this.completion=completion;}
  }
- MediaPicker(Activity activity,PermissionGate permissions,BooleanSupplier foreground,BooleanSupplier otherDialog){this.activity=activity;this.permissions=permissions;this.foreground=foreground;this.otherDialog=otherDialog;}
+ MediaPicker(Activity activity,PermissionGate permissions,State foreground,State otherDialog){this.activity=activity;this.permissions=permissions;this.foreground=foreground;this.otherDialog=otherDialog;}
+ MediaPicker(Activity activity,State foreground,State otherDialog){this(activity,null,foreground,otherDialog);}
  private static void owner(){if(Looper.myLooper()!=Looper.getMainLooper())throw new IllegalStateException("Media picker requires main owner");}
  boolean external(){return externalCode>=0;}
  boolean active(){owner();return pending!=null||external();}
  Runnable select(VerifiedPackage value,MediaContract.Options options,VerifiedMedia.Completion completion)throws Exception {
-  owner();if(pending!=null||external()||otherDialog.getAsBoolean())throw new RejectedExecutionException("Native dialog already active");
-  Pending bound=new Pending(value,options,completion);pending=bound;
+  if(permissions==null||value==null)throw new IllegalStateException("Signed media binding required");
+  return select(new Consent(){public String identity(){return value.identity;}public PermissionGate.Status check()throws Exception{return permissions.check(value,"media",true);}public PermissionGate.Status decide(boolean approved)throws Exception{return permissions.decide(value,"media",approved,true);}},options,completion);
+ }
+ Runnable select(Consent consent,MediaContract.Options options,VerifiedMedia.Completion completion)throws Exception {
+  owner();if(consent==null)throw new IllegalArgumentException("Missing media consent");if(pending!=null||external()||otherDialog.getAsBoolean())throw new RejectedExecutionException("Native dialog already active");
+  Pending bound=new Pending(consent,options,completion);pending=bound;
   try{
    if(!foreground.getAsBoolean()){complete(bound,null,"BUSY");return ()->stop(bound);}
-   PermissionGate.Status decision=permissions.check(value,"media",true);
+   PermissionGate.Status decision=consent.check();
    if(decision==PermissionGate.Status.DENIED)complete(bound,null,"DENIED");
    else if(decision==PermissionGate.Status.GRANTED)launch(bound);
    else{
-    Boolean[] selected={null};bound.dialog=new AlertDialog.Builder(activity).setTitle("Image access").setMessage("Allow "+value.identity+" to select or capture an image?").setNegativeButton("Don’t allow",(dialog,which)->selected[0]=false).setPositiveButton("Allow",(dialog,which)->selected[0]=true).create();
-    bound.dialog.setOnCancelListener(dialog->selected[0]=false);bound.dialog.setOnDismissListener(dialog->{bound.dialog=null;if(bound.done||pending!=bound||selected[0]==null)return;try{if(!foreground.getAsBoolean()){complete(bound,null,"BUSY");return;}PermissionGate.Status status=permissions.decide(value,"media",selected[0],true);if(status==PermissionGate.Status.GRANTED)launch(bound);else complete(bound,null,"DENIED");}catch(Exception failed){complete(bound,null,"FAILED");}});bound.dialog.show();
+    Boolean[] selected={null};bound.dialog=new AlertDialog.Builder(activity).setTitle("Image access").setMessage("Allow "+consent.identity()+" to select or capture an image?").setNegativeButton("Don’t allow",(dialog,which)->selected[0]=false).setPositiveButton("Allow",(dialog,which)->selected[0]=true).create();
+    bound.dialog.setOnCancelListener(dialog->selected[0]=false);bound.dialog.setOnDismissListener(dialog->{bound.dialog=null;if(bound.done||pending!=bound||selected[0]==null)return;try{if(!foreground.getAsBoolean()){complete(bound,null,"BUSY");return;}PermissionGate.Status status=bound.consent.decide(selected[0]);if(status==PermissionGate.Status.GRANTED)launch(bound);else complete(bound,null,"DENIED");}catch(Exception failed){complete(bound,null,"FAILED");}});bound.dialog.show();
    }
   }catch(Exception failure){stop(bound);throw failure;}
   return ()->stop(bound);
  }
  private void launch(Pending bound)throws Exception {
   if(bound.done||pending!=bound)return;if(!foreground.getAsBoolean()){complete(bound,null,"BUSY");return;}
-  if(permissions.check(bound.value,"media",true)!=PermissionGate.Status.GRANTED){complete(bound,null,"DENIED");return;}
+  if(bound.consent.check()!=PermissionGate.Status.GRANTED){complete(bound,null,"DENIED");return;}
   Intent intent;
   if(bound.options.source.equals("camera")){
    File directory=new File(activity.getCacheDir(),"pjm-media-camera");if(!directory.isDirectory()&&!directory.mkdirs())throw new IOException("Media capture directory unavailable");
@@ -57,7 +63,7 @@ final class MediaPicker {
  void resume(){owner();Pending bound=pending;if(bound==null||bound.done||!bound.resultReady||!foreground.getAsBoolean())return;
   if(bound.error!=null){complete(bound,null,bound.error);return;}
   if(bound.result==null||!"content".equals(bound.result.getScheme())){complete(bound,null,"FAILED");return;}
-  try{if(permissions.check(bound.value,"media",true)!=PermissionGate.Status.GRANTED){complete(bound,null,"DENIED");return;}}catch(Exception failed){complete(bound,null,"FAILED");return;}
+  try{if(bound.consent.check()!=PermissionGate.Status.GRANTED){complete(bound,null,"DENIED");return;}}catch(Exception failed){complete(bound,null,"FAILED");return;}
   Uri selected=bound.result;complete(bound,cancellation->{AssetFileDescriptor descriptor=activity.getContentResolver().openAssetFileDescriptor(selected,"r",cancellation);if(descriptor==null)throw new IOException("Media provider unavailable");try{if(descriptor.getLength()>MediaContract.SOURCE_BYTES)throw new IOException("Media source exceeds limit");return descriptor.createInputStream();}catch(Exception failed){descriptor.close();throw failed;}},null);
  }
  private void complete(Pending bound,VerifiedMedia.Source source,String error){if(bound.done||pending!=bound)return;bound.done=true;bound.completion.complete(source,error);}

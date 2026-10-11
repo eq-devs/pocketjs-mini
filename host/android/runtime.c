@@ -248,7 +248,12 @@ JNIEXPORT jint JNICALL Java_dev_pjm_android_MiniActivity_systemBack(JNIEnv *env,
   pthread_mutex_unlock(&host->mutex);
   int32_t status=cancelled.cancelled_count?mp_frame_input(host->engine,&cancelled):0;
   if(!status)status=mp_system_back(host->engine);
-  if(status<0)host->ready=0;
+  if(status<0){
+    host->ready=0;
+    const char *error=mp_last_error(host->engine);
+    jclass failure=(*env)->FindClass(env,"java/lang/IllegalStateException");
+    if(failure)(*env)->ThrowNew(env,failure,error?error:"Shared engine Back failed");
+  }
   return status;
 }
 

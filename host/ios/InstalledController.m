@@ -46,6 +46,7 @@ static BOOL MiniResourceInteger(id value,NSUInteger low,NSUInteger high) {
 // Per-request ephemeral sessions isolate cache, cookies and credentials.
 @interface MiniHTTPTask : NSObject <NSURLSessionDataDelegate>
 @property MiniVerifiedPackage *package;
+@property(copy) BOOL (^authorizeURL)(NSString *);
 @property NSURLSession *session;
 @property NSURLSessionDataTask *task;
 @property NSMutableData *body;
@@ -78,8 +79,8 @@ static BOOL MiniResourceInteger(id value,NSUInteger low,NSUInteger high) {
     if(_resource){memcpy((uint8_t *)_resource.bytes.mutableBytes+used,data.bytes,data.length);_resource.length+=data.length;}else [_body appendData:data];
 }
 - (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task willPerformHTTPRedirection:(NSHTTPURLResponse *)response newRequest:(NSURLRequest *)request completionHandler:(void (^)(NSURLRequest *))completionHandler {
-    (void)session;(void)task;(void)response;NSError *error=nil;
-    if(_finished || ++_redirects>5 || ![_package authorizeURL:request.URL.absoluteString error:&error]){completionHandler(nil);[self finish:@{@"ok":@NO,@"error":@{@"code":@"DENIED",@"message":@"HTTP redirect denied"}}];return;}
+    (void)session;(void)task;(void)response;
+    if(_finished || ++_redirects>5 || !_authorizeURL(request.URL.absoluteString)){completionHandler(nil);[self finish:@{@"ok":@NO,@"error":@{@"code":@"DENIED",@"message":@"HTTP redirect denied"}}];return;}
     NSMutableURLRequest *next=[request mutableCopy];[next setValue:nil forHTTPHeaderField:@"Authorization"];[next setValue:nil forHTTPHeaderField:@"Cookie"];completionHandler(next);
 }
 - (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task didCompleteWithError:(NSError *)error {
@@ -89,6 +90,45 @@ static BOOL MiniResourceInteger(id value,NSUInteger low,NSUInteger high) {
     else [self finish:@{@"ok":@YES,@"data":@{@"status":@(_response.statusCode),@"bodyBase64":[_body base64EncodedStringWithOptions:0]}}];
 }
 @end
+static NSDictionary *MiniStartHTTP(id arguments,NSNumber *identifier,MiniVerifiedPackage *package,uint64_t generation,NSMutableDictionary<NSString *,MiniHTTPTask *> *requests,BOOL (^authorize)(NSString *),BOOL (^admit)(void),MiniResource *(^reserve)(void),NSURLSessionConfiguration *configuration) {
+    NSCAssert(NSThread.isMainThread,@"HTTP requires main owner");
+    NSDictionary *(^failure)(NSString *,NSString *)=^NSDictionary *(NSString *code,NSString *message){return @{@"ok":@NO,@"error":@{@"code":code,@"message":message}};};
+    if(![arguments isKindOfClass:NSDictionary.class])return failure(@"PROTOCOL",@"Invalid HTTP arguments");
+    NSDictionary *args=arguments;for(id key in args)if(![@[@"url",@"method",@"headers",@"bodyBase64",@"responseMode"] containsObject:key])return failure(@"PROTOCOL",@"Unknown HTTP argument");
+    id mode=args[@"responseMode"]?:@"inline";if(![@[@"inline",@"resource"] containsObject:mode])return failure(@"PROTOCOL",@"Invalid response mode");
+    id address=args[@"url"],method=args[@"method"]?:@"GET",headers=args[@"headers"]?:@{},body=args[@"bodyBase64"]?:@"";
+    if(![address isKindOfClass:NSString.class] || [address length]==0 || [address lengthOfBytesUsingEncoding:NSUTF8StringEncoding]>2048 || ![@[@"GET",@"HEAD",@"POST",@"PUT",@"PATCH",@"DELETE"] containsObject:method] || ![headers isKindOfClass:NSDictionary.class] || [headers count]>16 || ![body isKindOfClass:NSString.class] || [body length]>2048)return failure(@"PROTOCOL",@"Invalid HTTP arguments");
+    NSData *bytes=[[NSData alloc] initWithBase64EncodedString:body options:0];
+    if(!bytes || bytes.length>1536 || (![body isEqual:[bytes base64EncodedStringWithOptions:0]]) || (([method isEqual:@"GET"] || [method isEqual:@"HEAD"]) && bytes.length))return failure(@"PROTOCOL",@"Invalid HTTP body");
+    if(!authorize(address))return failure(@"DENIED",@"HTTP URL denied by package policy");
+    NSMutableURLRequest *request=[NSMutableURLRequest requestWithURL:[NSURL URLWithString:address] cachePolicy:NSURLRequestReloadIgnoringLocalCacheData timeoutInterval:15];request.HTTPMethod=method;request.HTTPBody=bytes.length?bytes:nil;request.HTTPShouldHandleCookies=NO;
+    NSUInteger headerBytes=0;NSMutableSet *headerNames=[NSMutableSet new];
+    for(id name in headers){id value=headers[name];
+        if(![name isKindOfClass:NSString.class] || ![value isKindOfClass:NSString.class] || [name length]==0 || [name length]>64 || [name rangeOfString:@"^[A-Za-z0-9-]+$" options:NSRegularExpressionSearch].length!=[name length] || [value lengthOfBytesUsingEncoding:NSUTF8StringEncoding]>256 || [value rangeOfCharacterFromSet:NSCharacterSet.controlCharacterSet].location!=NSNotFound || [@[@"host",@"cookie",@"content-length",@"connection",@"transfer-encoding",@"proxy-authorization"] containsObject:[name lowercaseString]])return failure(@"PROTOCOL",@"Invalid HTTP header");
+        if(![value dataUsingEncoding:NSASCIIStringEncoding allowLossyConversion:NO])return failure(@"PROTOCOL",@"HTTP header must use printable ASCII");
+        NSString *lower=[name lowercaseString];if([headerNames containsObject:lower])return failure(@"PROTOCOL",@"Duplicate HTTP header");[headerNames addObject:lower];
+        headerBytes+=[name lengthOfBytesUsingEncoding:NSUTF8StringEncoding]+[value lengthOfBytesUsingEncoding:NSUTF8StringEncoding];if(headerBytes>1024)return failure(@"PROTOCOL",@"HTTP headers exceed limit");[request setValue:value forHTTPHeaderField:name];
+    }
+    NSString *prefix=[NSString stringWithFormat:@"%llu:",(unsigned long long)generation],*key=[prefix stringByAppendingString:identifier.stringValue];NSUInteger guestCount=0;for(NSString *candidate in requests)if([candidate hasPrefix:prefix])guestCount++;
+    if(requests[key] || requests.count>=8 || guestCount>=4)return failure(@"BUSY",@"Too many HTTP requests");
+    if(!admit())return failure(@"BUSY",@"Application HTTP rate limit exceeded");
+    MiniResource *resource=nil;if([mode isEqual:@"resource"]){if(!(resource=reserve()))return failure(@"BUSY",@"Resource capacity exceeded");}
+    MiniHTTPTask *work=[MiniHTTPTask new];work.resource=resource;work.package=package;work.authorizeURL=authorize;work.generation=generation;work.body=[NSMutableData new];
+    __weak NSMutableDictionary *weakRequests=requests;__weak MiniHTTPTask *weakWork=work;
+    work.completion=^(NSDictionary *result){MiniHTTPTask *bound=weakRequests[key];if(!bound || bound!=weakWork)return;NSMutableDictionary *reply=[result mutableCopy];reply[@"v"]=@1;reply[@"id"]=identifier;NSData *encoded=[NSJSONSerialization dataWithJSONObject:reply options:NSJSONWritingWithoutEscapingSlashes error:nil];if(!encoded || encoded.length>4096)encoded=[NSJSONSerialization dataWithJSONObject:@{@"v":@1,@"id":identifier,@"ok":@NO,@"error":@{@"code":@"FAILED",@"message":@"HTTP reply exceeds limit"}} options:0 error:nil];bound.reply=[[NSString alloc] initWithData:encoded encoding:NSUTF8StringEncoding];};
+    NSURLSessionConfiguration *config=configuration;config.URLCache=nil;config.HTTPCookieStorage=nil;config.URLCredentialStorage=nil;config.HTTPShouldSetCookies=NO;config.timeoutIntervalForRequest=15;config.timeoutIntervalForResource=15;config.HTTPMaximumConnectionsPerHost=4;
+    work.session=[NSURLSession sessionWithConfiguration:config delegate:work delegateQueue:NSOperationQueue.mainQueue];work.task=[work.session dataTaskWithRequest:request];requests[key]=work;[work.task resume];return nil;
+}
+static NSDictionary *MiniResourceService(NSString *kind,id arguments,NSString *identity,uint64_t generation,NSMutableDictionary<NSString *,MiniResource *> *resources) {
+    NSCAssert(NSThread.isMainThread,@"Resources require main owner");
+    NSDictionary *(^fail)(NSString *)=^NSDictionary *(NSString *code){return @{@"ok":@NO,@"error":@{@"code":code,@"message":@"Invalid resource request"}};};
+    BOOL read=[kind isEqual:@"resource.read.v1"];if(![arguments isKindOfClass:NSDictionary.class])return fail(@"PROTOCOL");NSDictionary *args=arguments;
+    if(args.count!=(read?3:1) || ![args[@"handle"] isKindOfClass:NSString.class] || (read && (!MiniResourceInteger(args[@"offset"],0,1024*1024) || !MiniResourceInteger(args[@"count"],1,1536))))return fail(@"PROTOCOL");
+    MiniResource *slot=resources[args[@"handle"]];if(!slot || !slot.ready || slot.generation!=generation || ![slot.identity isEqual:identity])return fail(@"DENIED");
+    if(!read){[resources removeObjectForKey:slot.handle];return @{@"ok":@YES,@"data":NSNull.null};}
+    NSUInteger offset=[args[@"offset"] unsignedIntegerValue];if(offset>slot.length)return fail(@"PROTOCOL");NSUInteger count=MIN([args[@"count"] unsignedIntegerValue],slot.length-offset);
+    NSData *chunk=[slot.bytes subdataWithRange:NSMakeRange(offset,count)];return @{@"ok":@YES,@"data":@{@"bodyBase64":[chunk base64EncodedStringWithOptions:0],@"offset":@(offset),@"nextOffset":@(offset+count),@"size":@(slot.length),@"eof":(offset+count==slot.length?@YES:@NO)}};
+}
 @interface MiniClipboardRead : NSObject
 @property MiniVerifiedPackage *package;
 @property uint64_t generation;
@@ -171,32 +211,7 @@ static BOOL MiniResourceInteger(id value,NSUInteger low,NSUInteger high) {
     if(count>=4)return nil;MiniResource *resource=MiniReserveResource(identity,generation);if(resource)_resources[resource.handle]=resource;return resource;
 }
 - (NSDictionary *)startHTTP:(id)arguments identifier:(NSNumber *)identifier package:(MiniVerifiedPackage *)package generation:(uint64_t)generation {
-    NSDictionary *(^failure)(NSString *,NSString *)=^NSDictionary *(NSString *code,NSString *message){return @{@"ok":@NO,@"error":@{@"code":code,@"message":message}};};
-    if(![arguments isKindOfClass:NSDictionary.class])return failure(@"PROTOCOL",@"Invalid HTTP arguments");
-    NSDictionary *args=arguments;for(id key in args)if(![@[@"url",@"method",@"headers",@"bodyBase64",@"responseMode"] containsObject:key])return failure(@"PROTOCOL",@"Unknown HTTP argument");
-    id mode=args[@"responseMode"]?:@"inline";if(![@[@"inline",@"resource"] containsObject:mode])return failure(@"PROTOCOL",@"Invalid response mode");
-    id address=args[@"url"],method=args[@"method"]?:@"GET",headers=args[@"headers"]?:@{},body=args[@"bodyBase64"]?:@"";
-    if(![address isKindOfClass:NSString.class] || [address length]==0 || [address lengthOfBytesUsingEncoding:NSUTF8StringEncoding]>2048 || ![@[@"GET",@"HEAD",@"POST",@"PUT",@"PATCH",@"DELETE"] containsObject:method] || ![headers isKindOfClass:NSDictionary.class] || [headers count]>16 || ![body isKindOfClass:NSString.class] || [body length]>2048)return failure(@"PROTOCOL",@"Invalid HTTP arguments");
-    NSData *bytes=[[NSData alloc] initWithBase64EncodedString:body options:0];
-    if(!bytes || bytes.length>1536 || (![body isEqual:[bytes base64EncodedStringWithOptions:0]]) || (([method isEqual:@"GET"] || [method isEqual:@"HEAD"]) && bytes.length))return failure(@"PROTOCOL",@"Invalid HTTP body");
-    NSError *error=nil;if(![package authorizeURL:address error:&error])return failure(@"DENIED",@"HTTP URL denied by package policy");
-    NSMutableURLRequest *request=[NSMutableURLRequest requestWithURL:[NSURL URLWithString:address] cachePolicy:NSURLRequestReloadIgnoringLocalCacheData timeoutInterval:15];request.HTTPMethod=method;request.HTTPBody=bytes.length?bytes:nil;request.HTTPShouldHandleCookies=NO;
-    NSUInteger headerBytes=0;NSMutableSet *headerNames=[NSMutableSet new];
-    for(id name in headers){id value=headers[name];
-        if(![name isKindOfClass:NSString.class] || ![value isKindOfClass:NSString.class] || [name length]==0 || [name length]>64 || [name rangeOfString:@"^[A-Za-z0-9-]+$" options:NSRegularExpressionSearch].length!=[name length] || [value lengthOfBytesUsingEncoding:NSUTF8StringEncoding]>256 || [value rangeOfCharacterFromSet:NSCharacterSet.controlCharacterSet].location!=NSNotFound || [@[@"host",@"cookie",@"content-length",@"connection",@"transfer-encoding",@"proxy-authorization"] containsObject:[name lowercaseString]])return failure(@"PROTOCOL",@"Invalid HTTP header");
-        if(![value dataUsingEncoding:NSASCIIStringEncoding allowLossyConversion:NO])return failure(@"PROTOCOL",@"HTTP header must use printable ASCII");
-        NSString *lower=[name lowercaseString];if([headerNames containsObject:lower])return failure(@"PROTOCOL",@"Duplicate HTTP header");[headerNames addObject:lower];
-        headerBytes+=[name lengthOfBytesUsingEncoding:NSUTF8StringEncoding]+[value lengthOfBytesUsingEncoding:NSUTF8StringEncoding];if(headerBytes>1024)return failure(@"PROTOCOL",@"HTTP headers exceed limit");[request setValue:value forHTTPHeaderField:name];
-    }
-    NSString *prefix=[NSString stringWithFormat:@"%llu:",(unsigned long long)generation],*key=[prefix stringByAppendingString:identifier.stringValue];NSUInteger guestCount=0;for(NSString *candidate in _requests)if([candidate hasPrefix:prefix])guestCount++;
-    if(_requests[key] || _requests.count>=8 || guestCount>=4)return failure(@"BUSY",@"Too many HTTP requests");
-    if(![self admitHTTPRateForIdentity:package.metadata[@"appId"] time:NSProcessInfo.processInfo.systemUptime])return failure(@"BUSY",@"Application HTTP rate limit exceeded");
-    MiniResource *resource=nil;if([mode isEqual:@"resource"]){if(!(resource=[self reserveResourceForIdentity:package.metadata[@"appId"] generation:generation]))return failure(@"BUSY",@"Resource capacity exceeded");}
-    MiniHTTPTask *work=[MiniHTTPTask new];work.resource=resource;work.package=package;work.generation=generation;work.body=[NSMutableData new];
-    __weak MiniInstalledController *weakSelf=self;
-    work.completion=^(NSDictionary *result){MiniInstalledController *owner=weakSelf;if(!owner)return;MiniHTTPTask *bound=owner.requests[key];if(!bound)return;NSMutableDictionary *reply=[result mutableCopy];reply[@"v"]=@1;reply[@"id"]=identifier;NSData *encoded=[NSJSONSerialization dataWithJSONObject:reply options:NSJSONWritingWithoutEscapingSlashes error:nil];if(!encoded || encoded.length>4096)encoded=[NSJSONSerialization dataWithJSONObject:@{@"v":@1,@"id":identifier,@"ok":@NO,@"error":@{@"code":@"FAILED",@"message":@"HTTP reply exceeds limit"}} options:0 error:nil];bound.reply=[[NSString alloc] initWithData:encoded encoding:NSUTF8StringEncoding];};
-    NSURLSessionConfiguration *config=[self httpConfiguration];config.URLCache=nil;config.HTTPCookieStorage=nil;config.URLCredentialStorage=nil;config.HTTPShouldSetCookies=NO;config.timeoutIntervalForRequest=15;config.timeoutIntervalForResource=15;config.HTTPMaximumConnectionsPerHost=4;
-    work.session=[NSURLSession sessionWithConfiguration:config delegate:work delegateQueue:NSOperationQueue.mainQueue];work.task=[work.session dataTaskWithRequest:request];_requests[key]=work;[work.task resume];return nil;
+    return MiniStartHTTP(arguments,identifier,package,generation,_requests,^BOOL(NSString *address){return [package authorizeURL:address error:nil];},^BOOL{return [self admitHTTPRateForIdentity:package.metadata[@"appId"] time:NSProcessInfo.processInfo.systemUptime];},^MiniResource *{return [self reserveResourceForIdentity:package.metadata[@"appId"] generation:generation];},[self httpConfiguration]);
 }
 - (void)dispatchService:(NSString *)line package:(MiniVerifiedPackage *)package generation:(uint64_t)generation {
     NSData *record=[line dataUsingEncoding:NSUTF8StringEncoding];if(record.length>4096)return;
@@ -223,16 +238,7 @@ static BOOL MiniResourceInteger(id value,NSUInteger low,NSUInteger high) {
     reply[@"ok"]=code?@NO:@YES;if(code)reply[@"error"]=@{@"code":code,@"message":message};
     NSData *encoded=[NSJSONSerialization dataWithJSONObject:reply options:NSJSONWritingWithoutEscapingSlashes error:nil];if(encoded && encoded.length<=4096){NSError *failure=nil;[_surface postVerifiedEvent:[[NSString alloc] initWithData:encoded encoding:NSUTF8StringEncoding] identity:package.metadata[@"appId"] generation:generation error:&failure];}
 }
-- (NSDictionary *)resourceService:(NSString *)kind arguments:(id)arguments identity:(NSString *)identity generation:(uint64_t)generation {
-    NSAssert(NSThread.isMainThread,@"Resources require main owner");
-    NSDictionary *(^fail)(NSString *)=^NSDictionary *(NSString *code){return @{@"ok":@NO,@"error":@{@"code":code,@"message":@"Invalid resource request"}};};
-    BOOL read=[kind isEqual:@"resource.read.v1"];if(![arguments isKindOfClass:NSDictionary.class])return fail(@"PROTOCOL");NSDictionary *args=arguments;
-    if(args.count!=(read?3:1) || ![args[@"handle"] isKindOfClass:NSString.class] || (read && (!MiniResourceInteger(args[@"offset"],0,1024*1024) || !MiniResourceInteger(args[@"count"],1,1536))))return fail(@"PROTOCOL");
-    MiniResource *slot=_resources[args[@"handle"]];if(!slot || !slot.ready || slot.generation!=generation || ![slot.identity isEqual:identity])return fail(@"DENIED");
-    if(!read){[_resources removeObjectForKey:slot.handle];return @{@"ok":@YES,@"data":NSNull.null};}
-    NSUInteger offset=[args[@"offset"] unsignedIntegerValue];if(offset>slot.length)return fail(@"PROTOCOL");NSUInteger count=MIN([args[@"count"] unsignedIntegerValue],slot.length-offset);
-    NSData *chunk=[slot.bytes subdataWithRange:NSMakeRange(offset,count)];return @{@"ok":@YES,@"data":@{@"bodyBase64":[chunk base64EncodedStringWithOptions:0],@"offset":@(offset),@"nextOffset":@(offset+count),@"size":@(slot.length),@"eof":(offset+count==slot.length?@YES:@NO)}};
-}
+- (NSDictionary *)resourceService:(NSString *)kind arguments:(id)arguments identity:(NSString *)identity generation:(uint64_t)generation {return MiniResourceService(kind,arguments,identity,generation,_resources);}
 - (void)writeClipboardText:(NSString *)text {UIPasteboard.generalPasteboard.string=text;}
 - (BOOL)admitClipboardRateForIdentity:(NSString *)identity time:(double)now {return MiniClipboardAdmitRate(identity,now);}
 - (NSDictionary *)clipboardWrite:(id)arguments identity:(NSString *)identity {
@@ -295,4 +301,50 @@ static BOOL MiniResourceInteger(id value,NSUInteger low,NSUInteger high) {
 }
 - (void)shutdown {[_media close];[_location close];[_surface shutdown];for(MiniClipboardRead *work in _clipboardReads.allValues)[work cancel];[_clipboardReads removeAllObjects];for(MiniHTTPTask *work in _requests.allValues)[work cancel];[_requests removeAllObjects];[_resources removeAllObjects];}
 - (void)dealloc {[_media close];[_location close];[_surface shutdown];for(MiniClipboardRead *work in _clipboardReads.allValues)[work cancel];for(MiniHTTPTask *work in _requests.allValues)[work cancel];}
+@end
+
+@interface MiniDevelopmentHTTP ()
+@property(copy) NSString *identity;
+@property(copy) NSSet<NSString *> *domains;
+@property uint64_t generation;
+@property NSMutableDictionary<NSString *,MiniHTTPTask *> *requests;
+@property NSMutableDictionary<NSString *,MiniResource *> *resources;
+@property BOOL closed;
+@end
+@implementation MiniDevelopmentHTTP
+- (instancetype)initWithIdentity:(NSString *)identity domains:(NSArray *)domains generation:(uint64_t)generation {
+    NSAssert(NSThread.isMainThread,@"HTTP requires main owner");
+    self=[super init];if(!self)return nil;
+    if(![identity isKindOfClass:NSString.class] || !identity.length || identity.length>128 || !generation || ![domains isKindOfClass:NSArray.class] || domains.count>128)return nil;
+    if([identity rangeOfString:@"^[A-Za-z0-9][A-Za-z0-9._-]*$" options:NSRegularExpressionSearch].length!=identity.length)return nil;
+    NSMutableSet *allowed=[NSMutableSet new];for(id domain in domains){if(![domain isKindOfClass:NSString.class] || ![domain length] || [domain length]>253 || [domain rangeOfString:@"^[a-z0-9]+(?:[a-z0-9-]*[a-z0-9])?(?:\\.[a-z0-9]+(?:[a-z0-9-]*[a-z0-9])?)*$" options:NSRegularExpressionSearch].length!=[domain length] || [allowed containsObject:domain])return nil;[allowed addObject:[domain copy]];}
+    _identity=[identity copy];_domains=[allowed copy];_generation=generation;_requests=[NSMutableDictionary new];_resources=[NSMutableDictionary new];return self;
+}
+- (BOOL)authorize:(NSString *)address {
+    NSURLComponents *url=[NSURLComponents componentsWithString:address];return url && [url.scheme.lowercaseString isEqual:@"https"] && !url.user && !url.password && (!url.port || url.port.integerValue==443) && [_domains containsObject:url.host.lowercaseString];
+}
+- (MiniResource *)reserveDevelopmentResource:(NSString *)identity generation:(uint64_t)generation {
+    NSAssert(NSThread.isMainThread,@"Resources require main owner");if(_closed||![identity isEqual:_identity]||generation!=_generation||_resources.count>=4)return nil;
+    MiniResource *slot=MiniReserveResource(identity,generation);if(slot)_resources[slot.handle]=slot;return slot;
+}
+- (NSDictionary *)completeDevelopmentMedia:(id)token image:(MiniMediaImage *)image {
+    NSAssert(NSThread.isMainThread,@"Resources require main owner");MiniResource *slot=token;if(_closed||_resources[slot.handle]!=slot||slot.ready||slot.generation!=_generation||![slot.identity isEqual:_identity]||!image.jpeg.length||image.jpeg.length>1024*1024)return nil;
+    memcpy(slot.bytes.mutableBytes,image.jpeg.bytes,image.jpeg.length);slot.length=image.jpeg.length;slot.ready=YES;return @{@"mime":@"image/jpeg",@"width":@(image.width),@"height":@(image.height),@"resource":@{@"handle":slot.handle,@"size":@(slot.length)}};
+}
+- (void)discardDevelopmentMedia:(id)token {NSAssert(NSThread.isMainThread,@"Resources require main owner");MiniResource *slot=token;if(_resources[slot.handle]==slot)[_resources removeObjectForKey:slot.handle];}
+- (MiniVerifiedMedia *)mediaWithPresenter:(UIViewController *)presenter declared:(BOOL)declared {
+    if(_closed)return nil;__weak MiniDevelopmentHTTP *weakSelf=self;
+    return [[MiniVerifiedMedia alloc] initDevelopmentWithIdentity:_identity declared:declared presenter:presenter reserve:^id(NSString *identity,uint64_t generation){return [weakSelf reserveDevelopmentResource:identity generation:generation];} complete:^NSDictionary *(id slot,MiniMediaImage *image){return [weakSelf completeDevelopmentMedia:slot image:image];} discard:^(id slot){[weakSelf discardDevelopmentMedia:slot];}];
+}
+- (NSDictionary *)start:(id)arguments identifier:(NSNumber *)identifier {
+    NSAssert(NSThread.isMainThread,@"HTTP requires main owner");
+    if(_closed || !MiniResourceInteger(identifier,1,9007199254740991ULL))return @{@"ok":@NO,@"error":@{@"code":@"PROTOCOL",@"message":@"Invalid HTTP binding"}};
+    NSString *identity=_identity;NSSet *domains=_domains;__weak MiniDevelopmentHTTP *weakSelf=self;
+    return MiniStartHTTP(arguments,identifier,nil,_generation,_requests,^BOOL(NSString *address){NSURLComponents *url=[NSURLComponents componentsWithString:address];return url && [url.scheme.lowercaseString isEqual:@"https"] && !url.user && !url.password && (!url.port || url.port.integerValue==443) && [domains containsObject:url.host.lowercaseString];},^BOOL{return MiniHTTPAdmitRate(identity,NSProcessInfo.processInfo.systemUptime);},^MiniResource *{MiniDevelopmentHTTP *owner=weakSelf;return [owner reserveDevelopmentResource:identity generation:owner.generation];},NSURLSessionConfiguration.ephemeralSessionConfiguration);
+}
+- (NSDictionary *)resource:(NSString *)kind arguments:(id)arguments {return MiniResourceService(kind,arguments,_identity,_generation,_resources);}
+- (void)cancel:(NSNumber *)identifier {NSAssert(NSThread.isMainThread,@"HTTP requires main owner");NSString *key=[NSString stringWithFormat:@"%llu:%@",(unsigned long long)_generation,identifier];MiniHTTPTask *work=_requests[key];if(work.resource)[_resources removeObjectForKey:work.resource.handle];[work cancel];[_requests removeObjectForKey:key];}
+- (void)drain:(BOOL (^)(NSString *))sink {NSAssert(NSThread.isMainThread,@"HTTP requires main owner");for(NSString *key in [_requests.allKeys copy]){MiniHTTPTask *work=_requests[key];if(work.reply && sink(work.reply)){if(work.resource && !work.resource.ready)[_resources removeObjectForKey:work.resource.handle];[_requests removeObjectForKey:key];}}}
+- (void)close {NSAssert(NSThread.isMainThread,@"HTTP requires main owner");if(_closed)return;_closed=YES;for(MiniHTTPTask *work in _requests.allValues)[work cancel];[_requests removeAllObjects];[_resources removeAllObjects];}
+- (void)dealloc {for(MiniHTTPTask *work in _requests.allValues)[work cancel];}
 @end

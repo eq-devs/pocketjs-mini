@@ -1,0 +1,27 @@
+import assert from 'node:assert/strict';
+import {mkdirSync,writeFileSync} from 'node:fs';
+import {resolve,join} from 'node:path';
+import {androidSdk} from '../bin/android.ts';
+const root=resolve(import.meta.dir,'..'),sdk=androidSdk();
+const evidence=resolve(process.env.PJM_LOCATION_EVIDENCE??join(root,'build/android-validation/location-development-'+Date.now()));mkdirSync(evidence,{recursive:true});
+const serial='emulator-5580';
+const adb=(...args:string[])=>[join(sdk,'platform-tools/adb'),'-s',serial,...args];
+let feeding=false,feed:Promise<void>|undefined,feedFailure:unknown;
+let log='',cleaned=false,emulator:ReturnType<typeof Bun.spawn>|undefined;
+let output:Promise<string>|undefined,errors:Promise<string>|undefined;
+async function run(args:string[],timeout=30000,env=process.env){const child=Bun.spawn(args,{env,stdout:'pipe',stderr:'pipe'});const timer=setTimeout(()=>child.kill('SIGTERM'),timeout);try{const [status,out,err]=await Promise.all([child.exited,new Response(child.stdout).text(),new Response(child.stderr).text()]);log+=args.join(' ')+'\n'+out+err+'\n';assert.equal(status,0,args[0]+': '+err+'\n'+out);return out.trim();}finally{clearTimeout(timer);}}
+try{
+ const devices=await run([join(sdk,'platform-tools/adb'),'devices']);assert.ok(!devices.includes(serial),'Owned emulator port is occupied');
+ emulator=Bun.spawn([join(sdk,'emulator/emulator'),'-avd','Pixel_2','-port','5580','-read-only','-no-snapshot-load','-no-snapshot-save','-no-window','-no-audio','-gpu','swiftshader_indirect'],{stdout:'pipe',stderr:'pipe'});
+ output=new Response(emulator.stdout).text();errors=new Response(emulator.stderr).text();
+ const deadline=Date.now()+150000;let ready=false;while(Date.now()<deadline){if(await run(adb('shell','getprop','sys.boot_completed')).catch(()=>'')==='1'){ready=true;break;}await Bun.sleep(500);}assert.ok(ready,'Owned emulator did not boot');
+ await run(adb('shell','wm','dismiss-keyguard'));
+ const modes=(process.env.PJM_LOCATION_CASES??'undeclared,deny,allow').split(',');assert.ok(modes.length>0&&modes.every(mode=>['undeclared','deny','allow'].includes(mode))&&new Set(modes).size===modes.length);
+ if(modes.includes('allow')){await run(adb('shell','cmd','location','set-location-enabled','true'));for(const setting of ['window_animation_scale','transition_animation_scale','animator_duration_scale'])await run(adb('shell','settings','put','global',setting,'0'));feeding=true;feed=(async()=>{try{while(feeding){await run(adb('emu','geo','fix','76.889709','43.238949','800','12','0'));await Bun.sleep(1000);}}catch(error){feedFailure=error;}})();}
+ for(const mode of modes){await run(adb('shell','pm','clear','dev.pjm.android')).catch(()=>{});await run([process.execPath,join(root,'tests/navigation-native-android.ts'),serial],900000,{...process.env,ANDROID_SDK_ROOT:sdk,PJM_DEVELOPMENT_NETWORK:'1',PJM_DEVELOPMENT_LOCATION:mode,PJM_NAVIGATION_EVIDENCE:join(evidence,mode)});}
+ assert.equal(feedFailure,undefined);console.log('Owned Android development location cases '+modes.join(',')+': native consent/OS policy, SDK results, cold reopen and hot reload passed.');
+}finally{
+ feeding=false;await feed;
+ if(emulator){const diagnostic=await run(adb('logcat','-d','-v','brief','AndroidRuntime:E','PocketJS:E','*:S')).catch(()=>'');writeFileSync(join(evidence,'native-errors.log'),diagnostic);await run(adb('emu','kill')).catch(()=>{});const timer=setTimeout(()=>emulator!.kill('SIGTERM'),10000);try{await emulator.exited;cleaned=true;}finally{clearTimeout(timer);}writeFileSync(join(evidence,'emulator.log'),(await output??'')+(await errors??''));}
+ writeFileSync(join(evidence,'owned-emulator.json'),JSON.stringify({serial,avd:'Pixel_2',readOnly:true,owned:true,cleaned},null,2));writeFileSync(join(evidence,'owned-device-and-test.log'),log);
+}

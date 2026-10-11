@@ -116,6 +116,21 @@ public class MiniActivity extends Activity {
   private GLSurfaceView surface;
   private TextView message;
   private ScheduledExecutorService network;
+  private VerifiedNetwork networkStatus;
+  private VerifiedClipboard clipboard;
+  private VerifiedHttp http;
+  private VerifiedLocation location;
+  private ManagedResources resources;private VerifiedMedia media;private MediaPicker mediaPicker;private boolean mediaDeclared;
+  private LocationApproval locationApproval;
+  private boolean locationDeclared;
+  private VerifiedHttp.UrlAccess httpAccess;
+  private long clipboardGeneration;
+  private String appIdentity;
+  private boolean clipboardReadDeclared;
+  private android.app.AlertDialog clipboardDialog;
+  private Runnable clipboardDecision;
+  private boolean networkWatching;
+  private String networkDelivered;
   private int reportedRevision;
   private final java.util.concurrent.atomic.AtomicInteger pendingLogs=new java.util.concurrent.atomic.AtomicInteger();
   private String base;
@@ -127,7 +142,7 @@ public class MiniActivity extends Activity {
   private boolean backPending;
   @Override public void onBackPressed(){
     if(backPending)return;
-    if(surface==null || paused || closed || loading || revision<1){finish();return;}
+    if(surface==null || paused || closed || loading || revision<1){testRecord("back.txt","unavailable paused="+paused+" closed="+closed+" loading="+loading+" revision="+revision);finish();return;}
     backPending=true;final int expectedRevision=revision;
     surface.queueEvent(()->{
       int handled=0;
@@ -137,10 +152,22 @@ public class MiniActivity extends Activity {
           if(recordingHeader!=null){setRecording(false);recordingStopped=true;recordingHeader=null;recordingSteps=null;android.util.Log.i("PocketJS","Recording discarded after system Back");}
           handled=systemBack();
         }
-      }catch(Throwable error){handled=-1;}
+        testRecord("back.txt","handled="+handled+" revision="+expectedRevision);
+      }catch(Throwable error){handled=-1;android.util.Log.e("PocketJS","System Back failed",error);testRecord("back.txt","failed: "+error);}
       final int result=handled;
       runOnUiThread(()->{backPending=false;if(closed || paused || revision!=expectedRevision)return;if(result<=0)finish();else surface.requestRender();});
     });
+  }
+  // Native validation only: sections surround JNI, outside the guest deadline.
+  private String tracedFrame(){
+    if(!testMode)return frame();
+    android.os.Trace.beginSection("pjm.native.frame");
+    try{return frame();}finally{android.os.Trace.endSection();}
+  }
+  private String tracedLifecycle(boolean visible){
+    if(!testMode)return lifecycle(visible);
+    android.os.Trace.beginSection(visible?"pjm.native.resume":"pjm.native.hide");
+    try{return lifecycle(visible);}finally{android.os.Trace.endSection();}
   }
   private long nextFrameNanos;
   private final Choreographer.FrameCallback frameCallback=new Choreographer.FrameCallback() {
@@ -156,6 +183,9 @@ public class MiniActivity extends Activity {
 
   @Override public void onCreate(Bundle state) {
     super.onCreate(state);
+    networkStatus=new VerifiedNetwork(this);
+    locationApproval=new LocationApproval(this,()->!paused&&!closed);
+    mediaPicker=new MediaPicker(this,()->!paused&&!closed,()->clipboardDialog!=null||clipboardDecision!=null||locationApproval.active());
     nativeHost=createHost();if(nativeHost==0)throw new OutOfMemoryError("Native host allocation failed");
     base=getIntent().getStringExtra("pjm-url");
     testMode=getIntent().getBooleanExtra("pjm-test",false);
@@ -178,8 +208,30 @@ public class MiniActivity extends Activity {
       }
       public void onDrawFrame(GL10 gl) {
         if(paused || loading) return;
-        String error=frame();
-        if(!error.isEmpty()) {failedRevision=revision;show(error);}
+        if(location==null)location=new VerifiedLocation(new VerifiedLocation.UI(){
+          private FusedLocationProvider provider;
+          public void execute(Runnable work){runOnUiThread(work);}
+          public boolean foreground(){return !paused&&!closed;}
+          public boolean authorized(VerifiedPackage value,LocationContract.Options options){throw new IllegalStateException("Development binding required");}
+          public Runnable requestApproval(VerifiedPackage value,LocationContract.Options options,VerifiedLocation.Decision decision){throw new IllegalStateException("Development binding required");}
+          public Runnable start(LocationContract.Options options,VerifiedLocation.Completion completion){if(provider==null)provider=new FusedLocationProvider(MiniActivity.this);return provider.start(options,completion);}
+        });
+        if(resources==null)resources=new ManagedResources();
+        if(http==null)http=new VerifiedHttp(MiniActivity.this,resources);
+        if(media==null)media=new VerifiedMedia(resources,new VerifiedMedia.UI(){public void execute(Runnable work){runOnUiThread(work);}public Runnable select(VerifiedPackage value,MediaContract.Options options,VerifiedMedia.Completion completion){throw new IllegalStateException("Development media binding required");}});
+        if(clipboard==null)clipboard=new VerifiedClipboard(new VerifiedClipboard.UI(){
+          public void execute(Runnable action){runOnUiThread(action);}
+          public boolean foreground(){return !paused&&!closed&&hasWindowFocus();}
+          public String read(){if(!hasWindowFocus())return null;android.content.ClipboardManager manager=(android.content.ClipboardManager)getSystemService(CLIPBOARD_SERVICE);if(manager==null)throw new IllegalStateException("Clipboard unavailable");android.content.ClipData clip=manager.getPrimaryClip();if(clip==null||clip.getItemCount()==0)return "";CharSequence text=clip.getItemAt(0).getText();if(text==null)throw new IllegalStateException("Clipboard is not text");return text.toString();}
+          public void write(String text){android.content.ClipboardManager manager=(android.content.ClipboardManager)getSystemService(CLIPBOARD_SERVICE);if(manager==null)throw new IllegalStateException("Clipboard unavailable");manager.setPrimaryClip(android.content.ClipData.newPlainText("PocketJS",text));}
+        });
+        try{clipboard.drain((value,generation,reply)->generation!=clipboardGeneration || serviceReply(reply));}catch(Exception failure){show("Clipboard delivery failed");}
+        location.drainDevelopment((identity,generation,reply)->generation!=clipboardGeneration || !identity.equals(appIdentity) || serviceReply(reply));
+        media.drainDevelopment((identity,generation,reply)->generation!=clipboardGeneration || !identity.equals(appIdentity) || serviceReply(reply));
+        http.drainDevelopment((identity,generation,reply)->generation!=clipboardGeneration || !identity.equals(appIdentity) || serviceReply(reply));
+        drainNetwork();
+        String error=tracedFrame();
+        if(!error.isEmpty()) {failedRevision=revision;show("Frame revision="+revision+": "+error);}
         if(error.isEmpty() && revision>0 && revision!=reportedRevision && network!=null && !closed){final int presented=revision;reportedRevision=presented;try{network.execute(()->{try{request("device-event",new JSONObject().put("revision",presented).put("platform","android").put("kind","frame-ready").toString());}catch(Exception ignored){}});}catch(java.util.concurrent.RejectedExecutionException stopped){}}
         dispatchServices();
         if(revision>0) {
@@ -268,19 +320,88 @@ public class MiniActivity extends Activity {
           data.put("width",width);data.put("height",height);data.put("density",density);
           data.put("safeTop",top);data.put("safeBottom",bottom);data.put("safeLeft",left);data.put("safeRight",right);
           reply.put("ok",true);reply.put("data",data);
+        } else if(kind.equals("device.network.v1")) {
+          Object args=request.opt("args");
+          if(!(args instanceof JSONObject)||((JSONObject)args).length()!=0){reply.put("ok",false);reply.put("error",new JSONObject().put("code","PROTOCOL").put("message","Network state takes no arguments"));}
+          else{String latest=networkStatus.state();reply.put("ok",true);reply.put("data",new JSONObject(latest));networkWatching=true;networkDelivered=latest;}
         } else if(kind.equals("storage.get.v1") || kind.equals("storage.set.v1") || kind.equals("storage.remove.v1")) {
           try {
             if(appStorage==null)throw new IOException("Host app identity is unavailable");
             reply.put("data",appStorage.dispatch(kind,request.opt("args")));reply.put("ok",true);
           }catch(Exception error){reply.put("ok",false);reply.put("error",new JSONObject().put("code",error instanceof AppStorage.Busy?"BUSY":error instanceof IllegalArgumentException?"PROTOCOL":"FAILED").put("message",error.getMessage()==null?"Storage failed":error.getMessage()));}
-        } else if(kind.equals("cancel.v1")) {reply.put("ok",true);reply.put("data",JSONObject.NULL);}
+        } else if(kind.equals("clipboard.write.v1")) {
+          if(clipboard==null || appIdentity==null){reply.put("ok",false);reply.put("error",new JSONObject().put("code","BUSY").put("message","Clipboard unavailable"));}
+          else{JSONObject immediate=clipboard.startDevelopmentWrite(appIdentity,clipboardGeneration,(long)number,request.opt("args"));if(immediate==null)continue;reply=immediate;}
+        } else if(kind.equals("clipboard.read.v1")) {
+          if(clipboard==null || appIdentity==null){reply.put("ok",false);reply.put("error",new JSONObject().put("code","BUSY").put("message","Clipboard unavailable"));}
+          else{JSONObject immediate=clipboard.startDevelopmentRead(developmentClipboardAccess(),clipboardGeneration,(long)number,request.opt("args"));if(immediate==null)continue;reply=immediate;}
+        } else if(kind.equals("media.select.v1")) {
+          JSONObject immediate=media.startDevelopment(developmentMediaAccess(),clipboardGeneration,(long)number,request.opt("args"));if(immediate==null)continue;reply=immediate;
+        } else if(kind.equals("location.get.v1")) {
+          JSONObject immediate=location.startDevelopment(developmentLocationAccess(),clipboardGeneration,(long)number,request.opt("args"));if(immediate==null)continue;reply=immediate;
+        } else if(kind.equals("request.v1")) {
+          JSONObject immediate=http.startDevelopment(httpAccess,clipboardGeneration,(long)number,request.opt("args"));if(immediate==null)continue;reply=immediate;
+        } else if(kind.equals("resource.read.v1") || kind.equals("resource.release.v1")) {
+          try{if(appIdentity==null)throw new SecurityException("App unavailable");Object data=kind.equals("resource.read.v1")?http.resourceRead(appIdentity,clipboardGeneration,request.opt("args")):http.resourceRelease(appIdentity,clipboardGeneration,request.opt("args"));reply.put("ok",true).put("data",data);}catch(Exception error){reply.put("ok",false).put("error",new JSONObject().put("code",error instanceof SecurityException?"DENIED":"PROTOCOL").put("message","Invalid resource request"));}
+        } else if(kind.equals("cancel.v1")) {if(media!=null)media.cancel(clipboardGeneration,(long)number);if(location!=null)location.cancel(clipboardGeneration,(long)number);if(http!=null)http.cancel(clipboardGeneration,(long)number);if(clipboard!=null)clipboard.cancel(clipboardGeneration,(long)number);reply.put("ok",true);reply.put("data",JSONObject.NULL);}
         else if(testMode && kind.equals("test.report.v1") && request.optJSONObject("args")!=null && request.getJSONObject("args").opt("value") instanceof Number){testActions++;testValue=request.getJSONObject("args").getLong("value");reply.put("ok",true);reply.put("data",JSONObject.NULL);}
         else {reply.put("ok",false);reply.put("error",new JSONObject().put("code","UNSUPPORTED").put("message","Unsupported native service: "+kind.substring(0,Math.min(kind.length(),64))));}
         if(!serviceReply(reply.toString().getBytes("UTF-8"))) {show("Native completion queue is full");break;}
       }
     }catch(Exception error){show("Native service failed: "+error.getMessage());}
   }
-  private void show(String value) {runOnUiThread(()->{if(!closed){message.setText(value);message.setVisibility(View.VISIBLE);testRecord("status.txt",value);}});}
+  private void finishClipboardDecision(){if(hasWindowFocus()&&clipboardDecision!=null){Runnable complete=clipboardDecision;clipboardDecision=null;complete.run();}}
+  @Override public void onWindowFocusChanged(boolean focused){super.onWindowFocusChanged(focused);if(focused)finishClipboardDecision();}
+  private VerifiedClipboard.ReadAccess developmentClipboardAccess(){
+    final String identity=appIdentity;final boolean declared=clipboardReadDeclared;
+    return new VerifiedClipboard.ReadAccess(){
+      public String identity(){return identity;}
+      public void authorize(){if(!declared)throw new SecurityException("Clipboard read was not declared");}
+      private android.content.SharedPreferences decisions(){return getSharedPreferences("pjm-development-clipboard-consent",MODE_PRIVATE);}
+      public PermissionGate.Status permission(){if(!declared)return PermissionGate.Status.DENIED;android.content.SharedPreferences store=decisions();return !store.contains(identity)?PermissionGate.Status.PROMPT:store.getBoolean(identity,false)?PermissionGate.Status.GRANTED:PermissionGate.Status.DENIED;}
+      public PermissionGate.Status decide(boolean approved){android.content.SharedPreferences store=decisions();if(!store.contains(identity)&&store.getAll().size()>=64)throw new IllegalStateException("Development consent history is full");if(!store.edit().putBoolean(identity,approved).commit())throw new IllegalStateException("Cannot save development consent");return permission();}
+      public Runnable prompt(VerifiedClipboard.Decision decision){
+        if(clipboardDialog!=null||clipboardDecision!=null||locationApproval.active()||mediaPicker.active())throw new java.util.concurrent.RejectedExecutionException("Approval already active");
+        final Boolean[] selected={null};android.app.AlertDialog dialog=new android.app.AlertDialog.Builder(MiniActivity.this).setTitle("Clipboard access").setMessage("Allow development app "+identity+" to read clipboard text?").setNegativeButton("Don’t allow",(view,which)->selected[0]=false).setPositiveButton("Allow",(view,which)->selected[0]=true).create();
+        Runnable complete=()->decision.accept(selected[0]);clipboardDialog=dialog;dialog.setOnCancelListener(view->selected[0]=false);dialog.setOnDismissListener(view->{if(clipboardDialog==dialog)clipboardDialog=null;if(selected[0]!=null){clipboardDecision=complete;finishClipboardDecision();}});dialog.show();return ()->{dialog.dismiss();if(clipboardDecision==complete)clipboardDecision=null;};
+      }
+    };
+  }
+  private VerifiedLocation.Access developmentLocationAccess(){
+    final String identity=appIdentity;final boolean declared=locationDeclared;
+    final LocationApproval.Consent consent=new LocationApproval.Consent(){
+      public String identity(){return identity;}
+      private android.content.SharedPreferences decisions(){return getSharedPreferences("pjm-development-location-consent",MODE_PRIVATE);}
+      public PermissionGate.Status check(boolean granted){if(!declared)return PermissionGate.Status.DENIED;java.util.Map<String,?> saved=decisions().getAll();if(!saved.containsKey(identity))return PermissionGate.Status.PROMPT;Object value=saved.get(identity);return Boolean.TRUE.equals(value)&&granted?PermissionGate.Status.GRANTED:PermissionGate.Status.DENIED;}
+      public void decide(boolean approved,boolean granted){if(!declared)throw new SecurityException("Location undeclared");android.content.SharedPreferences store=decisions();if(!store.contains(identity)&&store.getAll().size()>=64)throw new IllegalStateException("Consent capacity exceeded");if(!store.edit().putBoolean(identity,approved).commit())throw new IllegalStateException("Consent persistence failed");}
+    };
+    return new VerifiedLocation.Access(){
+      public String identity(){return identity;}
+      public void declared(){if(!declared)throw new SecurityException("Location undeclared");}
+      public boolean authorized(LocationContract.Options options)throws Exception{return locationApproval.authorized(consent,options);}
+      public Runnable requestApproval(LocationContract.Options options,VerifiedLocation.Decision decision)throws Exception{if(clipboardDialog!=null||clipboardDecision!=null||mediaPicker.active())throw new java.util.concurrent.RejectedExecutionException("Native approval already active");return locationApproval.request(consent,options,decision);}
+    };
+  }
+  private VerifiedMedia.Access developmentMediaAccess(){
+    final String identity=appIdentity;final boolean declared=mediaDeclared;
+    final MediaPicker.Consent consent=new MediaPicker.Consent(){
+      public String identity(){return identity;}
+      private android.content.SharedPreferences decisions(){return getSharedPreferences("pjm-development-media-consent",MODE_PRIVATE);}
+      public PermissionGate.Status check(){if(!declared)return PermissionGate.Status.DENIED;Object value=decisions().getAll().get(identity);return value instanceof Boolean?((Boolean)value?PermissionGate.Status.GRANTED:PermissionGate.Status.DENIED):PermissionGate.Status.PROMPT;}
+      public PermissionGate.Status decide(boolean approved){android.content.SharedPreferences values=decisions();if(!values.contains(identity)&&values.getAll().size()>=64)throw new java.util.concurrent.RejectedExecutionException("Development media consent capacity exceeded");if(!values.edit().putBoolean(identity,approved).commit())throw new IllegalStateException("Development media consent unavailable");return check();}
+    };
+    return new VerifiedMedia.Access(){public String identity(){return identity;}public boolean declared(){return declared;}public Runnable select(MediaContract.Options options,VerifiedMedia.Completion completion)throws Exception{return mediaPicker.select(consent,options,completion);}};
+  }
+  @Override protected void onActivityResult(int code,int result,android.content.Intent data){if(mediaPicker==null||!mediaPicker.onActivityResult(code,result,data))super.onActivityResult(code,result,data);}
+  @Override public void onRequestPermissionsResult(int code,String[] permissions,int[] grants){super.onRequestPermissionsResult(code,permissions,grants);locationApproval.onRequestPermissionsResult(code);}
+  private void drainNetwork(){
+    if(!networkWatching||revision<1||closed)return;
+    String latest=networkStatus.state();if(latest.equals(networkDelivered))return;
+    try{byte[] event=new JSONObject().put("v",1).put("event","device.network.v1").put("data",new JSONObject(latest)).toString().getBytes("UTF-8");if(serviceReply(event))networkDelivered=latest;}
+    catch(Exception malformed){show("Native network state failed");}
+  }
+  private void testStatus(String value){if(!testMode)return;testRecord("status.txt",value);try{testRecord("status.json",new JSONObject().put("session",base).put("revision",revision).put("message",value).toString());}catch(Exception ignored){}}
+  private void show(String value) {runOnUiThread(()->{if(!closed){message.setText(value);message.setVisibility(View.VISIBLE);testStatus(value);}});}
   private byte[] request(String path,String body) throws Exception {
     HttpURLConnection connection=(HttpURLConnection)new URL(base+path).openConnection();
     connection.setConnectTimeout(3000);connection.setReadTimeout(5000);
@@ -309,7 +430,10 @@ public class MiniActivity extends Activity {
       final JSONObject selection=next==revision?state.optJSONObject("inspectionSelection"):null;
       runOnUiThread(()->inspectionOverlay.select(selection));
       if(next<=revision || next==failedRevision || committed.getInt("width")!=w || committed.getInt("height")!=h || committed.getInt("density")!=d) return;
-      final AppStorage storage=new AppStorage(getFilesDir(),state.getJSONObject("metadata").getString("appId"));
+      final String identity=state.getJSONObject("metadata").getString("appId");
+      final org.json.JSONArray permissions=state.getJSONObject("metadata").optJSONArray("permissions");boolean declared=false,locationPermission=false,mediaPermission=false;if(permissions!=null && permissions.length()<=32)for(int index=0;index<permissions.length();index++){if("clipboard.read".equals(permissions.opt(index)))declared=true;if("location".equals(permissions.opt(index)))locationPermission=true;if("media".equals(permissions.opt(index)))mediaPermission=true;}final boolean readDeclared=declared,declaredLocation=locationPermission,declaredMedia=mediaPermission;
+      final VerifiedHttp.UrlAccess committedHttpAccess=VerifiedHttp.developmentAccess(identity,state.getJSONObject("metadata").getJSONArray("domains"));
+      final AppStorage storage=new AppStorage(getFilesDir(),identity);
       final String packageHash=recordMode?state.getString("packageSha256"):"";
       byte[] js=request(next+"/app.js",null),pak=request(next+"/app.pak",null);
       loading=true;
@@ -319,46 +443,53 @@ public class MiniActivity extends Activity {
           setRecording(false);recordingHeader=null;recordingSteps=null;
           String unloadError=prepareUnload();
           if(unloadError.isEmpty())dispatchServices();else android.util.Log.e("PocketJS",unloadError);
+          if(clipboard!=null)clipboard.retire(clipboardGeneration);if(http!=null)http.retire(clipboardGeneration);if(location!=null)location.retire(clipboardGeneration);if(media!=null)media.retire(clipboardGeneration);if(resources!=null)resources.retire(clipboardGeneration);clipboardGeneration++;appIdentity=null;httpAccess=null;
+          networkWatching=false;networkDelivered=null;
           appStorage=null;
           testActions=0;testValue=0;String error=boot(js,pak,w,h,d,testMode);
-          if(!error.isEmpty()){failedRevision=next;show(error);return;}
+          if(!error.isEmpty()){failedRevision=next;show("Boot revision="+next+": "+error);return;}
           try{startRecording(packageHash,w,h,d);}catch(Exception invalid){show("Recording configuration failed: "+invalid.getMessage());}
-          appStorage=storage;revision=next;failedRevision=0;
-          runOnUiThread(()->{message.setVisibility(View.GONE);testRecord("status.txt","");});
+          appStorage=storage;appIdentity=identity;httpAccess=committedHttpAccess;clipboardReadDeclared=readDeclared;locationDeclared=declaredLocation;mediaDeclared=declaredMedia;revision=next;failedRevision=0;
+          runOnUiThread(()->{message.setVisibility(View.GONE);testStatus("");});
         } finally {loading=false;}
       });
     } catch(Exception error){show("Cannot reach development host. Keep pjm run active.\n"+error.getMessage());metrics="";}
   }
   @Override public void onResume(){
     super.onResume();nextFrameNanos=0;
+    if(networkStatus!=null)networkStatus.resume();
     if(surface!=null){
       surface.onResume();
       surface.queueEvent(()->{
         if(closed)return;
-        String error=lifecycle(true);if(!error.isEmpty())show(error);
-        if(pendingMemoryWarning){pendingMemoryWarning=false;error=memoryWarning();if(!error.isEmpty())show(error);}
-        paused=false;
-        runOnUiThread(()->{if(!paused && !closed)Choreographer.getInstance().postFrameCallback(frameCallback);});
+        String error=tracedLifecycle(true);if(!error.isEmpty())show("Resume revision="+revision+": "+error);
+        if(pendingMemoryWarning){pendingMemoryWarning=false;error=memoryWarning();if(!error.isEmpty())show("Memory warning revision="+revision+": "+error);}
+        if(location!=null)location.resume();paused=false;
+        runOnUiThread(()->{if(!paused && !closed){locationApproval.resume();mediaPicker.resume();Choreographer.getInstance().postFrameCallback(frameCallback);}});
       });
     }
   }
   @Override public void onPause(){
+    if(networkStatus!=null)networkStatus.suspend();
     if(inspectionOverlay!=null)inspectionOverlay.clear();inspectionTree=null;
     paused=true;Choreographer.getInstance().removeFrameCallback(frameCallback);touch(3,0,0,0);
+    final boolean permissionPause=locationApproval.awaitingOS();final boolean mediaPause=mediaPicker.external();
     final boolean ending=isFinishing() || isChangingConfigurations();
     if(ending){closed=true;if(network!=null)network.shutdownNow();}
     if(surface!=null){
       surface.queueEvent(()->{
         if(ending){String unloadError=prepareUnload();if(unloadError.isEmpty())dispatchServices();else android.util.Log.e("PocketJS",unloadError);}
-        String error=ending?shutdown():lifecycle(false);
-        if(ending){appStorage=null;revision=0;failedRevision=0;}
-        if(!error.isEmpty())android.util.Log.e("PocketJS",error);
+        if(location!=null){if(ending)location.close();else if(!permissionPause)location.suspend();}
+        if(media!=null){if(ending)media.close();else if(!mediaPause)media.suspend();}
+        String error=ending?shutdown():tracedLifecycle(false);
+        if(ending){if(clipboard!=null)clipboard.close();if(http!=null)http.close();if(resources!=null)resources.close();httpAccess=null;appIdentity=null;appStorage=null;revision=0;failedRevision=0;}
+        if(!error.isEmpty())android.util.Log.e("PocketJS",(ending?"Shutdown":"Hide")+" revision="+revision+": "+error);
       });
       surface.onPause();
     }
     super.onPause();
   }
-  @Override public void onDestroy(){closed=true;if(network!=null)network.shutdownNow();super.onDestroy();}
+  @Override public void onDestroy(){closed=true;if(mediaPicker!=null)mediaPicker.close();if(networkStatus!=null)networkStatus.suspend();if(network!=null)network.shutdownNow();super.onDestroy();}
   @Override public void onTrimMemory(int level){
     super.onTrimMemory(level);
     if(level==TRIM_MEMORY_UI_HIDDEN || level<TRIM_MEMORY_RUNNING_LOW || closed)return;
@@ -366,7 +497,7 @@ public class MiniActivity extends Activity {
     if(surface!=null && !paused)surface.queueEvent(()->{
       if(closed || paused || !pendingMemoryWarning)return;
       pendingMemoryWarning=false;
-      String error=memoryWarning();if(!error.isEmpty())show(error);
+      String error=memoryWarning();if(!error.isEmpty())show("Memory warning revision="+revision+": "+error);
     });
   }
 }

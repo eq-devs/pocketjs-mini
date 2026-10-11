@@ -17,6 +17,6 @@ public final class NavigationSurfaceActivity extends InstalledActivity {
     }catch(Exception waiting){/* Boot and atomic storage contention are temporary. */}
     handler.postDelayed(this,250);
   }};
-  @Override public void onCreate(android.os.Bundle state){super.onCreate(state);try{proofStorage=new AppStorage(getFilesDir(),"dev.pjm.navigation");handler.post(observation);}catch(Exception failure){throw new IllegalStateException(failure);}}
+  @Override public void onCreate(android.os.Bundle state){super.onCreate(state);try{proofStorage=new AppStorage(getFilesDir(),"dev.pjm.navigation");proofStorage.dispatch("storage.remove.v1",new org.json.JSONObject().put("key","media-proof"));handler.post(observation);}catch(Exception failure){throw new IllegalStateException(failure);}}
   @Override public void onDestroy(){handler.removeCallbacks(observation);super.onDestroy();}
 }

@@ -226,8 +226,13 @@ static const uint32_t kPocketSurfaceDefaultTickRate=60;
 - (int32_t)highlightedInspectionNode {return _inspectionHighlight.superlayer?_highlightedInspectionNode:0;}
 - (void)postEvent:(NSString *)line {
   if(_container){[self fail:@"Signed services require their originating identity and generation"];return;}
+  if(_handle && ![self tryPostEvent:line])[self captureError];
+}
+- (BOOL)tryPostEvent:(NSString *)line {
+  if(_container || !_handle)return NO;
   NSData *data=[line dataUsingEncoding:NSUTF8StringEncoding];
-  if(_handle){if(mp_svc_post(_handle,data.bytes,data.length)!=0)[self captureError];else [self recordStep:@{@"kind":@"completion",@"record":line}];}
+  if(!data || mp_svc_post(_handle,data.bytes,data.length)!=0)return NO;
+  [self recordStep:@{@"kind":@"completion",@"record":line}];return YES;
 }
 - (void)setTickRate:(uint32_t)rate {
   if(rate!=0 && rate!=60){[self fail:@"Shared engine currently requires 60 Hz"];return;}_tickRate=rate;

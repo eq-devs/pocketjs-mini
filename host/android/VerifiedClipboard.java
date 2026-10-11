@@ -3,21 +3,28 @@ import java.nio.charset.StandardCharsets;
 import java.util.*;
 import org.json.JSONObject;
 
-/** Owner-thread mailbox, UI-thread clipboard adapter; original package retained. */
+/** Owner-thread mailbox and UI adapter; signed requests retain their original package. */
 final class VerifiedClipboard {
+  interface Decision {void accept(Boolean approved);}
   interface UI {
     void execute(Runnable action);boolean foreground();void write(String text)throws Exception;
     default PermissionGate.Status permission(VerifiedPackage value)throws Exception{return PermissionGate.Status.DENIED;}
     default PermissionGate.Status decide(VerifiedPackage value,boolean approved)throws Exception{return PermissionGate.Status.DENIED;}
-    default Runnable prompt(VerifiedPackage value,java.util.function.Consumer<Boolean> decision)throws Exception{throw new UnsupportedOperationException();}
+    default Runnable prompt(VerifiedPackage value,VerifiedClipboard.Decision decision)throws Exception{throw new UnsupportedOperationException();}
     default String read()throws Exception{throw new UnsupportedOperationException();}
+  }
+  /** Host-owned read authorization; signed callers retain their original package. */
+  interface ReadAccess {
+    String identity();void authorize()throws Exception;
+    PermissionGate.Status permission()throws Exception;PermissionGate.Status decide(boolean approved)throws Exception;
+    Runnable prompt(VerifiedClipboard.Decision decision)throws Exception;
   }
   interface Clock {long now();}
   interface Delivery {boolean post(VerifiedPackage value,long generation,byte[] reply);}
   private static final Map<String,ArrayDeque<Long>> rates=new HashMap<>();
   private final Thread owner=Thread.currentThread();private final UI ui;private final Clock clock;
   private final Map<String,Task> pending=new LinkedHashMap<>();private boolean closed;
-  private static final class Task {VerifiedPackage value;long generation,id,started;byte[] reply;Runnable dismiss;}
+  private static final class Task {VerifiedPackage value;ReadAccess readAccess;long generation,id,started;byte[] reply;Runnable dismiss;}
   VerifiedClipboard(UI ui){this(ui,android.os.SystemClock::elapsedRealtime);}
   VerifiedClipboard(UI ui,Clock clock){this.ui=Objects.requireNonNull(ui);this.clock=Objects.requireNonNull(clock);}
   private void owner(){if(Thread.currentThread()!=owner)throw new IllegalStateException("Clipboard owner required");}
@@ -29,11 +36,19 @@ final class VerifiedClipboard {
   private static JSONObject result(long id,String code)throws org.json.JSONException{return code==null?new JSONObject().put("v",1).put("id",id).put("ok",true).put("data",JSONObject.NULL):new JSONObject().put("v",1).put("id",id).put("ok",false).put("error",new JSONObject().put("code",code).put("message","Clipboard request rejected"));}
   private static String key(long generation,long id){return generation+":"+id;}
   JSONObject start(VerifiedPackage value,long generation,long id,Object arguments)throws org.json.JSONException{
+    return startWrite(value,value.identity,generation,id,arguments);
+  }
+  /** Unsigned development hosts may write, but this entry never grants read access. */
+  JSONObject startDevelopmentWrite(String identity,long generation,long id,Object arguments)throws org.json.JSONException{
+    owner();if(identity==null || identity.length()>128 || !identity.matches("[a-zA-Z][a-zA-Z0-9_-]*(\\.[a-zA-Z][a-zA-Z0-9_-]*)+"))return result(id,"PROTOCOL");
+    return startWrite(null,identity,generation,id,arguments);
+  }
+  private JSONObject startWrite(VerifiedPackage value,String identity,long generation,long id,Object arguments)throws org.json.JSONException{
     owner();if(!(arguments instanceof JSONObject))return result(id,"PROTOCOL");JSONObject args=(JSONObject)arguments;Object raw=args.opt("text");
     if(args.length()!=1||!(raw instanceof String))return result(id,"PROTOCOL");String text=(String)raw;
     for(int index=0;index<text.length();index++){char c=text.charAt(index);if(Character.isHighSurrogate(c)){if(++index>=text.length()||!Character.isLowSurrogate(text.charAt(index)))return result(id,"PROTOCOL");}else if(Character.isLowSurrogate(c))return result(id,"PROTOCOL");}
     if(text.getBytes(StandardCharsets.UTF_8).length>2048||JSONObject.quote(text).replace("\\/","/").getBytes(StandardCharsets.UTF_8).length>3072)return result(id,"PROTOCOL");
-    synchronized(pending){if(closed)return result(id,"CLOSED");if(pending.size()>=4||pending.containsKey(key(generation,id)))return result(id,"BUSY");if(!rate(value.identity,now()))return result(id,"BUSY");
+    synchronized(pending){if(closed)return result(id,"CLOSED");if(pending.size()>=4||pending.containsKey(key(generation,id)))return result(id,"BUSY");if(!rate(identity,now()))return result(id,"BUSY");
       Task task=new Task();task.value=value;task.generation=generation;task.id=id;task.started=now();String key=key(generation,id);pending.put(key,task);
       try{ui.execute(()->{synchronized(pending){if(closed||pending.get(key)!=task)return;String code=null;
         try{if(now()-task.started>=15000)code="TIMEOUT";else if(!ui.foreground())code="BUSY";else ui.write(text);}catch(Exception failure){code="FAILED";}
@@ -55,7 +70,7 @@ final class VerifiedClipboard {
     try{
       if(now()-task.started>=15000){finishRead(task,key,"TIMEOUT",null);return;}
       if(!ui.foreground()){finishRead(task,key,"BUSY",null);return;}
-      if(ui.permission(task.value)!=PermissionGate.Status.GRANTED){finishRead(task,key,"DENIED",null);return;}
+      if(task.readAccess.permission()!=PermissionGate.Status.GRANTED){finishRead(task,key,"DENIED",null);return;}
       String text=ui.read();if(text==null){finishRead(task,key,"DENIED",null);return;}
       for(int index=0;index<text.length();index++){char c=text.charAt(index);if(Character.isHighSurrogate(c)){if(++index>=text.length()||!Character.isLowSurrogate(text.charAt(index))){finishRead(task,key,"FAILED",null);return;}}else if(Character.isLowSurrogate(c)){finishRead(task,key,"FAILED",null);return;}}
       if(text.getBytes(StandardCharsets.UTF_8).length>2048||JSONObject.quote(text).replace("\\/","/").getBytes(StandardCharsets.UTF_8).length>3072){finishRead(task,key,"FAILED",null);return;}
@@ -63,17 +78,31 @@ final class VerifiedClipboard {
     }catch(Exception failure){finishRead(task,key,"FAILED",null);}
   }
   JSONObject startRead(VerifiedPackage value,long generation,long id,Object arguments)throws org.json.JSONException{
+    return startRead(value,new ReadAccess(){
+      public String identity(){return value.identity;}
+      public void authorize()throws Exception{value.policy.authorizePermission("clipboard.read",true);}
+      public PermissionGate.Status permission()throws Exception{return ui.permission(value);}
+      public PermissionGate.Status decide(boolean approved)throws Exception{return ui.decide(value,approved);}
+      public Runnable prompt(VerifiedClipboard.Decision decision)throws Exception{return ui.prompt(value,decision);}
+    },generation,id,arguments);
+  }
+  JSONObject startDevelopmentRead(ReadAccess access,long generation,long id,Object arguments)throws org.json.JSONException{
+    owner();String identity=access==null?null:access.identity();
+    if(identity==null || identity.length()>128 || !identity.matches("[a-zA-Z][a-zA-Z0-9_-]*(\\.[a-zA-Z][a-zA-Z0-9_-]*)+"))return result(id,"PROTOCOL");
+    return startRead(null,access,generation,id,arguments);
+  }
+  private JSONObject startRead(VerifiedPackage value,ReadAccess access,long generation,long id,Object arguments)throws org.json.JSONException{
     owner();if(!(arguments instanceof JSONObject)||((JSONObject)arguments).length()!=0)return result(id,"PROTOCOL");
-    try{value.policy.authorizePermission("clipboard.read",true);}catch(Exception denied){return result(id,"DENIED");}
-    synchronized(pending){if(closed)return result(id,"CLOSED");String key=key(generation,id);if(pending.size()>=4||pending.containsKey(key)||!rate(value.identity,now()))return result(id,"BUSY");
-      Task task=new Task();task.value=value;task.generation=generation;task.id=id;task.started=now();pending.put(key,task);
+    try{access.authorize();}catch(Exception denied){return result(id,"DENIED");}
+    synchronized(pending){if(closed)return result(id,"CLOSED");String key=key(generation,id);if(pending.size()>=4||pending.containsKey(key)||!rate(access.identity(),now()))return result(id,"BUSY");
+      Task task=new Task();task.value=value;task.readAccess=access;task.generation=generation;task.id=id;task.started=now();pending.put(key,task);
       try{ui.execute(()->{synchronized(pending){if(!live(task,key))return;
         try{if(now()-task.started>=15000){finishRead(task,key,"TIMEOUT",null);return;}if(!ui.foreground()){finishRead(task,key,"BUSY",null);return;}
-          PermissionGate.Status status=ui.permission(value);if(status==PermissionGate.Status.GRANTED){read(task,key);return;}if(status==PermissionGate.Status.DENIED){finishRead(task,key,"DENIED",null);return;}
-          task.dismiss=ui.prompt(value,approved->{synchronized(pending){if(!live(task,key))return;try{if(now()-task.started>=15000){finishRead(task,key,"TIMEOUT",null);return;}if(!ui.foreground()){finishRead(task,key,"BUSY",null);return;}if(ui.decide(value,approved)==PermissionGate.Status.GRANTED)read(task,key);else finishRead(task,key,"DENIED",null);}catch(Exception failure){finishRead(task,key,"FAILED",null);}}});
+          PermissionGate.Status status=access.permission();if(status==PermissionGate.Status.GRANTED){read(task,key);return;}if(status==PermissionGate.Status.DENIED){finishRead(task,key,"DENIED",null);return;}
+          task.dismiss=access.prompt(approved->{synchronized(pending){if(!live(task,key))return;try{if(now()-task.started>=15000){finishRead(task,key,"TIMEOUT",null);return;}if(!ui.foreground()){finishRead(task,key,"BUSY",null);return;}if(access.decide(approved)==PermissionGate.Status.GRANTED)read(task,key);else finishRead(task,key,"DENIED",null);}catch(Exception failure){finishRead(task,key,"FAILED",null);}}});
           // An adapter may deliver its decision before returning the dismiss handle.
           if(!live(task,key))dismiss(task);
-        }catch(Exception failure){finishRead(task,key,"FAILED",null);}
+        }catch(java.util.concurrent.RejectedExecutionException busy){finishRead(task,key,"BUSY",null);}catch(Exception failure){finishRead(task,key,"FAILED",null);}
       }});}catch(Exception failure){pending.remove(key);return result(id,"FAILED");}return null;
     }
   }

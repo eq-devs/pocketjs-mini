@@ -5,6 +5,14 @@
 typedef struct {MpPool *pool;JNIEnv *env;jobject owner;jmethodID cleanup,retired;jthrowable failure;uint8_t records[32*4097];} Peer;
 static Peer *peer(jlong value){return (Peer *)(intptr_t)value;}
 static void error(JNIEnv *env){if(!(*env)->ExceptionCheck(env)){jclass type=(*env)->FindClass(env,"java/lang/IllegalStateException");if(type){(*env)->ThrowNew(env,type,"Retained native operation failed");(*env)->DeleteLocalRef(env,type);}}}
+static void pool_error(JNIEnv *env,Peer *p){
+  if((*env)->ExceptionCheck(env))return;
+  const char *detail=mp_pool_last_error(p->pool);if(!detail){error(env);return;}
+  /* JNI ThrowNew expects modified UTF-8. Keep bounded native diagnostics ASCII. */
+  char message[640]="Retained native operation failed: ";size_t length=sizeof("Retained native operation failed: ")-1;
+  for(size_t i=0;detail[i] && length<sizeof(message)-1;i++){unsigned char c=(unsigned char)detail[i];message[length++]=c>=32 && c<=126?(char)c:'?';}message[length]=0;
+  jclass type=(*env)->FindClass(env,"java/lang/IllegalStateException");if(type){(*env)->ThrowNew(env,type,message);(*env)->DeleteLocalRef(env,type);}
+}
 static jbyteArray copy(JNIEnv *env,const uint8_t *bytes,size_t length){jbyteArray result=(*env)->NewByteArray(env,(jsize)length);if(result && length)(*env)->SetByteArrayRegion(env,result,0,(jsize)length,(const jbyte *)bytes);return result;}
 static void capture(Peer *p){JNIEnv *env=p->env;if((*env)->ExceptionCheck(env)){jthrowable thrown=(*env)->ExceptionOccurred(env);(*env)->ExceptionClear(env);if(!p->failure)p->failure=(*env)->NewGlobalRef(env,thrown);(*env)->DeleteLocalRef(env,thrown);}}
 static void finish(Peer *p,JNIEnv *env){if(p->failure){(*env)->Throw(env,p->failure);(*env)->DeleteGlobalRef(env,p->failure);p->failure=NULL;}}
@@ -32,12 +40,12 @@ JNIEXPORT jobject JNICALL Java_dev_pjm_android_VerifiedContainer_advance(JNIEnv 
   MpInput input={0};input.size=sizeof(input);input.count=(uint32_t)count;input.cancelled_count=(uint32_t)cancel_count;
   (*env)->GetIntArrayRegion(env,contacts,0,count,(jint *)input.contacts);(*env)->GetIntArrayRegion(env,hits,0,count,(jint *)input.hits);(*env)->GetByteArrayRegion(env,cancelled,0,cancel_count,(jbyte *)input.cancelled);
   MpFrame frame={0};MpDamage damage={0};damage.size=sizeof(damage);if((*env)->ExceptionCheck(env))return NULL;
-  if(mp_pool_frame_input(p->pool,&input)!=0 || mp_pool_render_damage(p->pool,&frame,&damage)!=0){error(env);return NULL;}
+  if(mp_pool_frame_input(p->pool,&input)!=0 || mp_pool_render_damage(p->pool,&frame,&damage)!=0){pool_error(env,p);return NULL;}
   jbyteArray pixels=copy(env,frame.pixels,frame.length);jintArray regions=(*env)->NewIntArray(env,(jsize)(damage.count*4));if(regions && damage.count)(*env)->SetIntArrayRegion(env,regions,0,(jsize)(damage.count*4),(jint *)damage.regions);
   jclass cls=(*env)->FindClass(env,"dev/pjm/android/VerifiedContainer$Frame");jobject result=NULL;if(cls && pixels && regions && !(*env)->ExceptionCheck(env)){jmethodID init=(*env)->GetMethodID(env,cls,"<init>","([BIII[I)V");if(init)result=(*env)->NewObject(env,cls,init,pixels,(jint)frame.width,(jint)frame.height,(jint)frame.stride,regions);}
   if(cls)(*env)->DeleteLocalRef(env,cls);if(pixels)(*env)->DeleteLocalRef(env,pixels);if(regions)(*env)->DeleteLocalRef(env,regions);return result;
 }
-JNIEXPORT jbyteArray JNICALL Java_dev_pjm_android_VerifiedContainer_effects(JNIEnv *env,jclass type,jlong value){(void)type;Peer *p=peer(value);ptrdiff_t count=mp_pool_svc_take(p->pool,p->records,sizeof(p->records));if(count<0){error(env);return NULL;}return copy(env,p->records,(size_t)count);}
+JNIEXPORT jbyteArray JNICALL Java_dev_pjm_android_VerifiedContainer_effects(JNIEnv *env,jclass type,jlong value){(void)type;Peer *p=peer(value);ptrdiff_t count=mp_pool_svc_take(p->pool,p->records,sizeof(p->records));if(count<0){pool_error(env,p);return NULL;}return copy(env,p->records,(size_t)count);}
 JNIEXPORT void JNICALL Java_dev_pjm_android_VerifiedContainer_draw(JNIEnv *env,jclass type,jlong value,jlong epoch,jintArray contacts,jintArray hits,jbyteArray cancelled,jint x,jint y,jint width,jint height,jint window_width,jint window_height){
   (void)type;Peer *p=peer(value);
   if(!contacts || !hits || !cancelled || epoch<=0){error(env);return;}
@@ -47,7 +55,7 @@ JNIEXPORT void JNICALL Java_dev_pjm_android_VerifiedContainer_draw(JNIEnv *env,j
   (*env)->GetIntArrayRegion(env,contacts,0,count,(jint *)input.contacts);(*env)->GetIntArrayRegion(env,hits,0,count,(jint *)input.hits);(*env)->GetByteArrayRegion(env,cancelled,0,cancel_count,(jbyte *)input.cancelled);
   if((*env)->ExceptionCheck(env))return;
   MpGlesFrame frame={sizeof(frame),x,y,width,height,window_width,window_height};
-  if(mp_pool_frame_input(p->pool,&input)!=0 || mp_pool_gles_render(p->pool,(uint64_t)epoch,&frame)!=0)error(env);
+  if(mp_pool_frame_input(p->pool,&input)!=0 || mp_pool_gles_render(p->pool,(uint64_t)epoch,&frame)!=0)pool_error(env,p);
 }
 JNIEXPORT void JNICALL Java_dev_pjm_android_VerifiedContainer_contextLost(JNIEnv *env,jclass type,jlong value,jlong epoch){
   (void)type;if(epoch<=0 || mp_pool_gles_lost(peer(value)->pool,(uint64_t)epoch)!=0)error(env);
@@ -64,7 +72,7 @@ JNIEXPORT void JNICALL Java_dev_pjm_android_VerifiedContainer_post(JNIEnv *env,j
 JNIEXPORT void JNICALL Java_dev_pjm_android_VerifiedContainer_control(JNIEnv *env,jclass type,jlong value,jint operation,jbyteArray identity){
   (void)type;Peer *p=peer(value);int status=-1;
   if(operation==1)status=mp_pool_background(p->pool);else if(operation==2)status=mp_pool_resume(p->pool);else if(operation==3)status=mp_pool_memory_warning(p->pool);else if(operation==4){jsize length=0;jbyte *id=bytes(env,identity,128,&length);if(id){status=mp_pool_close(p->pool,(uint8_t *)id,(size_t)length);(*env)->ReleaseByteArrayElements(env,identity,id,JNI_ABORT);}}
-  finish(p,env);if(status)error(env);
+  finish(p,env);if(status)pool_error(env,p);
 }
 
 JNIEXPORT void JNICALL Java_dev_pjm_android_VerifiedContainer_destroy(JNIEnv *env,jclass type,jlong value,jbooleanArray consumed){

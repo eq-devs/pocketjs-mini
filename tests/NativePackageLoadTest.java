@@ -3,6 +3,27 @@ import org.json.*;
 import java.nio.file.*;
 import android.util.Base64;
 public final class NativePackageLoadTest {
+  private static void runtimeAttacks(VerifiedPackage healthy,JSONObject item,byte[] key,java.io.File root)throws Exception{
+    JSONArray attacks=item.getJSONArray("runtimeAttacks");
+    for(int index=0;index<attacks.length();index++){
+      JSONObject entry=attacks.getJSONObject(index);VerifiedPackage attack=new VerifiedPackage(Base64.decode(entry.getString("payload"),Base64.DEFAULT),entry.getJSONObject("manifest").toString().getBytes("UTF-8"),key);
+      try(VerifiedContainer pool=new VerifiedContainer(root,new VerifiedContainer.Listener(){public void cleanup(VerifiedPackage p,long g,byte[] r){}public void retired(VerifiedPackage p,long g){}})){
+        byte[] launch="{}".getBytes("UTF-8");long generation=pool.activate(healthy,launch);pool.frame(new int[0],new int[0],new byte[0]);pool.effects();
+        pool.activate(attack,launch);long started=android.os.SystemClock.elapsedRealtime();String failure=null;
+        try{pool.frame(new int[0],new int[0],new byte[0]);}catch(RuntimeException expected){failure=expected.getMessage();}
+        if(failure==null||!failure.toLowerCase(java.util.Locale.ROOT).contains(entry.getString("expected")))throw new AssertionError("Wrong attack failure "+entry.getString("name")+": "+failure);
+        long elapsed=android.os.SystemClock.elapsedRealtime()-started;if(elapsed>5000)throw new AssertionError("Unbounded native attack turn");
+        boolean deniedEffects=false;try{pool.effects();}catch(RuntimeException expected){deniedEffects=true;}if(!deniedEffects)throw new AssertionError("Failed guest effects remained accessible");
+        boolean terminal=false;try{pool.frame(new int[0],new int[0],new byte[0]);}catch(RuntimeException expected){terminal=true;}if(!terminal)throw new AssertionError("Failed attack remained scheduled");
+        if(pool.activate(healthy,launch)!=generation)throw new AssertionError("Healthy retained generation changed");
+        VerifiedContainer.Frame frame=pool.frame(new int[0],new int[0],new byte[0]);String effects=new String(pool.effects(),"UTF-8");
+        if(frame.width!=64||frame.height!=64||(!effects.contains("verified:1:2")||effects.contains("attack-must-not-dispatch")))throw new AssertionError("Healthy guest did not recover");
+        pool.closeIdentity(attack.identity);
+        System.out.println("RUNTIME_ATTACK "+entry.getString("name")+" blocked healthy-retained elapsedMs="+elapsed);
+        System.out.println("RUNTIME_ATTACK_DIAGNOSTIC "+entry.getString("name")+" "+failure.replace('\n',' '));
+      }
+    }
+  }
   public static void main(String[] args)throws Exception{
     NativeJsonTest.verify();
     JSONArray cases=new JSONArray(new String(Files.readAllBytes(Paths.get(args[0])),"UTF-8"));int count=0;boolean clipboardChecked=false,locationChecked=false,gpuChecked=false;
@@ -11,6 +32,7 @@ public final class NativePackageLoadTest {
       VerifiedPackage packageValue=null;try{packageValue=new VerifiedPackage(payload,envelope,key);}catch(Exception failure){if(item.getBoolean("valid"))throw failure;}
       if((packageValue!=null)!=item.getBoolean("valid"))throw new AssertionError("Admission mismatch case "+index);
       if(packageValue!=null){
+        if(item.has("runtimeAttacks"))runtimeAttacks(packageValue,item,key,new java.io.File(args[0]).getParentFile());
         if(!gpuChecked){NativeGpuCloseTest.verify(packageValue,new java.io.File(args[0]).getParentFile());gpuChecked=true;}
         if(!clipboardChecked){NativeClipboardTest.verify(packageValue);clipboardChecked=true;}
         if(!locationChecked&&item.has("locationCase")){JSONObject locationCase=item.getJSONObject("locationCase");VerifiedPackage locationValue=new VerifiedPackage(Base64.decode(locationCase.getString("payload"),Base64.DEFAULT),locationCase.getJSONObject("manifest").toString().getBytes("UTF-8"),key);NativeLocationTest.verify(locationValue);locationChecked=true;}
@@ -83,7 +105,7 @@ public final class NativePackageLoadTest {
         if(!closedRejected)throw new AssertionError("Destroyed native handle retained after callback failure");
         packageValue.policy.authorizeUrl("https://example.com/path");
         boolean denied=false;try{packageValue.policy.authorizeUrl("https://other.com");}catch(Exception failure){denied=true;}if(!denied)throw new AssertionError("Policy bypass");
-      }count++;
-    }System.out.println("Android authenticated package admission and retained native execution: "+count+" cases passed");
+      }count++;System.out.println("PACKAGE_CASE "+item.optString("name","case-"+index)+" "+(item.getBoolean("valid")?"accepted":"rejected"));
+    }if(!clipboardChecked||!locationChecked||!gpuChecked)throw new AssertionError("Native adapter checks were not executed");System.out.println("Android authenticated package admission and retained native execution: "+count+" cases passed");
   }
 }

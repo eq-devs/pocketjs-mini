@@ -1,6 +1,6 @@
 package dev.pjm.android;
 import android.graphics.*;
-import android.media.ExifInterface;
+import androidx.exifinterface.media.ExifInterface;
 import java.io.*;
 
 /** Bounded single-image normalization; no guest-selected path or URI. */

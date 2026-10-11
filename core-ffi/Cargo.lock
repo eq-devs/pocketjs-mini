@@ -343,6 +343,7 @@ name = "mini-core-ffi"
 version = "0.1.0"
 dependencies = [
  "ed25519-dalek",
+ "libc",
  "pocket-mod",
  "pocket-ui-surface",
  "pocketjs-core",
