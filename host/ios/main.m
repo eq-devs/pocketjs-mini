@@ -356,7 +356,7 @@ static UIViewController *installedController(void) {
   MiniPackageStore *store=key?[[MiniPackageStore alloc] initWithRoot:root trustedKey:key error:&error]:nil;
   if(store && payload && envelope && identity && [store seedPayload:payload envelope:envelope error:&error]){
     NSData *launch=[@"{\"source\":\"installed\",\"path\":\"/\",\"query\":{}}" dataUsingEncoding:NSUTF8StringEncoding];
-    MiniInstalledController *controller=[[MiniInstalledController alloc] initWithIdentity:identity store:store launchData:launch error:&error];if(controller)return controller;
+    MiniInstalledController *controller=[[MiniInstalledController alloc] initWithIdentity:identity store:store launchData:launch error:&error];if(controller){NSString *configurationPath=[NSBundle.mainBundle pathForResource:@"distribution" ofType:@"json"];if(configurationPath){NSData *configuration=bundledData(@"distribution",@"json");if(configuration)[controller startDistribution:configuration identity:identity];}return controller;}
   }
   UIViewController *failure=[UIViewController new];failure.view.backgroundColor=UIColor.blackColor;
   UILabel *message=[UILabel new];message.text=@"Unable to open this app.";message.textColor=UIColor.whiteColor;message.textAlignment=NSTextAlignmentCenter;message.frame=failure.view.bounds;message.autoresizingMask=UIViewAutoresizingFlexibleWidth|UIViewAutoresizingFlexibleHeight;message.accessibilityIdentifier=@"pjm-status";[failure.view addSubview:message];return failure;

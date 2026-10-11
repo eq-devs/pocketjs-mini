@@ -14,6 +14,7 @@ import org.json.JSONObject;
 
 /** Installed entry: authenticates bundled bytes using the bundled publisher key. */
 public class InstalledActivity extends Activity {
+  private PackageDownload packageDownload;
   private GLSurfaceView surface;private TextView message;private VerifiedPackage admitted;
   private VerifiedContainer container;private VerifiedPresenter presenter;private long generation,frames,gpuEpoch;private boolean gpuBound;
   private VerifiedHttp http;private VerifiedClipboard clipboard;private VerifiedLocation location;private LocationApproval locationApproval;private PermissionGate permissions;private android.app.AlertDialog permissionDialog;
@@ -44,15 +45,20 @@ public class InstalledActivity extends Activity {
     }
   }
   private void fail(Throwable error){failed=true;android.util.Log.e("PocketJS","Installed container failed",error);runOnUiThread(()->{message.setText("Cannot open installed mini app");message.setVisibility(View.VISIBLE);});}
+  private void configureRenderThread(){
+    // The GL owner drives guest frames and presentation; configure that thread only.
+    try{android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_DISPLAY);}
+    catch(SecurityException denied){android.util.Log.w("PocketJS","Display thread priority unavailable",denied);}
+  }
   @Override public void onCreate(Bundle state){
     super.onCreate(state);if(getIntent().getBooleanExtra("pjm-measure",false))measurements=new FrameMeasurements();FrameLayout root=new FrameLayout(this);message=new TextView(this);message.setTextColor(0xffffffff);message.setBackgroundColor(0xff0f172a);message.setGravity(Gravity.CENTER);message.setText("Opening mini app…");
-    try{byte[] payload=asset("main.pocket",64*1024*1024),envelope=asset("manifest.json",65536),key=asset("publisher.key",32);VerifiedPackage bundled=new VerifiedPackage(payload,envelope,key);PackageStore store=new PackageStore(new File(getFilesDir().getCanonicalFile(),"mini-packages"),key);store.seed(payload,envelope);admitted=store.coldStart(bundled.identity);permissions=new PermissionGate(store);}catch(Exception error){root.addView(message,new FrameLayout.LayoutParams(-1,-1));setContentView(root);fail(error);return;}
+    try{byte[] payload=asset("main.pocket",64*1024*1024),envelope=asset("manifest.json",65536),key=asset("publisher.key",32);VerifiedPackage bundled=new VerifiedPackage(payload,envelope,key);PackageStore store=new PackageStore(new File(getFilesDir().getCanonicalFile(),"mini-packages"),key);store.seed(payload,envelope);admitted=store.coldStart(bundled.identity);permissions=new PermissionGate(store);try{String latest=PackageDownload.configuration(asset("distribution.json",4096));android.os.Handler handler=new android.os.Handler(android.os.Looper.getMainLooper());packageDownload=new PackageDownload(store,handler::post);packageDownload.start(latest,bundled.identity,(version,error)->{if(error!=null)android.util.Log.w("PocketJS","Package update rejected",error);else android.util.Log.i("PocketJS","Package update staged for cold start: "+version);});}catch(FileNotFoundException absent){/* Optional host-owned update configuration. */}catch(Exception updateError){android.util.Log.w("PocketJS","Package update unavailable",updateError);}}catch(Exception error){root.addView(message,new FrameLayout.LayoutParams(-1,-1));setContentView(root);fail(error);return;}
     network=new VerifiedNetwork(this);
     locationApproval=new LocationApproval(this,permissions,()->!paused&&!stopped&&!closed&&!failed);
     mediaPicker=new MediaPicker(this,permissions,()->!paused&&!stopped&&!closed&&!failed,()->permissionDialog!=null||locationApproval.active());
     surface=new GLSurfaceView(this);surface.setEGLContextClientVersion(2);surface.setPreserveEGLContextOnPause(true);
     surface.setRenderer(new GLSurfaceView.Renderer(){
-      public void onSurfaceCreated(GL10 gl,EGLConfig config){if(closed)return;try{
+      public void onSurfaceCreated(GL10 gl,EGLConfig config){configureRenderThread();if(closed)return;try{
         if(presenter==null)presenter=new VerifiedPresenter();if(gpuBound){container.gpuContextLost(gpuEpoch);gpuBound=false;}nextGpuEpoch();
         if(container==null){resources=new ManagedResources();http=createHttp(resources);media=new VerifiedMedia(resources,new VerifiedMedia.UI(){public void execute(Runnable work){runOnUiThread(work);}public Runnable select(VerifiedPackage value,MediaContract.Options options,VerifiedMedia.Completion completion)throws Exception{return mediaPicker.select(value,options,completion);}});location=new VerifiedLocation(new VerifiedLocation.UI(){
           private FusedLocationProvider provider;
@@ -141,7 +147,7 @@ public class InstalledActivity extends Activity {
   @Override public void onStop(){stopped=true;if(surface!=null&&!closed)surface.queueEvent(()->{if(location!=null)location.suspend();});super.onStop();}
   @Override public void onRequestPermissionsResult(int code,String[] names,int[] grants){if(locationApproval==null||!locationApproval.onRequestPermissionsResult(code))super.onRequestPermissionsResult(code,names,grants);}
   @Override protected void onActivityResult(int code,int result,android.content.Intent data){if(mediaPicker==null||!mediaPicker.onActivityResult(code,result,data))super.onActivityResult(code,result,data);}
-  @Override public void onDestroy(){
+  @Override public void onDestroy(){if(packageDownload!=null)packageDownload.close();
     if(network!=null)network.suspend();if(mediaPicker!=null)mediaPicker.close();
     closed=true;paused=true;Choreographer.getInstance().removeFrameCallback(tick);
     if(surface!=null){surface.queueEvent(()->{try{contacts.clear();if(container!=null){releaseGpu();presenter.finish();container.close();container=null;}if(http!=null)http.close();if(clipboard!=null)clipboard.close();if(location!=null)location.close();if(media!=null)media.close();if(resources!=null)resources.close();if(presenter!=null)presenter.close();}catch(Throwable error){android.util.Log.e("PocketJS","Installed teardown failed",error);}});surface.onResume();surface.onPause();}

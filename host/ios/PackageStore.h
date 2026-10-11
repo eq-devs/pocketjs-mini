@@ -13,6 +13,7 @@ typedef NS_ENUM(NSInteger, MiniPermissionStatus) {
 - (BOOL)seedPayload:(NSData *)payload envelope:(NSData *)envelope error:(NSError **)error;
 - (BOOL)stagePayload:(NSData *)payload envelope:(NSData *)envelope error:(NSError **)error;
 - (nullable MiniVerifiedPackage *)coldStart:(NSString *)identity error:(NSError **)error;
+- (nullable NSString *)rootIdentity;
 - (BOOL)rollback:(NSString *)identity error:(NSError **)error;
 // Host approval only; callers must separately check declaration and OS status.
 // nil with no error means no prior decision. Identity comes from verified metadata.

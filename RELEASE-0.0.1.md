@@ -13,7 +13,7 @@ requirements.
 | Essential native services | Signed hosts implement device info, storage, HTTP/resource responses, clipboard, location, network path status/events and media. Both platforms pass real media consent/denial/chooser cancellation and system image selection → JPEG → SDK resource read/release, including cold reopening. Android backend isolation/quota checks and iOS quotas/generation retirement pass. Production resource registries also pass process-cap stress with controlled producers on both platforms. Development hosts implement device info/storage, clipboard writes and native network snapshot/change events, with fresh subscriptions after hot reload. Both development hosts pass clipboard declaration denial, native deny/allow, exact SDK readback and persisted cold/hot reopening. Both development hosts pass real HTTPS SDK resource read/release and domain denial across initial, cold reopen and hot reload; Android also passes native controlled-transport HTTP/cancel tests. Android development location declaration/native denial passes SDK initial/cold/hot checks; approved fused-provider SDK coordinates also pass after a fresh request following native app/OS approval, including cold/hot reopening. Controlled wrapper approval/ownership/cancellation tests pass. iOS development location shares the bounded Core Location service and passes real SDK declaration/native consent denial and native app/system approval with actual Core Location coordinates across initial/cold/hot execution, plus controlled ownership/cancellation/activation checks. iOS development media now shares native picker/worker and HTTP resource accounting; controlled JPEG/resource/quota/retirement tests and real SDK declaration/native consent denial pass initial/cold/hot execution. Actual iOS development library selection also passes SDK JPEG header read/release, cold reopening and live reload in one UIKit test. Android development media shares the bounded native worker and HTTP resource registry; controlled ownership/cancellation checks, real SDK declaration/native consent denial, and actual system image selection with JPEG read/release pass across initial/cold/hot execution. | Physical camera acceptance, combined live HTTP/media worker stress, iOS camera checks, wider location revocation/stress and extended development HTTP stress, remaining consent UI acceptance and Android first-request location timing/stability. Physical network transitions and iOS connectivity-change acceptance remain unverified. |
 | Packages and isolation | Gate passes signature/metadata, store, permissions, isolated storage and retained-engine tests. A named 26-case native package matrix passes on Android and in a UIKit simulator app, including retained-state and storage checks. Signed heap-limit and infinite-loop guests are also stopped on both native platforms, with healthy retained state preserved and failed effects denied. Core tests cover interruption and retirement. | Wider malicious workload/service-flood acceptance and physical memory/isolation acceptance across concurrent guests. |
 | Examples and performance | The 1,000-row list/form fixture and benchmark runners exist. | Establish physical cold-start, sustained scroll, frame-latency and memory evidence against the plan's suggested budgets. |
-| CLI and distribution | Create/build/run, signed export and publish validation have automated coverage. | Final clean-environment release workflow, distribution downloads and publisher-key rotation integration. |
+| CLI and distribution | Create/build/run, signed export and publish validation have automated coverage. The reference HTTPS downloader passes actual local TLS update/rollback, bounded streaming/cancellation and externally configured publisher trust replacement. Android native update discovery/staging is integrated optionally and passes controlled checks plus actual local HTTPS/native verifier/cache update/cold promotion/rollback with a temporary test CA. | Rendered Android activity/cold update acceptance, iOS native distribution downloads, mobile key-rotation handoff, production endpoints and final clean-environment release workflow. |
 | DevTools | Existing inspection, replay and root-highlight evidence is retained. | Further work deferred until after v0.0.1; not a release gate. |
 
 ## Executed checks
@@ -1635,3 +1635,204 @@ identify the cause; normal guest deadline/lifecycle stability remains open
 with the original 50 ms wall limit unchanged. Further repeat-only attempts
 should give way to tracing the camera-return/frame/resume transition. Extra
 DevTools work remains deferred for v0.0.1.
+
+
+## Deadline scheduler tracing and fresh mixed receipts (2026-10-11)
+
+Test-mode Android hosts now mark JNI frame/resume/hide calls with native trace
+sections outside guest deadlines. The owned HTTP runner optionally records a
+bounded 32-MiB Perfetto ring buffer, stops its uniquely named session, saves the
+trace locally and cleans its files/emulator. No guest deadline, renderer
+priority or production inspection feature was changed. Java service/host
+compilation passes after the final marker changes.
+
+`build/android-validation/http-media-scheduler-20261011` failed before app
+launch because the initial trace config path was not accessible to Perfetto;
+the owned emulator was cleaned. The corrected config-directory run at
+`http-media-scheduler-20261011-config-path` passed initial actual mixed SDK
+occupancy/BUSY/reuse/refill/read/release checks (HTTP 4,616 bytes, JPEG 48x64),
+then failed at cold camera-return resume (56,963 us elapsed, 17,992 us thread
+CPU). Its scheduler trace has CPU-2 data loss and cannot support precise timing
+attribution. Its media-cold receipt matches the old back-home frame 660 and
+counter one: it is explicitly excluded from cold acceptance.
+
+The driver now requires a fresh test-only guest run marker for each mixed
+media/quota proof. `http-media-scheduler-20261011-fresh-run` compiled that fixture,
+then failed before initial camera acceptance: frame turn 516,944 us elapsed,
+5,170 us thread CPU. Its 20,913,817-byte scheduler trace has no reported ftrace
+loss/overrun or nonzero error statistics. SQL outputs retain scheduler coverage
+and native section/state breakdowns. One JNI frame takes 623.866 ms, including
+555.421 ms runnable, 57.321 ms blocked and 11.125 ms running. This establishes
+scheduling delay in the native flow, but the section also includes work outside
+the guest budget and does not alone identify the exact failing turn or cause.
+Failure submarkers and process-name polling were added afterward for the next
+capture; they have Java compilation evidence, not a new runtime trace yet.
+Both traced app attempts confirm stopped tracing and owned-emulator cleanup.
+
+Overall initial mixed-resource evidence is now positive once, while fresh cold
+and live reload, sustained deadline stability, simultaneous HTTP/JPEG workers
+and physical performance remain open. The existing 50 ms wall limit remains
+unchanged. Extra DevTools work remains deferred for v0.0.1. Tracing follows the
+[Perfetto detached ring-buffer configuration](https://perfetto.dev/docs/concepts/detached-mode).
+
+
+## Android rendering thread scheduling and mixed SDK acceptance (2026-10-11)
+
+The scheduler trace showed the native GL owner mostly at priority 120 (ordinary
+application scheduling), while competing render threads received higher
+priority. Both Android hosts now configure their GL owner using Android's
+[THREAD_PRIORITY_DISPLAY](https://developer.android.com/reference/android/os/Process#THREAD_PRIORITY_DISPLAY)
+on surface creation, with a SecurityException fallback to the existing
+scheduler priority. No guest wall deadline, interrupt, resource quota or
+service admission limit changed. Network/media worker factories are unchanged;
+this does not assert that every scheduler sample for those workers is identical.
+
+`build/android-validation/http-media-display-priority-20261011` passed the full
+actual development HTTPS/Camera2 shared-resource fixture at initial revision 2,
+cold revision 2 and true live revision 3. The three run markers are distinct;
+exact mixed receipts verify three HTTP handles plus a camera reservation,
+capacity BUSY rejection, JPEG header/read/release/DENIED-after-release, freed-slot
+HTTPS replacement and four-handle refill/read/release. Actual temporary camera
+files and transient URI grants are removed at each stage. Native navigation,
+Back/root exit, retained/cold-reset state and network transitions also pass.
+The stopped 33,527,806-byte trace reports no nonzero ftrace loss/overrun/error
+statistics and no native failure markers. Both GL owners predominantly appear
+at priority 116 (display nice -4), with transient startup samples at other
+priorities. `mixed-sdk-summary.json` retains the acceptance scope and cleanup.
+
+The untraced repeat at `http-media-display-priority-20261011-untraced` failed
+while hiding the app for the initial camera: 59,737 us elapsed, 293 us thread
+CPU, interrupted=false. The owned launcher was verified by its own session PID
+and exact command/project before stopping it after the native failure; the
+runner then cleaned its owned emulator. The optional signed navigation step
+was not reached. This failure contradicts any sustained-stability or
+all-cause-fix claim: display scheduling is verified, but timing robustness
+remains open. Normal guest lifecycle scheduling remains the next investigation.
+
+Hide/shutdown failures now write test status receipts instead of only logging,
+and the development driver treats any native frame/boot/resume/hide/shutdown/
+memory-warning error as terminal. Those final changes pass Java compilation
+and whitespace validation; a fresh runtime check of hide error reporting is
+still needed. Installed Android export/media closure tests pass 3 tests and
+48 assertions. Direct signed-host scheduling acceptance, simultaneous live
+HTTP/JPEG workers, process-wide real producer stress and physical performance
+remain open. DevTools remains deferred for v0.0.1.
+
+
+## Reference HTTPS distribution and publisher trust integration (2026-10-11)
+
+Added `container/distribution.ts` with host-supplied HTTPS manifest/package URLs,
+redirect rejection, a shared 30-second network deadline, optional cancellation,
+64-KiB envelope/64-MiB package bounds and fixed 64-KiB accumulation slabs. The
+slabs bound bookkeeping even with tiny stream chunks. At most two downloads
+run across cache roots, with one per normalized root, including separate store
+objects pointing to the same root. Roots are released on success or rejection.
+No guest API chooses endpoints or publisher trust.
+
+`PackageStore.stageNative` authenticates a private byte snapshot and validates
+its embedded target/ABI/identity/build plan before any app selection mutation.
+Existing reference store staging remains compatible with its opaque signed
+fixtures. Publication uses the same extracted native payload admission helper,
+so download and publish checks do not drift. This reuses existing plan validation
+and adds no DevTools feature.
+
+`tests/distribution.test.ts` uses an actual localhost TLS server and an ephemeral
+certificate. Default system trust rejects that certificate; only the test
+transport explicitly trusts its temporary CA. Certificates/private keys and
+cache directories are removed afterward. Signed packages exceed one slab.
+Valid updates retain the running snapshot and activate after cold reopening;
+rollback also activates cold. Redirects, oversized headers/streamed envelopes,
+ambiguous JSON, byte tampering, wrong requested version, signed embedded identity
+or ABI mismatch and signed arbitrary payloads all preserve the selected state.
+Two blocked downloads demonstrate process admission and same-root exclusion;
+actual cancellation releases admission without changing selection.
+
+A replacement publisher's package is rejected under the old pinned key. A
+separately configured host store with the replacement key stages and cold-loads
+the new package; rollback to the revoked old key fails without rewriting state.
+This proves reference host-owned trust replacement, not an automatic signed key
+transition protocol or native mobile rotation handoff.
+
+Evidence: `build/validation/distribution-tls-20261011/check.log` reports 8 passing
+tests/93 assertions; `admission-regression.log` reports 10 passing tests/78
+assertions for package, installed exports and plan admission. `result.json`
+records those scopes, and the TLS integration is included in `tests/check.sh`.
+A cancellation-test race was corrected by observing promises before abort; the
+final larger-package run passes. No full regression gate or new mobile runtime
+acceptance is claimed this turn. Native iOS/Android download wiring, latest
+version querying, production endpoints, signed transition/mobile trust handoff,
+clean-environment release and physical acceptance remain open. Android lifecycle
+stability remains unresolved; DevTools stays deferred for v0.0.1.
+
+
+## Android native update discovery and staging (2026-10-11)
+
+Added `host/android/PackageDownload.java` and an optional installed-host update
+hook. Android exports accept `--distribution <HTTPS-latest-index-url>` and bundle
+strict host-owned `distribution.json` configuration. The latest index has exactly
+appId/version/manifestUrl/packageUrl; package and envelope URLs must remain on the
+configured HTTPS origin, with no credentials/query/fragment or redirects. No
+SDK/guest command configures URLs or publisher keys.
+
+Native discovery/envelope/package reads share a 30-second call deadline, 64-KiB
+JSON limits and a 64-MiB package limit. Two background workers and process-wide
+root permits bound concurrency; the same normalized cache root cannot have two
+operations. Owner-thread delivery validates the existing signed/native cache
+contract and stages the package without replacing its running snapshot. Activity
+destruction cancels transport and suppresses queued late delivery. Publisher trust
+remains the separately bundled key; mobile rotation/handoff remains open.
+
+`tests/NativePackageDownloadTest.java` passes on Android app_process using a
+controlled OkHttp interceptor and actual native package signature/structure/cache
+operations: download/cold promotion/rollback, tampering, wrong origin, redirects,
+oversized index, root/process quota, owner retirement and permit recovery.
+Evidence: `build/android-validation/package-download-controlled-20261011/native.log`
+contains the required PACKAGE_DOWNLOAD verdict; result.json records controlled
+scope. The same run passes the 26-case package matrix (1 admitted/25 rejected),
+2 runtime attacks, retained healthy state and withheld failed effects. The owned
+emulator cleanup receipt confirms cleaned=true. This is not actual Android TLS
+transport or a rendered activity update across cold reopening.
+
+Java source compilation and updated installed export tests pass (2 tests/56
+assertions). The full tests/check.sh gate passes with 74 Rust library tests and
+the reference TLS integration; retained log/result are in
+`build/validation/android-distribution-20261011`. Earlier gate evidence remains
+retained. Live Android HTTPS and installed-activity update/cold acceptance, iOS
+native downloads, mobile publisher trust transition, clean-environment release,
+physical acceptance and sustained Android lifecycle stability remain open.
+Extra DevTools work remains deferred for v0.0.1.
+
+
+## Actual Android native HTTPS package downloads (2026-10-11)
+
+Added `tests/NativePackageDownloadTlsTest.java` and an owned loopback TLS runner.
+The production downloader executes real OkHttp TLS requests on Android
+app_process through a narrowly scoped reverse tunnel. Default system trust must
+reject the ephemeral server certificate with an SSLHandshakeException. A
+separate test client uses a memory trust store containing only the owned test
+certificate, while retaining default hostname validation. Production certificate
+trust is not changed and no certificate is installed on the emulator.
+
+The actual native signature/structure/cache path downloads the signed update,
+retains the existing version's authenticated snapshot, promotes version 2.0.0
+after cache-owner reopening and cold start, then rolls back to version 1.0.0.
+Further actual HTTPS requests verify that tampered bytes, a redirect, ambiguous
+manifest JSON and an oversized chunked manifest preserve the selected state.
+The server observes 11 real HTTPS requests. This strengthens the earlier
+controlled-interceptor check; it does not establish rendered installed-activity
+update/cold acceptance, production service integration or physical performance.
+
+Evidence: `build/android-validation/package-download-actual-tls-20261011` contains
+`native.log` with the required PACKAGE_DOWNLOAD_TLS verdict, actual server
+request timestamps, native receipts and `tls-acceptance-summary.json`. The same
+run passes the controlled downloader checks, 26-case package matrix, two runtime
+attacks and retained healthy state. Server/private test key/reverse tunnel/native
+temporary files and owned emulator are cleaned; the public certificate remains
+only as an evidence artifact. Current scripts pass syntax/whitespace checks. No
+production source changed or full regression gate rerun was needed this turn.
+
+Remaining distribution gates are rendered Android activity/cold update behavior,
+iOS native downloading, publisher trust transition/mobile cache handoff and a
+real distribution endpoint/clean release workflow. Android lifecycle stability,
+minimum-version and physical performance/isolation acceptance also remain open.
+DevTools stays deferred for v0.0.1.

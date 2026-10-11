@@ -13,7 +13,7 @@ printf '#define PJM_TEST_MODE 0\n#define PJM_DEVELOPMENT_MODE 1\n#define PJM_DEF
 xcrun --sdk iphonesimulator clang -fsyntax-only -fobjc-arc -target arm64-apple-ios15.0-simulator \
   -include UIKit/UIKit.h \
   -isysroot "$SDK" -I "$TEMP" -I "$ROOT/host/ios" -I "$ROOT/core-ffi/include" \
-  "$ROOT/host/ios/PackageStore.m" "$ROOT/host/ios/InstalledController.m" \
+  "$ROOT/host/ios/PackageStore.m" "$ROOT/host/ios/PackageDownload.m" "$ROOT/host/ios/InstalledController.m" \
   "$ROOT/host/ios/VerifiedContainer.m" \
   "$ROOT/host/ios/PocketSurfaceView.m" \
   "$ROOT/host/ios/main.m" \

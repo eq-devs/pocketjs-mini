@@ -25,13 +25,13 @@ write_into_file: true
 file_write_period_ms: 1000000000
 buffers { size_kb: 32768 fill_policy: RING_BUFFER }
 data_sources { config { name: "linux.ftrace" ftrace_config {
+ buffer_size_kb: 4096
+ drain_period_ms: 100
  ftrace_events: "sched/sched_switch"
  ftrace_events: "sched/sched_waking"
- atrace_categories: "am"
- atrace_categories: "wm"
  atrace_apps: "dev.pjm.android"
 } } }
-data_sources { config { name: "linux.process_stats" process_stats_config { scan_all_processes_on_start: true } } }
+data_sources { config { name: "linux.process_stats" process_stats_config { scan_all_processes_on_start: true proc_stats_poll_ms: 1000 } } }
 `);
   await run(adb('push',config,traceConfigRemote));
   await run(adb('shell','perfetto','--txt','-c',traceConfigRemote,'--detach='+traceKey,'-o',traceRemote));traceStarted=true;
@@ -39,6 +39,7 @@ data_sources { config { name: "linux.process_stats" process_stats_config { scan_
  }
 
  await run([process.execPath,join(root,'tests/navigation-native-android.ts'),serial],900000,{...process.env,ANDROID_SDK_ROOT:sdk,PJM_DEVELOPMENT_NETWORK:'1',PJM_DEVELOPMENT_HTTP:'1',...(mixed?{PJM_DEVELOPMENT_HTTP_MEDIA:'1',PJM_DEVELOPMENT_MEDIA:'camera'}:{}),PJM_NAVIGATION_EVIDENCE:evidence});
+ if(process.env.PJM_HTTP_SIGNED_NAVIGATION==='1')await run([process.execPath,join(root,'tests/navigation-signed-android.ts'),serial],900000,{...process.env,ANDROID_SDK_ROOT:sdk,PJM_NAVIGATION_EVIDENCE:join(evidence,'signed-host')});
  console.log(mixed?'Owned Android actual HTTP/camera shared resource quota, reuse and cold/live checks passed.':'Owned Android development live HTTPS, domain denial, resource read/release, cold reopen and hot reload passed.');
 }finally{
  if(traceStarted){

@@ -546,7 +546,25 @@ conflicting uploads (for example HTTP 409). A successful HTTP 200 or 201 respons
 contains exactly `{appId, version, sha256, url}` matching the upload, with a HTTPS
 release URL. Receipts are limited to 16 KiB. The client rejects mismatched receipts.
 No production distribution service is configured in this repository; remote
-publishing and host-side distribution downloads still need integration acceptance.
+publishing and native mobile distribution downloads still need integration acceptance.
+
+`container/distribution.ts` now provides a host-owned reference HTTPS downloader.
+It bounds streaming and concurrency, rejects redirects, and stages authenticated
+native packages through `PackageStore.stageNative`; updates remain deferred until
+cold start. Actual local TLS tests cover updates, rollback, cancellation and
+separately configured publisher trust replacement. The server cannot introduce
+publisher keys. iOS/Android download wiring, production endpoint acceptance and
+mobile key-rotation handoff remain open.
+
+Android exports now accept `--distribution <HTTPS-latest-index-url>`. This writes
+host-owned configuration and enables a native bounded update downloader. The
+latest index must contain exactly `appId`, `version`, `manifestUrl`, `packageUrl`;
+manifest and package URLs must share the configured HTTPS origin. The bundled
+publisher key authenticates every staged package. Updates activate at cold start,
+and destroying the activity suppresses late delivery. Controlled transport tests
+pass using the actual Android verifier/cache. Actual local Android HTTPS tests
+also pass with a temporary test CA and unchanged production trust; rendered
+activity/cold update acceptance and the iOS native download path remain open.
 
 The JavaScript package store, export commands and publish command parse signed
 manifest bytes with strict UTF-8 JSON validation before signature verification.

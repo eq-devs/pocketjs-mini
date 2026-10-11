@@ -38,6 +38,7 @@ static BOOL writeAtomic(int parent,NSString *name,NSData *data){
     for(NSString *part in root.pathComponents){if([part isEqual:@"/"])continue;if([part isEqual:@"."] || [part isEqual:@".."]){close(fd);failure(error,@"Invalid store path");return nil;}int next=directory(fd,part,YES);close(fd);fd=next;if(fd<0)break;}
     if(fd<0){failure(error,@"Store root must contain real directories");return nil;}_root=fd;_key=[key copy];return self;
 }
+- (NSString *)rootIdentity {struct stat status;if(!NSThread.isMainThread || _root<0 || fstat(_root,&status)!=0)return nil;return [NSString stringWithFormat:@"%llu:%llu",(unsigned long long)status.st_dev,(unsigned long long)status.st_ino];}
 - (BOOL)lock:(NSError **)error {if(NSThread.isMainThread && _root>=0 && flock(_root,LOCK_EX|LOCK_NB)==0)return YES;failure(error,@"Package store unavailable or busy");return NO;}
 - (NSMutableDictionary *)state:(int)app error:(NSError **)error {
     NSData *bytes=readFile(app,@"state.json",2048);if(!bytes){if(errno==ENOENT)return [NSMutableDictionary dictionary];failure(error,@"Invalid package state file");return nil;}

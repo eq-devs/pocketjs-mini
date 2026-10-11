@@ -162,12 +162,12 @@ public class MiniActivity extends Activity {
   private String tracedFrame(){
     if(!testMode)return frame();
     android.os.Trace.beginSection("pjm.native.frame");
-    try{return frame();}finally{android.os.Trace.endSection();}
+    try{String result=frame();if(!result.isEmpty()){android.os.Trace.beginSection("pjm.native.frame.failed");android.os.Trace.endSection();}return result;}finally{android.os.Trace.endSection();}
   }
   private String tracedLifecycle(boolean visible){
     if(!testMode)return lifecycle(visible);
     android.os.Trace.beginSection(visible?"pjm.native.resume":"pjm.native.hide");
-    try{return lifecycle(visible);}finally{android.os.Trace.endSection();}
+    try{String result=lifecycle(visible);if(!result.isEmpty()){android.os.Trace.beginSection("pjm.native.lifecycle.failed");android.os.Trace.endSection();}return result;}finally{android.os.Trace.endSection();}
   }
   private long nextFrameNanos;
   private final Choreographer.FrameCallback frameCallback=new Choreographer.FrameCallback() {
@@ -181,6 +181,11 @@ public class MiniActivity extends Activity {
     }
   };
 
+  private void configureRenderThread(){
+    // The GL owner drives guest frames and presentation; configure that thread only.
+    try{android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_DISPLAY);}
+    catch(SecurityException denied){android.util.Log.w("PocketJS","Display thread priority unavailable",denied);}
+  }
   @Override public void onCreate(Bundle state) {
     super.onCreate(state);
     networkStatus=new VerifiedNetwork(this);
@@ -197,7 +202,7 @@ public class MiniActivity extends Activity {
     surface=new GLSurfaceView(this); surface.setEGLContextClientVersion(2);
     surface.setPreserveEGLContextOnPause(true);
     surface.setRenderer(new GLSurfaceView.Renderer() {
-      public void onSurfaceCreated(GL10 gl,EGLConfig config) {if(!contextCreated()){revision=0;failedRevision=0;}}
+      public void onSurfaceCreated(GL10 gl,EGLConfig config) {configureRenderThread();if(!contextCreated()){revision=0;failedRevision=0;}}
       public void onSurfaceChanged(GL10 gl,int w,int h) {
         boolean changed=w!=pixelWidth || h!=pixelHeight;
         size(w,h); pixelWidth=w;pixelHeight=h;
@@ -483,7 +488,7 @@ public class MiniActivity extends Activity {
         if(media!=null){if(ending)media.close();else if(!mediaPause)media.suspend();}
         String error=ending?shutdown():tracedLifecycle(false);
         if(ending){if(clipboard!=null)clipboard.close();if(http!=null)http.close();if(resources!=null)resources.close();httpAccess=null;appIdentity=null;appStorage=null;revision=0;failedRevision=0;}
-        if(!error.isEmpty())android.util.Log.e("PocketJS",(ending?"Shutdown":"Hide")+" revision="+revision+": "+error);
+        if(!error.isEmpty()){String failure=(ending?"Shutdown":"Hide")+" revision="+revision+": "+error;android.util.Log.e("PocketJS",failure);testStatus(failure);}
       });
       surface.onPause();
     }

@@ -1,5 +1,6 @@
 #import "Mini-Swift.h"
 #import "InstalledController.h"
+#import "PackageDownload.h"
 #import "VerifiedLocation.h"
 #import "VerifiedNetwork.h"
 #import "VerifiedMedia.h"
@@ -143,6 +144,7 @@ static NSDictionary *MiniResourceService(NSString *kind,id arguments,NSString *i
 @end
 @interface MiniInstalledController ()
 @property(nonatomic) MiniPackageStore *store;
+@property(nonatomic) MiniPackageDownload *download;
 @property(nonatomic,readwrite) PocketSurfaceView *surface;
 @property(nonatomic) UILabel *message;
 @property(nonatomic) NSMutableDictionary<NSString *,MiniHTTPTask *> *requests;
@@ -167,6 +169,11 @@ static NSDictionary *MiniResourceService(NSString *kind,id arguments,NSString *i
     _surface.onVerifiedRetirement=^(MiniVerifiedPackage *package,uint64_t generation){(void)package;[weakSelf cancelGeneration:generation];};
     _surface.onVerifiedFrameStart=^{[weakSelf drainNetwork];[weakSelf drainHTTP];[weakSelf.media drain:^BOOL(MiniVerifiedPackage *bound,uint64_t generation,NSString *reply){return [weakSelf.surface postVerifiedEvent:reply identity:bound.metadata[@"appId"] generation:generation error:nil];}];[weakSelf.location drain:^BOOL(MiniVerifiedPackage *bound,uint64_t generation,NSString *reply){return [weakSelf.surface postVerifiedEvent:reply identity:bound.metadata[@"appId"] generation:generation error:nil];}];};
     return self;
+}
+- (void)startDistribution:(NSData *)configuration identity:(NSString *)identity {
+    NSError *error=nil;NSString *url=[MiniPackageDownload configuration:configuration error:&error];
+    if(url && !_download){_download=[[MiniPackageDownload alloc] initWithStore:_store];[_download startURL:url identity:identity completion:^(NSString *version,NSError *failure){if(failure)NSLog(@"Package update rejected: %@",failure.localizedDescription);else NSLog(@"Package update staged for cold start: %@",version);} error:&error];}
+    if(error)NSLog(@"Package update unavailable: %@",error.localizedDescription);
 }
 - (void)viewDidLoad {
     [super viewDidLoad];self.view.backgroundColor=UIColor.blackColor;
@@ -299,8 +306,8 @@ static NSDictionary *MiniResourceService(NSString *kind,id arguments,NSString *i
     [alert addAction:[UIAlertAction actionWithTitle:@"Allow" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action){(void)action;decide(YES);}]];
     [self presentViewController:alert animated:YES completion:nil];return nil;
 }
-- (void)shutdown {[_media close];[_location close];[_surface shutdown];for(MiniClipboardRead *work in _clipboardReads.allValues)[work cancel];[_clipboardReads removeAllObjects];for(MiniHTTPTask *work in _requests.allValues)[work cancel];[_requests removeAllObjects];[_resources removeAllObjects];}
-- (void)dealloc {[_media close];[_location close];[_surface shutdown];for(MiniClipboardRead *work in _clipboardReads.allValues)[work cancel];for(MiniHTTPTask *work in _requests.allValues)[work cancel];}
+- (void)shutdown {[_download close];[_media close];[_location close];[_surface shutdown];for(MiniClipboardRead *work in _clipboardReads.allValues)[work cancel];[_clipboardReads removeAllObjects];for(MiniHTTPTask *work in _requests.allValues)[work cancel];[_requests removeAllObjects];[_resources removeAllObjects];}
+- (void)dealloc {[_download close];[_media close];[_location close];[_surface shutdown];for(MiniClipboardRead *work in _clipboardReads.allValues)[work cancel];for(MiniHTTPTask *work in _requests.allValues)[work cancel];}
 @end
 
 @interface MiniDevelopmentHTTP ()

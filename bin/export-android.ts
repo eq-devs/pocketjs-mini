@@ -3,17 +3,18 @@ import {resolve,join,dirname} from "node:path";
 import {homedir,tmpdir} from "node:os";
 import {fileURLToPath} from "node:url";
 import {verifyInstalledInputs} from "./installed-project.ts";
-import {writeInstalledAndroidProject} from "./installed-android-project.ts";
-const usage="pjm export-android --package <release-directory> --public-key <raw-key-file> --output <new-directory> [--bundle <id>]";
+import {writeInstalledAndroidProject,androidDistributionUrl} from "./installed-android-project.ts";
+const usage="pjm export-android --package <release-directory> --public-key <raw-key-file> --output <new-directory> [--bundle <id>] [--distribution <HTTPS-latest-index-url>]";
 async function main(){
   const args=process.argv.slice(2),flags=new Map<string,string>();
-  for(let index=0;index<args.length;index+=2){const name=args[index],value=args[index+1];if(!["--package","--public-key","--output","--bundle"].includes(name) || flags.has(name) || !value || value.startsWith("--"))throw new Error(usage);flags.set(name,value);}
+  for(let index=0;index<args.length;index+=2){const name=args[index],value=args[index+1];if(!["--package","--public-key","--output","--bundle","--distribution"].includes(name) || flags.has(name) || !value || value.startsWith("--"))throw new Error(usage);flags.set(name,value);}
   for(const name of ["--package","--public-key","--output"])if(!flags.has(name))throw new Error(usage);
   const directory=resolve(flags.get("--output")!),root=fileURLToPath(new URL("../",import.meta.url));
   try{lstatSync(directory);throw new Error("Output directory already exists; choose a new directory");}catch(error:any){if(error.code!=="ENOENT")throw error;}
   const packageRoot=resolve(flags.get("--package")!),inputs={payload:join(packageRoot,"main.pocket"),envelope:join(packageRoot,"manifest.json"),publicKey:resolve(flags.get("--public-key")!)};
   const admitted=verifyInstalledInputs(inputs,"pjm-android"),bundle=flags.get("--bundle")??"dev.pjm.installed";
   if(!/^[a-zA-Z][a-zA-Z0-9_]*(?:\.[a-zA-Z][a-zA-Z0-9_]*)+$/.test(bundle))throw new Error("Invalid Android host package identity");
+  const distributionUrl=flags.has("--distribution")?androidDistributionUrl(flags.get("--distribution")!):undefined;
   if(!["darwin","linux"].includes(process.platform))throw new Error("Android export currently requires macOS or Linux");
   const sdk=process.env.ANDROID_SDK_ROOT??process.env.ANDROID_HOME??join(homedir(),process.platform==="darwin"?"Library/Android/sdk":"Android/Sdk");
   const ndk=join(sdk,"ndk/28.2.13676358/toolchains/llvm/prebuilt",process.platform==="darwin"?"darwin-x86_64":"linux-x86_64","bin"),clang=join(ndk,"aarch64-linux-android23-clang");
@@ -30,7 +31,7 @@ async function main(){
     const library=join(temporary,"libpocketjs.so");
     await run([clang,"-Wall","-Wextra","-Werror","-O2","-fPIC","-shared","-Wl,--gc-sections","-Wl,--exclude-libs,ALL","-Wl,--no-undefined","-Wl,-z,max-page-size=16384","-I",join(root,"core-ffi/include"),... ["package_bridge.c","pool_bridge.c","store_bridge.c"].map(name=>join(root,"host/android",name)),join(root,"core-ffi/target",target,"release/libmini_core_ffi.a"),"-lEGL","-lGLESv2","-ldl","-lm","-llog","-o",library]);
     mkdirSync(dirname(directory),{recursive:true});mkdirSync(directory,{recursive:false});created=true;
-    const result=writeInstalledAndroidProject({...inputs,directory,library,bundle});complete=true;
+    const result=writeInstalledAndroidProject({...inputs,directory,library,bundle,distributionUrl});complete=true;
     console.log(`Exported ${admitted.manifest.appId} ${admitted.manifest.version}: ${result.directory}. Run build-apk.sh there to build an unsigned APK.`);
   }finally{rmSync(temporary,{recursive:true,force:true});if(created && !complete)rmSync(directory,{recursive:true,force:true});}
 }

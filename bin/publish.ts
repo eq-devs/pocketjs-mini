@@ -2,16 +2,12 @@ import {join,resolve} from 'node:path';
 import {canonical} from '../container/package.ts';
 import {verifyInstalledInputs} from './installed-project.ts';
 import {strictJson} from '../container/strict-json.ts';
-import {selectPocketInputs} from '../container/pocket-inputs.ts';
-import {admitReplayPlan} from '../devtools/plan.ts';
+import {admitInstalledPayload} from '../container/installed-payload.ts';
 import type {SignedManifest} from '../container/package.ts';
 const admittedPublications=new WeakMap<object,{payload:Buffer;manifest:SignedManifest}>();
 export function preparePublication(directory:string,publicKey:string,target:'ios'|'android') {
   const {payload,manifest}=verifyInstalledInputs({payload:join(resolve(directory),'main.pocket'),envelope:join(resolve(directory),'manifest.json'),publicKey:resolve(publicKey)},'pjm-'+target);
-  const selected=selectPocketInputs(payload,'pjm-'+target,manifest.appId),plan=strictJson(selected.plan) as any;
-  const width=plan?.viewport?.logical?.[0],height=plan?.viewport?.logical?.[1],density=plan?.viewport?.rasterDensity;
-  if(![width,height,density].every(Number.isSafeInteger)||width<1||width>1024||height<1||height>1024||density<1||density>4||width*height*density*density*4>16*1024*1024)throw Error('Publication plan viewport limits');
-  admitReplayPlan(selected.plan,{target:target==='ios'?'pjm-ios':'pjm-android',window:{width,height,density}},{appId:manifest.appId,version:manifest.version});
+  admitInstalledPayload(payload,manifest,'pjm-'+target as 'pjm-ios'|'pjm-android');
   const prepared={payload:Buffer.from(payload),manifest:JSON.parse(canonical(manifest)) as SignedManifest};
   admittedPublications.set(prepared,{payload,manifest});return prepared;
 }

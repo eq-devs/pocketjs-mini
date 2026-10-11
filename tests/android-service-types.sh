@@ -10,7 +10,7 @@ trap 'rm -rf "$TEMP"' EXIT
 "$JAVA/bin/javac" -source 8 -target 8 -classpath "$SDK/platforms/android-34/android.jar:$ROOT/vendor/android-http/*:$ROOT/vendor/android-location/jars/*:$ROOT/vendor/android-media/*" -d "$TEMP" \
   "$ROOT/host/android/VerifiedClipboard.java" "$ROOT/host/android/VerifiedPackage.java" \
   "$ROOT/host/android/PackageVerifier.java" "$ROOT/host/android/BoundedJson.java" \
-  "$ROOT/host/android/PackageStore.java" "$ROOT/host/android/PackageFiles.java" \
+  "$ROOT/host/android/PackageStore.java" "$ROOT/host/android/PackageDownload.java" "$ROOT/host/android/PackageFiles.java" \
   "$ROOT/host/android/PermissionGate.java" "$ROOT/host/android/LocationApproval.java" "$ROOT/host/android/FusedLocationProvider.java" \
   "$ROOT/host/android/LocationContract.java" "$ROOT/host/android/LocationMailbox.java" "$ROOT/host/android/LocationRate.java" "$ROOT/host/android/LocationStops.java" "$ROOT/host/android/VerifiedLocation.java" \
   "$ROOT/host/android/TouchContact.java" "$ROOT/host/android/FrameMeasurements.java" "$ROOT/host/android/FramePacer.java" "$ROOT/host/android/InstalledActivity.java" "$ROOT/host/android/MiniActivity.java" "$ROOT/host/android/VerifiedContainer.java" \

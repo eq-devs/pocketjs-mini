@@ -7,17 +7,25 @@ import {verifyInstalledInputs} from "./installed-project.ts";
 import {androidHttpFiles,copyAndroidHttp} from "./android-http.ts";
 import {androidLocationFiles,copyAndroidLocation} from "./android-location.ts";
 
+export function androidDistributionUrl(address:string){
+ const url=new URL(address),authority=address.match(/^https:\/\/([^/?#]*)/i)?.[1];
+ if(address.length>2048||!authority||authority.includes('@')||url.protocol!=='https:'||url.username||url.password||url.search||url.hash)throw Error('Distribution endpoint must be HTTPS without credentials, query or fragment');
+ return url.href;
+}
+
 /** Portable signed-only host; APK signing remains owned by the distributor. */
-export function writeInstalledAndroidProject(options:{directory:string;library:string;payload:string;envelope:string;publicKey:string;bundle?:string}){
+export function writeInstalledAndroidProject(options:{directory:string;library:string;payload:string;envelope:string;publicKey:string;bundle?:string;distributionUrl?:string}){
   const {payload,key,manifest}=verifyInstalledInputs(options,"pjm-android"),bundle=options.bundle??"dev.pjm.installed";
+  const distribution=options.distributionUrl===undefined?undefined:androidDistributionUrl(options.distributionUrl);
   androidHttpFiles();androidLocationFiles();androidMediaFiles();
   if(!/^[a-zA-Z][a-zA-Z0-9_]*(?:\.[a-zA-Z][a-zA-Z0-9_]*)+$/.test(bundle))throw new Error("Invalid Android host package identity");
   const root=fileURLToPath(new URL("../",import.meta.url)),directory=resolve(options.directory);
   for(const part of ["src","assets","lib/arm64-v8a"])mkdirSync(join(directory,part),{recursive:true});
   copyAndroidHttp(directory);
   copyAndroidLocation(directory);copyAndroidMedia(directory);
-  for(const name of ["TouchContact","FrameMeasurements","FramePacer","AppStorage","PackageVerifier","VerifiedPackage","VerifiedContainer","VerifiedPresenter","InstalledActivity","PackageStore","PackageFiles","BoundedJson","VerifiedHttp","ManagedResources","VerifiedClipboard","PermissionGate","VerifiedLocation","LocationApproval","LocationContract","LocationMailbox","LocationRate","LocationStops","FusedLocationProvider","VerifiedNetwork","MediaContract","MediaImage","MediaInput","MediaPicker","VerifiedMedia"])cpSync(join(root,"host/android",name+".java"),join(directory,"src",name+".java"));
+  for(const name of ["TouchContact","FrameMeasurements","FramePacer","AppStorage","PackageVerifier","VerifiedPackage","VerifiedContainer","VerifiedPresenter","InstalledActivity","PackageStore","PackageDownload","PackageFiles","BoundedJson","VerifiedHttp","ManagedResources","VerifiedClipboard","PermissionGate","VerifiedLocation","LocationApproval","LocationContract","LocationMailbox","LocationRate","LocationStops","FusedLocationProvider","VerifiedNetwork","MediaContract","MediaImage","MediaInput","MediaPicker","VerifiedMedia"])cpSync(join(root,"host/android",name+".java"),join(directory,"src",name+".java"));
   writeFileSync(join(directory,"assets/main.pocket"),payload);writeFileSync(join(directory,"assets/manifest.json"),canonical(manifest));writeFileSync(join(directory,"assets/publisher.key"),key);
+  if(distribution)writeFileSync(join(directory,"assets/distribution.json"),canonical({format:1,latestUrl:distribution}));
   cpSync(resolve(options.library),join(directory,"lib/arm64-v8a/libpocketjs.so"));
   writeFileSync(join(directory,"AndroidManifest.xml"),`<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="${bundle}" android:versionCode="1" android:versionName="1.0">
 <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="34"/>
@@ -88,6 +96,13 @@ the bundled native Ed25519 verifier independently of Android JCA providers. Olde
 Android runtime compatibility remains unverified; the manifest API 26 minimum
 does not establish compatibility across all those devices.
 Target API/store submission requirements must be reviewed for distribution.
+If exported with --distribution, assets/distribution.json pins a host-owned HTTPS
+latest-index URL. The index has exactly appId, version, manifestUrl and packageUrl;
+asset URLs must share the configured origin. Downloads are bounded and verified
+against publisher.key before staging. Updates activate on a later cold start.
+The downloaded index cannot introduce publisher keys. Live network acceptance
+and mobile publisher-key rotation are still pending.
+
 The current presenter uploads software BGRA frames; direct GPU draw lists and
 full native services are still incomplete.
 

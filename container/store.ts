@@ -1,3 +1,4 @@
+import {admitInstalledPayload} from './installed-payload.ts';
 import {strictJson} from "./strict-json.ts";
 import {readBoundedFile} from './bounded-file.ts';
 import {writeAtomicFile,syncDirectory,syncRegularFile} from './atomic-file.ts';
@@ -83,6 +84,16 @@ export class PackageStore {
     if(!(payload instanceof Uint8Array)||!payload.length||payload.length>MAX_PACKAGE_BYTES)throw new Error('Package size outside 1..64 MiB');
     const source=Buffer.from(payload);
     const manifest = verifyPackage(source, candidate, this.trustedKey, this.host);
+    return this.stageAdmitted(source,manifest);
+  }
+  /** Distribution packages must additionally satisfy the embedded native contract. */
+  stageNative(payload:Uint8Array,candidate:unknown):SignedManifest {
+    if(!(payload instanceof Uint8Array)||!payload.length||payload.length>MAX_PACKAGE_BYTES)throw new Error('Package size outside 1..64 MiB');
+    const source=Buffer.from(payload),manifest=verifyPackage(source,candidate,this.trustedKey,this.host);
+    admitInstalledPayload(source,manifest,this.host.target);
+    return this.stageAdmitted(source,manifest);
+  }
+  private stageAdmitted(source:Buffer,manifest:SignedManifest):SignedManifest {
     const path = this.app(manifest.appId), slot = `${manifest.version}-${manifest.sha256}`;
     return this.locked(path, () => {
       const state = this.state(path), destination = join(path, slot);

@@ -3,8 +3,8 @@ import {developmentNetworkSource} from './development-network-fixture.ts';
 /** Actual HTTPS and Camera2 producers share the four-slot guest registry. */
 export function developmentHttpMediaSource(source:string,fixture:'initial'|'reloaded'='initial'){
  return developmentNetworkSource(source,fixture)
- .replace('function App() {','const [pjmHttp,setPjmHttp]=createSignal("pending");\nconst [pjmMedia,setPjmMedia]=createSignal("pending");\nconst [pjmMixed,setPjmMixed]=createSignal("pending");\nfunction App() {')
- .replace('</Show>','</Show>\n<Text class="text-cyan-400 text-sm">HTTP: {pjmHttp()}</Text>\n<Text class="text-cyan-400 text-sm">Media: {pjmMedia()}</Text>\n<Text class="text-cyan-400 text-sm">Mixed: {pjmMixed()}</Text>')+`
+ .replace('function App() {','const pjmMixedRun=Math.random().toString(36).slice(2);\nconst [pjmHttp,setPjmHttp]=createSignal("pending");\nconst [pjmMedia,setPjmMedia]=createSignal("pending");\nconst [pjmMixed,setPjmMixed]=createSignal("pending");\nfunction App() {')
+ .replace('</Show>','</Show>\n<Text class="text-cyan-400 text-sm">HTTP: {pjmHttp()}</Text>\n<Text class="text-cyan-400 text-sm">Media: {pjmMedia()}</Text>\n<Text class="text-cyan-400 text-sm">Mixed: {pjmMixed()}</Text>\n<Text class="text-cyan-400 text-sm">Mixed run: {pjmMixedRun}</Text>')+`
 function pjmMixedDecode(value:string){const alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";let bits=0,buffer=0,text="";for(const character of value){if(character==="=")break;buffer=(buffer<<6)|alphabet.indexOf(character);bits+=6;if(bits>=8){bits-=8;text+=String.fromCharCode((buffer>>bits)&255);}}return text;}
 async function pjmMixedCheck(){
  const owned=new Set<string>();let bytes=0;

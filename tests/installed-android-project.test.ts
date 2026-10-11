@@ -27,6 +27,11 @@ test("Android installed export preserves separate trust and portable signed-only
     expect(readFileSync(join(directory,"src/LocationApproval.java"),"utf8")).toBe(readFileSync(join(import.meta.dir,"../host/android/LocationApproval.java"),"utf8"));
     expect(existsSync(join(directory,"deps/annotations-13.0.jar"))).toBe(false);expect(existsSync(join(directory,"deps/annotations-23.0.0.jar"))).toBe(true);
     expect(readFileSync(join(directory,"packages.txt"),"utf8")).toContain('com.google.android.gms.common');expect(existsSync(join(directory,"resources/play-services-basement-18.3.0/res/values/values.xml"))).toBe(true);
+    expect(existsSync(join(directory,'assets/distribution.json'))).toBe(false);
+    expect(readFileSync(join(directory,'src/PackageDownload.java'),'utf8')).toBe(readFileSync(join(import.meta.dir,'../host/android/PackageDownload.java'),'utf8'));
+    const updating=join(root,'updating');writeInstalledAndroidProject({...options,directory:updating,distributionUrl:'https://distribution.example/apps/fixture/latest.json'});
+    expect(JSON.parse(readFileSync(join(updating,'assets/distribution.json'),'utf8'))).toEqual({format:1,latestUrl:'https://distribution.example/apps/fixture/latest.json'});
+    for(const address of ['http://localhost/latest','https://user:pass@example.com/latest','https://@example.com/latest','https://example.com/latest?token=x','https://example.com/latest#x']){const rejected=join(root,'bad-distribution');expect(()=>writeInstalledAndroidProject({...options,directory:rejected,distributionUrl:address})).toThrow();expect(existsSync(rejected)).toBe(false);}
     writeFileSync(payload,"tampered");expect(()=>writeInstalledAndroidProject({...options,directory:join(root,"rejected")})).toThrow();expect(existsSync(join(root,"rejected"))).toBe(false);
   }finally{rmSync(root,{recursive:true,force:true});}
 });

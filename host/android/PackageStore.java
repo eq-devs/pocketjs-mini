@@ -54,6 +54,7 @@ final class PackageStore {
       }sync(app);
     }catch(Exception error){lastCleanupError=error;}
   }
+  String rootIdentity(){owner();return root.getAbsolutePath();}
   void seed(byte[] payload,byte[] envelope)throws Exception{stage(payload,envelope,true);}
   void stage(byte[] payload,byte[] envelope)throws Exception{stage(payload,envelope,false);}
   private void stage(byte[] payload,byte[] envelope,boolean seed)throws Exception{

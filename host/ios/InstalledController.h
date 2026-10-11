@@ -6,6 +6,7 @@ NS_ASSUME_NONNULL_BEGIN
 @interface MiniInstalledController : UIViewController
 @property(nonatomic,readonly) PocketSurfaceView *surface;
 - (nullable instancetype)initWithIdentity:(NSString *)identity store:(MiniPackageStore *)store launchData:(NSData *)launch error:(NSError **)error;
+- (void)startDistribution:(NSData *)configuration identity:(NSString *)identity;
 - (BOOL)openIdentity:(NSString *)identity launchData:(NSData *)launch error:(NSError **)error;
 - (void)shutdown;
 @end
