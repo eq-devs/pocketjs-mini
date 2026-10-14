@@ -5,7 +5,7 @@ import {tmpdir} from 'node:os';
 import {createHash} from 'node:crypto';
 import {ownedMediaPng} from './media-library-fixture.ts';
 
-// A separate test app owns the MediaStore row. The development host is unchanged.
+// A separate test app owns the published provider row and file. The development host is unchanged.
 export async function provisionOwnedMedia(root:string,sdk:string,serial:string,name:string,evidence:string){
  assert.match(name,/^pjm-owned-[a-zA-Z0-9-]+\.png$/);
  const temp=mkdtempSync(join(tmpdir(),'pjm-owned-media-')),bundle='dev.pjm.fixture.a'+Date.now();
@@ -20,16 +20,17 @@ export async function provisionOwnedMedia(root:string,sdk:string,serial:string,n
   for(const directory of ['assets','classes','dex'])mkdirSync(join(temp,directory));
   const image=ownedMediaPng(),sha256=createHash('sha256').update(image).digest('hex');
   writeFileSync(join(temp,'assets/owned-media.png'),image);writeFileSync(join(temp,'assets/owned-media.json'),JSON.stringify({name,sha256}));
-  writeFileSync(join(temp,'AndroidManifest.xml'),`<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="${bundle}"><uses-sdk android:minSdkVersion="29" android:targetSdkVersion="34"/><application android:label="Owned media fixture" android:allowBackup="false" android:theme="@android:style/Theme.Material.NoActionBar"><activity android:name="dev.pjm.android.MediaLibraryFixtureActivity" android:exported="true"/></application></manifest>`);
+  writeFileSync(join(temp,'AndroidManifest.xml'),`<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="${bundle}"><uses-sdk android:minSdkVersion="23" android:targetSdkVersion="34"/><uses-permission android:name="android.permission.INTERNET"/><uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28"/><uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="28"/><application android:label="Owned media fixture" android:allowBackup="false" android:theme="@android:style/Theme.Material.NoActionBar"><activity android:name="dev.pjm.android.MediaLibraryFixtureActivity" android:exported="true"/></application></manifest>`);
   await run([join(tools,'aapt2'),'link','-o',join(temp,'unsigned.apk'),'-I',android,'--manifest',join(temp,'AndroidManifest.xml'),'-A',join(temp,'assets')]);
   await run([join(java,'bin/javac'),'-source','8','-target','8','-classpath',android,'-d',join(temp,'classes'),join(root,'tests/MediaLibraryFixtureActivity.java')]);
   await run([join(java,'bin/jar'),'cf',join(temp,'classes.jar'),'-C',join(temp,'classes'),'.']);
-  await run([join(tools,'d8'),'--min-api','29','--lib',android,'--output',join(temp,'dex'),join(temp,'classes.jar')]);
+  await run([join(tools,'d8'),'--min-api','23','--lib',android,'--output',join(temp,'dex'),join(temp,'classes.jar')]);
   await run(['zip','-j',join(temp,'unsigned.apk'),join(temp,'dex/classes.dex')]);
   await run([join(tools,'zipalign'),'-f','4',join(temp,'unsigned.apk'),join(temp,'aligned.apk')]);
   await run([join(java,'bin/keytool'),'-genkeypair','-keystore',join(temp,'test.jks'),'-storepass','android','-keypass','android','-alias','test','-keyalg','RSA','-validity','1','-dname','CN=Temporary Owned Media Test']);
   await run([join(tools,'apksigner'),'sign','--ks',join(temp,'test.jks'),'--ks-pass','pass:android','--out',join(temp,'test.apk'),join(temp,'aligned.apk')]);
   await run(adb('install',join(temp,'test.apk')));installed=true;
+  if(Number(await run(adb('shell','getprop','ro.build.version.sdk')))<29){for(const permission of ['READ_EXTERNAL_STORAGE','WRITE_EXTERNAL_STORAGE'])await run(adb('shell','pm','grant',bundle,'android.permission.'+permission));}
   await run(adb('shell','am','start','-W','-n',bundle+'/dev.pjm.android.MediaLibraryFixtureActivity'));
   writeFileSync(join(evidence,'fixture-ready.xml'),await proof('Owned media fixture ready '+name+' bytes='+image.length+' sha256='+sha256));
   await run(adb('shell','am','force-stop',bundle));return cleanup;

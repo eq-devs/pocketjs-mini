@@ -5,7 +5,7 @@ import {resolve,join} from 'node:path';
 import {createHash} from 'node:crypto';
 import {androidSdk} from '../bin/android.ts';
 import {ownedMediaPng} from './media-library-fixture.ts';
-const development=process.env.PJM_MEDIA_DEVELOPMENT==='1';
+const development=process.env.PJM_MEDIA_DEVELOPMENT==='1',fixtureOnly=process.env.PJM_MEDIA_FIXTURE_ONLY==='1';assert.ok(!fixtureOnly||development,'Fixture-only validation requires development provisioning');
 const root=resolve(import.meta.dir,'..'),sdk=androidSdk();
 const evidence=resolve(process.env.PJM_MEDIA_LIBRARY_EVIDENCE??join(root,'build/android-validation/media-library-'+Date.now()));mkdirSync(evidence,{recursive:true});
 const serial='emulator-5580',name='pjm-owned-'+Date.now()+'.png',remote='/sdcard/Download/'+name;
@@ -23,10 +23,13 @@ try{
  await run(adb('shell','wm','dismiss-keyguard'));
  const storageDeadline=Date.now()+60000;let storageReady=false;while(Date.now()<storageDeadline){if(await run(adb('shell','test','-d','/sdcard')).then(()=>true,()=>false)){storageReady=true;break;}await Bun.sleep(500);}assert.ok(storageReady,'Owned emulator shared storage did not mount');
  if(development)fixtureCleanup=await provisionOwnedMedia(root,sdk,serial,name,evidence);
- await run([process.execPath,join(root,development?'tests/navigation-native-android.ts':'tests/navigation-signed-android.ts'),serial],900000,{...process.env,ANDROID_SDK_ROOT:sdk,PJM_MEDIA_UI_CASE:'library',PJM_MEDIA_LIBRARY_NAME:name,PJM_NAVIGATION_EVIDENCE:evidence,...(development?{PJM_DEVELOPMENT_MEDIA:'library',PJM_DEVELOPMENT_NETWORK:'1',PJM_DEVELOPMENT_HTTP:'0'}:{})});
- console.log('Owned Android system chooser and SDK resource checks passed.');
+ if(!fixtureOnly)await run([process.execPath,join(root,development?'tests/navigation-native-android.ts':'tests/navigation-signed-android.ts'),serial],900000,{...process.env,ANDROID_SDK_ROOT:sdk,PJM_MEDIA_UI_CASE:'library',PJM_MEDIA_LIBRARY_NAME:name,PJM_NAVIGATION_EVIDENCE:evidence,...(development?{PJM_DEVELOPMENT_MEDIA:'library',PJM_DEVELOPMENT_NETWORK:'1',PJM_DEVELOPMENT_HTTP:'0'}:{})});
 }finally{
- if(fixtureCleanup)await fixtureCleanup().catch(error=>{log+='Fixture cleanup failure: '+String(error)+'\n';});
+ let cleanupFailure:unknown;
+ if(fixtureCleanup)try{await fixtureCleanup();}catch(error){cleanupFailure=error;log+='Fixture cleanup failure: '+String(error)+'\n';}
  if(emulator){await run(adb('emu','kill')).catch(()=>{});const timer=setTimeout(()=>emulator!.kill('SIGTERM'),10000);try{await emulator.exited;cleaned=true;}finally{clearTimeout(timer);}writeFileSync(join(evidence,'emulator.log'),(await output??'')+(await errors??''));}
- writeFileSync(join(evidence,'owned-emulator.json'),JSON.stringify({serial,avd:'Pixel_2',readOnly:true,owned:true,fixture:'owned-fixture.png',width:64,height:32,fixtureSha256:createHash('sha256').update(png).digest('hex'),remote,fixtureProvisioning:'test-only-app-owned-MediaStore',cleaned},null,2));writeFileSync(join(evidence,'owned-device-and-test.log'),log);
+ writeFileSync(join(evidence,'owned-emulator.json'),JSON.stringify({serial,avd:'Pixel_2',readOnly:true,owned:true,fixture:'owned-fixture.png',width:64,height:32,fixtureSha256:createHash('sha256').update(png).digest('hex'),remote,fixtureProvisioning:'test-only-app-owned-MediaStore',fixtureOnly,fixtureCleanup:fixtureCleanup?(cleanupFailure?'failed':'passed'):'not-applicable',cleaned},null,2));writeFileSync(join(evidence,'owned-device-and-test.log'),log);
+ if(cleanupFailure)throw cleanupFailure;
 }
+
+console.log(fixtureOnly?'Owned Android media fixture provisioning, byte readback and cleanup passed.':'Owned Android system chooser and SDK resource checks passed.');

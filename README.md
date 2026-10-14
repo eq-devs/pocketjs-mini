@@ -843,7 +843,7 @@ adds an owned 64x32 fixture, and checks SDK JPEG resources across cold reopen
 and live guest reload while preserving existing simulators and their libraries.
 
 
-Minimum Android OS execution can be checked with
+On an ARM64 Mac, minimum Android OS execution can be checked with
 `bun tests/minimum-os-owned-android.ts 26` for installed signed TSX HTTPS
 update/rollback, or `bun tests/minimum-os-owned-android.ts 23` for development
 TSX navigation. Install the corresponding official
@@ -852,3 +852,31 @@ a temporary isolated AVD home, checks the actual runtime API/fingerprint, runs
 the relevant existing acceptance flow, and removes the owned emulator and AVD.
 It leaves saved user AVDs unchanged. These targeted flows do not establish
 all service paths, every device at that API level, or physical performance.
+
+
+On API 23, `PJM_MINIMUM_CLIPBOARD_MATRIX=1 bun tests/minimum-os-owned-android.ts 23`
+checks undeclared, denied and allowed clipboard reads in one owned emulator,
+clearing only the test app between cases. Each case also checks network
+connected/offline/restored events, native clipboard writes, rejected malformed
+requests, cold reopen and live reload. Results are stored separately by mode.
+
+
+API 23 development HTTP can be exercised with `PJM_DEVELOPMENT_NETWORK=1 PJM_DEVELOPMENT_HTTP=1 bun tests/minimum-os-owned-android.ts 23`.
+For the actual system image picker and JPEG resource path, use
+`PJM_DEVELOPMENT_NETWORK=1 PJM_DEVELOPMENT_MEDIA=library bun tests/minimum-os-owned-android.ts 23`.
+The runner provisions its own small image through a separate temporary provider
+app and removes that image afterward; it adds no storage grant to the host.
+
+
+`PJM_MINIMUM_LOCATION_MATRIX=1 bun tests/minimum-os-owned-android.ts 23`
+checks undeclared, denied and approved location requests across initial, cold
+and live-reload generations. The temporary emulator's GPS receives fixed test
+coordinates; the host still uses native consent, the real OS permission dialog
+and Google FusedLocation. This is not physical GPS accuracy or first-fix timing.
+
+
+`PJM_MINIMUM_MEDIA_CASES=undeclared,deny,cancel,camera-cancel,camera bun tests/minimum-os-owned-android.ts 23`
+runs the requested API 23 development-media cases in an isolated emulator and
+clears only the test app between cases. The camera cases use the emulator's
+emulated sensor, check transient URI access, and verify capture-file/grant
+cleanup. Physical camera quality and performance require separate measurements.

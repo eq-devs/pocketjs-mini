@@ -2443,3 +2443,265 @@ original proposal is also no longer present at its supplied Desktop path;
 requested its current path while continuing from the recorded plan. Final
 requirement-by-requirement audit still needs the original. Additional DevTools
 stays deferred for v0.0.1; the full goal remains active.
+
+
+## Actual Android minimum-OS execution (2026-10-14)
+
+Installed the official Google APIs ARM64 system images for API 26 and API 23.
+The preexisting API 24/25/34 SDK image directories were empty placeholders,
+not usable runtimes. No saved user AVD was modified. The new manual acceptance
+runner tests/minimum-os-owned-android.ts creates a uniquely named temporary AVD
+with isolated ANDROID_USER_HOME and ANDROID_AVD_HOME, boots read-only with 4 GiB,
+checks the actual API/ABI/fingerprint, executes the appropriate existing flow,
+then shuts down the emulator and removes its AVD/home. Image installation is
+an explicit prerequisite, never a silently skipped test.
+
+The API 26 installed-host run passes on actual Android 8.0.0 ARM64
+(fingerprint google/sdk_gphone_arm64/generic_arm64:8.0.0/OSR1.180418.028.A3/10734686).
+It renders real signed TSX, stages three real local HTTPS payload transfers,
+retains the old screen/counter through update and Home/resume, promotes green
+v2 on cold start and rolls back to red v1. Public package signatures were
+independently verified. Native error output contains buffer headers only.
+Evidence: build/android-validation/minimum-api26-20261014, including actual
+runtime.json, UI/pixel receipts, and signature-and-cleanup-verification.json.
+The generated Android export guide now identifies this tested runtime scope.
+
+The API 23 development-host run passes on actual Android 6.0 ARM64
+(fingerprint Android/sdk_google_phone_arm64/generic_arm64:6.0/MASTER/8690019).
+The real create/run/compiler/native host workflow executes TSX button routing,
+query/counter retention, Home/resume, Android system Back, root exit and cold
+reset. Evidence: build/android-validation/minimum-api23-20261014, including
+runtime.json, result.json, screenshots/trees and minimum-os-result.json. This
+run did not enable the optional service test modes, so it does not establish
+API 23 HTTP/media/location/clipboard/network service coverage.
+
+Both runs exit 0 and their owned-emulator receipts confirm cleanup and removed
+temporary AVDs. The user's saved Pixel_2 remains the only persistent AVD.
+Overall evidence: build/android-validation/minimum-os-20261014/result.json.
+The Java API detector's installed class signature is also retained there: its
+source/resource scanning interfaces do not establish a complete dependency
+bytecode audit. Runtime coverage is limited to the flows actually exercised.
+
+This strengthens the previous source/import-only evidence at both declared
+Android minima; it does not claim all service paths, all devices/OS versions,
+or physical performance. iOS 16 execution, broader dependency/service coverage,
+production endpoint/clean release acceptance, deadline stability and physical
+camera/performance/isolation remain open. The missing original proposal's
+current path is still requested for final requirement-by-requirement audit.
+Additional DevTools stays deferred for v0.0.1; the full goal remains active.
+
+
+## API 23 native network and clipboard lifecycle acceptance (2026-10-14)
+
+Extended the isolated minimum-OS runner with optional
+PJM_MINIMUM_CLIPBOARD_MATRIX=1 for API 23. It runs the existing development-host
+acceptance fixture in undeclared, deny and allow modes on one fresh temporary
+AVD, clearing only dev.pjm.android between modes. Per-case environment overrides
+keep evidence separate; the existing API 26 installed-host path is unchanged.
+No production host or guest policy was changed, and no DevTools feature was added.
+
+The first API 23 allow-mode run passes native consent and exact Unicode
+clipboard text readback, writes, rejected malformed clipboard/network requests,
+network transitions, retained navigation, Home/resume, cold reopen and live
+reload. Its network proof changes cellular/events 0 → none/events 1 →
+cellular/events 2, retains state across Home/resume, then starts fresh at events
+0 after cold reopen and live reload. Evidence:
+build/android-validation/minimum-api23-network-clipboard-20261014.
+
+The full three-case run also exits 0 on actual Android 6.0/API 23 ARM64.
+Undeclared and explicitly denied clipboard reads remain DENIED across initial,
+cold and hot execution. Allowed reads return the exact fixture text after native
+consent and remain SUCCESS across cold/hot reopening. Consent XML is present
+only for declared deny/allow cases. Each mode independently passes native
+clipboard writes and malformed-argument PROTOCOL rejection, actual
+connected/offline/restored SDK network events, fresh cold/hot subscriptions,
+button navigation, retained query/counter, Home/resume, system Back and root
+exit. The legacy API 23 connectivity receiver path is therefore exercised on
+its real OS branch, rather than only mocked or compiled.
+
+Saved clipboard and network snapshots were independently decoded and checked
+against all three result receipts; event counts increase during transitions
+and reset to zero for the new cold/hot subscription. The owned-emulator receipt
+confirms shutdown and removal of its temporary AVD/home; only the user's
+preexisting Pixel_2 AVD remains. Evidence:
+build/android-validation/minimum-api23-clipboard-matrix-20261014, including
+acceptance-summary.json and each mode's UI/SDK snapshots and result.json.
+The runner's updated source also passes Bun bundling and whitespace checks.
+
+These are targeted API 23 development-service results on a temporary 4-GiB
+emulator profile. They do not close all dependency code paths, installed-host
+service parity, HTTP/media/location minimum-OS execution, iOS 16 execution,
+production endpoint/clean release validation, the known default-profile wall-
+deadline failure, or physical camera/performance/isolation acceptance. The
+original proposal's supplied path remains missing and its current path is
+still requested for final audit. Additional DevTools stays deferred for
+v0.0.1; the full goal remains active.
+
+
+## API 23 live HTTP and system image/JPEG resource execution (2026-10-14)
+
+The minimum-OS runner now exercises existing HTTP and media fixture modes on
+actual Android 6.0/API 23. The HTTP run passes with the production client and
+unchanged system TLS trust, fetching https://example.com/ through the real SDK.
+Initial, cold and live-reload generations each read all 577 bytes in bounded
+resource chunks and verify the Example Domain body; undeclared-domain requests
+and reads after release return DENIED. Navigation, native network changes and
+lifecycle checks also pass. Independently decoded SDK snapshots show revisions
+2/2/3 across these phases. Evidence:
+build/android-validation/minimum-api23-http-20261014/acceptance-summary.json.
+
+To exercise the real image picker on API 23, the separate owned-image helper
+now supports pre-29 Android through an owned completed DownloadManager row and
+file. Its modern MediaStore branch remains in place. The fixture app alone
+requests its needed pre-29 storage grants; host permissions and production
+selection are unchanged. Asset/provider reads are now explicitly capped at
+64 KiB instead of using readAllBytes, which is unsuitable for older runtimes.
+Legacy cleanup validates the owned path, removes its download/file and clears
+its receipt. The minimum-OS runner provisions this helper only for library mode
+and still shuts down/removes its emulator even if fixture cleanup fails.
+
+The successful API 23 run uses the real DocumentsUI picker in initial, cold and
+live-reload generations. Each selects the uniquely named owned 64x32 PNG and
+runs the production image worker/resource registry. The guest validates JPEG
+metadata and SOI header, then releases the handle and receives DENIED on a
+later read. The saved picker XML, SDK results and fixture-ready/cleaned receipts
+were independently checked. Evidence:
+build/android-validation/minimum-api23-media-library-20261014-visible,
+including acceptance-summary.json. This does not claim full decoded-pixel
+comparison or physical camera execution.
+
+The first two media setup attempts remain retained: the API 23 completed-download
+provider required normal INTERNET permission even for registration of a local
+file, then rejected hidden-notification visibility without privileged access.
+The test app now declares its normal permission and registers a visible completed
+download. Both failures occurred in fixture setup before running the host, and
+their owned file/emulator cleanup receipts are preserved under the base and
+-provider attempt directories. No host policy or permissions were loosened.
+
+The updated helper also passes modern MediaStore provisioning, exact byte
+readback and deletion on the owned API 37 emulator. This narrowly scoped
+regression uses PJM_MEDIA_FIXTURE_ONLY=1 and explicitly does not claim another
+system-picker acceptance run. Fixture cleanup errors now fail that runner after
+emulator shutdown, instead of merely being logged and swallowed. Evidence:
+build/android-validation/media-provider-regression-20261014. Updated TypeScript
+runners bundle successfully; no production engine code changed in this unit.
+
+All successful owned emulators and temporary AVD/provider apps/files are cleaned
+up; the preexisting Pixel_2 AVD is preserved. API 23 HTTP and library/JPEG paths
+are now covered at their declared OS minimum. Minimum-OS location/camera and
+other service variants, installed service parity, iOS 16 execution, full pixel
+and physical performance/isolation checks, production endpoint/clean release
+acceptance and the known default-profile wall-deadline failure remain open.
+The original proposal's new path is still requested for final audit. Additional
+DevTools remains deferred for v0.0.1; the full goal stays active.
+
+
+## API 23 location consent, provider and lifecycle execution (2026-10-14)
+
+Added optional PJM_MINIMUM_LOCATION_MATRIX=1 to the isolated minimum-OS runner.
+It tests undeclared, deny and allow cases on one fresh API 23 ARM64 emulator,
+clearing only the test app between cases. Clipboard and location matrices are
+mutually exclusive. Location is enabled only on the owned emulator, and a
+bounded test feeder supplies the existing fixed coordinates to its emulator GPS
+once per second. The feeder is stopped before emulator teardown. No production
+permission, provider or timing policy changed.
+
+The UI test driver now recognizes Android 6's permission_allow_button as well
+as the existing modern permission_allow_foreground_only_button, preserving
+modern precision selection when present. This changes test compatibility with
+the real system dialog; it does not skip native or OS approval.
+
+All cases pass on actual Android 6.0/API 23. Undeclared and explicitly denied
+location requests remain DENIED across initial execution, cold reopening and
+live reload. The allow case captures both native app-consent and legacy OS
+permission dialogs, then obtains latitude 43.238949 and longitude 76.889709
+through the production Google FusedLocation provider in all three generations.
+Decoded SDK snapshots independently confirm coordinates within 0.0001 degree,
+new revisions after reload and expected denial results. First-permission timeout
+is false in every case. Navigation, network transitions, malformed network/
+clipboard requests and lifecycle checks in the shared fixture also pass.
+
+The synthetic GPS feed is already active during the earlier negative cases;
+fresh cached positions are allowed by the request's maximumAgeMs contract.
+These results do not measure a cold GPS first fix or physical positioning
+accuracy, and do not close the previously observed wider first-request timing
+risk on other profiles. Source/runtime guards and service quotas remain intact.
+
+Evidence: build/android-validation/minimum-api23-location-20261014, including
+runtime.json, each mode's consent/OS-dialog and SDK snapshots, result.json,
+minimum-os-result.json and independently checked acceptance-summary.json. The
+owned emulator and temporary AVD are removed; the user's saved Pixel_2 remains
+unchanged. Both updated TypeScript runners pass Bun bundling and whitespace
+checks. No new DevTools feature was introduced.
+
+API 23 development location declaration/consent/provider paths now have runtime
+evidence alongside navigation, clipboard/network, HTTP and library/JPEG checks.
+Camera and wider cancellation/revocation/service stress, installed service
+parity, iOS 16 execution, physical performance/isolation, production endpoint/
+clean release acceptance and the known default-profile deadline failure remain
+open. The original proposal's supplied path remains missing; its current path
+is still requested for final audit. DevTools stays deferred for v0.0.1, and the
+full goal remains active.
+
+
+## API 23 media denials, cancellation and emulated capture (2026-10-14)
+
+The isolated minimum-OS runner accepts a bounded PJM_MINIMUM_MEDIA_CASES list
+of undeclared, deny, cancel, camera-cancel and camera, with no duplicates and
+at most five cases. It clears only the owned test app between cases. Permission
+matrices remain mutually exclusive; the existing API 26 installed-host flow
+is unchanged. No production media or permission behavior was modified.
+
+On actual Android 6.0/API 23, undeclared and explicitly denied media requests
+remain DENIED through initial, cold and hot generations. Real system-picker
+cancellation remains CANCELLED through all three. These completed cases are
+independently verified under
+build/android-validation/minimum-api23-media-consent-20261014; that whole attempt
+failed later in its original camera driver, so it is not labeled an all-cases
+passing run. verified-completed-cases.json identifies only the proven cases.
+
+The older image uses com.android.camera, while the existing driver recognized
+only com.android.camera2. It also uses btn_done for photo review, and its toolbox
+ls does not support -A. The test now supports the two observed system camera
+packages and their review controls; it uses raw ls -a output and excludes only
+. and .., preserving detection of every other private capture file. Camera
+focus, intended grant recipient and transient read/write mode checks remain.
+The modern camera2/control names remain supported. Updated scripts bundle
+successfully and whitespace checks pass.
+
+Camera cancellation passes across initial/cold/hot generations in
+build/android-validation/minimum-api23-camera-20261014-ls/camera-cancel.
+Each captures one pending private JPEG, verifies sourcePkg=dev.pjm.android and
+targetPkg=com.android.camera with transient mode 0x3 and no persistent grants,
+then verifies CANCELLED, zero private capture files and removed URI grants.
+That containing attempt later failed on unsupported photo-review controls;
+its successful cancellation case is retained independently.
+
+With the observed legacy btn_done selector, a fresh photo-capture run exits 0:
+actual emulated camera shutter/review, native 64x48 JPEG normalization, SDK JPEG
+header/resource checks, release followed by DENIED read, private-file deletion
+and URI-grant revocation all pass on initial, cold and hot generations. The
+AVD records hw.camera.back=emulated and no front camera; this used no physical
+camera sensor. Evidence:
+build/android-validation/minimum-api23-camera-20261014-review, including the
+aggregate acceptance-summary.json with explicit per-case evidence paths and
+independently decoded results. All owned emulators and temporary AVDs from
+successful and failed attempts are cleaned up; the saved Pixel_2 remains.
+
+Earlier camera-driver failures remain preserved: the base media run did not
+recognize the legacy camera package; the next camera attempt hit unsupported
+ls -A; the following run reached review but did not recognize btn_done. During
+that review diagnosis, an overlapping UiAutomator dump caused an accessibility
+helper conflict. Its logs and attempted owned-camera cancellation are recorded;
+that attempt remains failed and is not treated as a spontaneous production
+focus-loss failure. The final fresh capture run used no overlapping automation.
+
+API 23 development media now has evidence for declaration/native denial, picker
+and camera cancellation, image-library selection and emulated capture with
+resource/URI cleanup. These independent case results do not establish physical
+camera quality, full decoded-pixel equivalence, every cancellation race, or all
+installed-host service paths. iOS 16 execution, sustained default-profile
+deadlines, wider concurrency/isolation, production endpoint/clean release and
+physical performance acceptance remain open. The original proposal's supplied
+path is still missing and its current path requested for final audit. Additional
+DevTools stays deferred for v0.0.1; the full goal remains active.

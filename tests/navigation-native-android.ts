@@ -97,42 +97,43 @@ try{
    writeFileSync(join(evidence,stage+'-camera-focus.txt'),focus);
    const clipboard=windows.split(/\n\s*Window #\d+ /).filter(block=>block.split('\n')[0].includes('ClipboardOverlay')&&/isVisible=true|isOnScreen=true/.test(block));
    if(clipboard.length){writeFileSync(join(evidence,stage+'-clipboard-overlay.txt'),clipboard.join('\n'));assert.fail('Clipboard preview still covers camera controls');}
-   if(shutterTapped&&/mCurrentFocus=/.test(focus)&&! /mCurrentFocus=.*com\.android\.camera2\//.test(focus)){
+   if(shutterTapped&&/mCurrentFocus=/.test(focus)&&! /mCurrentFocus=.*com\.android\.camera(?:2)?\//.test(focus)){
     writeFileSync(join(evidence,stage+'-unexpected-camera-windows.txt'),windows);
     const events=await run(adb('logcat','-d','-v','threadtime','ActivityTaskManager:I','ActivityManager:I','*:S'));
-    writeFileSync(join(evidence,stage+'-activity-events.log'),events.split('\n').filter(line=>/camera2|dev\.pjm\.android|nearby\.sharing|nexuslauncher/.test(line)).join('\n'));
+    writeFileSync(join(evidence,stage+'-activity-events.log'),events.split('\n').filter(line=>/camera(?:2)?|dev\.pjm\.android|nearby\.sharing|nexuslauncher/.test(line)).join('\n'));
     throw new UnexpectedCameraActivity('Camera lost focus after shutter: '+focus);
    }
-   assert.match(focus,/mCurrentFocus=.*com\.android\.camera2\//,'Camera does not own input focus: '+focus);
+   assert.match(focus,/mCurrentFocus=.*com\.android\.camera(?:2)?\//,'Camera does not own input focus: '+focus);
    return value;
   }
   async function tapNode(value:string,select:(node:string)=>boolean){const node=[...value.matchAll(/<node\b[^>]*>/g)].map(m=>m[0]).find(select);assert.ok(node,'Missing picker control');const b=node.match(/bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"/);assert.ok(b);await run(adb('shell','input','tap',String(Math.round((Number(b[1])+Number(b[3]))/2)),String(Math.round((Number(b[2])+Number(b[4]))/2))));}
+  async function captureFiles(){const value=await run(adb('exec-out','run-as','dev.pjm.android','ls','-a','cache/pjm-media-camera'));return value.split(/\r?\n/).filter(name=>name&&name!=='.'&&name!=='..').sort().join('\n');}
   try{
    if(mediaMode==='camera-cancel'||mediaMode==='camera'){
-    const camera=await wait(cameraHierarchy,v=>v.includes('package="com.android.camera2"')&&/shutter|Shutter|Capture|Take photo/.test(v));
+    const camera=await wait(cameraHierarchy,v=>/package="com\.android\.camera(?:2)?"/.test(v)&&/shutter|Shutter|Capture|Take photo/.test(v));
     writeFileSync(join(evidence,stage+'-camera.xml'),camera);await screenshot(stage+'-camera.png');
-    const pending=await run(adb('shell','run-as','dev.pjm.android','ls','-A','cache/pjm-media-camera'));assert.match(pending,/capture-.*\.jpg/,'Missing private capture file');
+    const pending=await captureFiles();assert.match(pending,/capture-.*\.jpg/,'Missing private capture file');
     writeFileSync(join(evidence,stage+'-capture-pending.txt'),pending);
     assert.match(pending,/^capture-[^\n]+\.jpg$/,'Expected one pending capture file');
     const uriGrants=async()=>{const value=await run(adb('shell','dumpsys','activity','-a','permissions'));assert.match(value,/ACTIVITY MANAGER URI PERMISSIONS/,'URI grant service did not produce a valid report');return value;};
     const granted=await uriGrants();writeFileSync(join(evidence,stage+'-uri-grants-active.txt'),granted);
     const captureUri='content://dev.pjm.android.pjm.media/capture/'+pending;
     const grant=granted.split('UriPermission{').find(block=>block.includes(captureUri));assert.ok(grant,'Camera capture URI grant missing');
-    assert.match(grant,/sourcePkg=dev\.pjm\.android targetPkg=com\.android\.camera2/,'Wrong capture grant recipient');
+    assert.match(grant,/sourcePkg=dev\.pjm\.android targetPkg=com\.android\.camera(?:2)?(?:\s|$)/,'Wrong capture grant recipient');
     assert.match(grant,/mode=0x3 owned=0x3 global=0x0 persistable=0x0 persisted=0x0/,'Capture permission must be transient read/write access');
     if(mediaMode==='camera-cancel')await run(adb('shell','input','keyevent','KEYCODE_BACK'));
     else{
-     const ready=await wait(cameraHierarchy,v=>v.includes('resource-id="com.android.camera2:id/shutter_button"'));
+     const ready=await wait(cameraHierarchy,v=>/resource-id="com\.android\.camera(?:2)?:id\/shutter_button"/.test(v));
      writeFileSync(join(evidence,stage+'-shutter-action.json'),JSON.stringify({time:Date.now(),focus:(await run(adb('shell','dumpsys','window'))).split('\n').filter(line=>/mCurrentFocus=|mFocusedApp=/.test(line)),nativeHierarchy:ready}));
-     await tapNode(ready,n=>n.includes('resource-id="com.android.camera2:id/shutter_button"')&&n.includes('enabled="true"'));
+     await tapNode(ready,n=>/resource-id="com\.android\.camera(?:2)?:id\/shutter_button"/.test(n)&&n.includes('enabled="true"'));
      shutterTapped=true;
-     const review=await wait(cameraHierarchy,v=>/resource-id="com.android.camera2:id\/(done_button|review_done)"/.test(v)||v.includes('content-desc="Done"'));
+     const review=await wait(cameraHierarchy,v=>/resource-id="com\.android\.camera(?:2)?:id\/(done_button|review_done|btn_done)"/.test(v)||v.includes('content-desc="Done"'));
      writeFileSync(join(evidence,stage+'-camera-review.xml'),review);await screenshot(stage+'-camera-review.png');
-     const confirmed=await wait(cameraHierarchy,v=>/resource-id="com.android.camera2:id\/(done_button|review_done)"/.test(v)||v.includes('content-desc="Done"'));
-     await tapNode(confirmed,n=>/resource-id="com.android.camera2:id\/(done_button|review_done)"/.test(n)||n.includes('content-desc="Done"'));
+     const confirmed=await wait(cameraHierarchy,v=>/resource-id="com\.android\.camera(?:2)?:id\/(done_button|review_done|btn_done)"/.test(v)||v.includes('content-desc="Done"'));
+     await tapNode(confirmed,n=>/resource-id="com\.android\.camera(?:2)?:id\/(done_button|review_done|btn_done)"/.test(n)||n.includes('content-desc="Done"'));
     }
     await mediaProof(stage);
-    await wait(()=>run(adb('shell','run-as','dev.pjm.android','ls','-A','cache/pjm-media-camera')),value=>value==='');
+    await wait(captureFiles,value=>value==='');
     const revoked=await wait(uriGrants,value=>!value.includes(pending));
     writeFileSync(join(evidence,stage+'-uri-grants-revoked.txt'),revoked);
     writeFileSync(join(evidence,stage+'-capture-cleaned.json'),JSON.stringify({privateCaptureFiles:0,captureUriGrantRemoved:true}));return;
@@ -158,7 +159,7 @@ try{
   async function dialog(){return hierarchy(promptPath);}
   async function tapDialog(xml:string,id:string){const node=xml.match(new RegExp('<node[^>]*resource-id="'+id+'"[^>]*>'))?.[0];assert.ok(node,'Native location button missing '+id);const bounds=node.match(/bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"/);assert.ok(bounds);await run(adb('shell','input','tap',String(Math.round((Number(bounds[1])+Number(bounds[3]))/2)),String(Math.round((Number(bounds[2])+Number(bounds[4]))/2))));}
   try{const xml=await wait(dialog,value=>value.includes('Location access'));writeFileSync(join(evidence,'location-consent.xml'),xml);await tapDialog(xml,'android:id/'+(locationMode==='allow'?'button1':'button2'));
-   if(locationMode==='allow'){const os=await wait(dialog,value=>value.includes('permission_allow_foreground_only_button'));writeFileSync(join(evidence,'location-os-permission.xml'),os);const precise=os.match(/resource-id="([^"]*:id\/permission_location_accuracy_radio_fine)"/)?.[1];if(precise)await tapDialog(os,precise);await tapDialog(await dialog(),os.match(/resource-id="([^"]*:id\/permission_allow_foreground_only_button)"/)![1]);}
+   if(locationMode==='allow'){const os=await wait(dialog,value=>/permission_allow_(foreground_only_)?button/.test(value));writeFileSync(join(evidence,'location-os-permission.xml'),os);const precise=os.match(/resource-id="([^"]*:id\/permission_location_accuracy_radio_fine)"/)?.[1];if(precise)await tapDialog(os,precise);await tapDialog(await dialog(),os.match(/resource-id="([^"]*:id\/permission_allow_(?:foreground_only_)?button)"/)![1]);}
   }finally{await run(adb('shell','rm','-f',promptPath)).catch(()=>{});}
  }
  if(locationMode==='allow'){
