@@ -1,3 +1,4 @@
+import {RELEASE_VERSION} from "./release-version.ts";
 import { lstatSync, mkdirSync, readFileSync, readlinkSync, writeFileSync, renameSync, rmSync, symlinkSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { randomBytes } from "node:crypto";
@@ -19,7 +20,7 @@ export function installSdk(project: string): void {
     if(!stat.isSymbolicLink() || resolve(dirname(link),readlinkSync(link))!==destination)throw new Error("@pocketjs/mini already exists outside the generated SDK; preserve or move it before running Mini");
   }catch(error:any){if(error.code!=="ENOENT")throw error;missing=true;}
   const source=fileURLToPath(new URL("../sdk/",import.meta.url));
-  const files:Record<string,string>={"package.json":JSON.stringify({name:"@pocketjs/mini",version:"0.3.0",type:"module",types:"./index.ts",exports:"./index.ts"})};
+  const files:Record<string,string>={"package.json":JSON.stringify({name:"@pocketjs/mini",version:RELEASE_VERSION,type:"module",types:"./index.ts",exports:"./index.ts"})};
   for(const name of ["index.ts","native.ts","runtime.ts","navigation.ts","http.ts","json.ts","location.ts","network.ts","media.ts"])files[name]=readFileSync(join(source,name),"utf8");
   for(const [name,contents] of Object.entries(files)) {
     const path=join(destination,name);

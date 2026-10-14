@@ -9,6 +9,8 @@ typedef NS_ENUM(NSInteger, MiniPermissionStatus) {
  * Running guests retain independent authenticated snapshots. */
 @interface MiniPackageStore : NSObject
 - (nullable instancetype)initWithRoot:(NSString *)root trustedKey:(NSData *)key error:(NSError **)error;
+// At most two distinct host-provisioned keys. Downloads cannot alter this set.
+- (nullable instancetype)initWithRoot:(NSString *)root trustedKeys:(NSArray<NSData *> *)keys error:(NSError **)error;
 // Seeds the host-bundled package without replacing any current/pending update.
 - (BOOL)seedPayload:(NSData *)payload envelope:(NSData *)envelope error:(NSError **)error;
 - (BOOL)stagePayload:(NSData *)payload envelope:(NSData *)envelope error:(NSError **)error;

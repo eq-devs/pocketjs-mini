@@ -7,6 +7,8 @@ PocketJS upstream is pinned and never patched.
 
 The [v0.0.1 release audit](RELEASE-0.0.1.md) tracks current evidence and open
 release work. Additional DevTools work is deferred until after v0.0.1.
+Host and generated SDK release metadata is 0.0.1 (build 5); `pjm --version`
+prints it. Explicit mini-app package versions remain independent.
 Production resource-limit stress passes on both mobile platforms with controlled
 producers; live HTTP/media stress and physical-device acceptance remain open.
 Development clipboard writes pass actual SDK checks on both platforms, including
@@ -416,7 +418,7 @@ private directory, applies updates on cold opens, and supports deferred rollback
 package for warm guests. `tests/package-load-ios.sh` checks native installation,
 reopening, rollback, tamper detection, symlink rejection and store locking; the
 simulator surface test also checks that an installed update waits for a cold open.
-Distribution downloads and publisher-key rotation remain pending.
+Actual local HTTPS updates and publisher-key transitions are covered below; production endpoints remain pending.
 
 `bin/installed-project.ts` provides `writeInstalledProject` for a signed-only iOS
 host project from a signed payload, envelope, and separately supplied raw
@@ -545,26 +547,80 @@ verify publisher trust and package structure, keep versions immutable, and rejec
 conflicting uploads (for example HTTP 409). A successful HTTP 200 or 201 response
 contains exactly `{appId, version, sha256, url}` matching the upload, with a HTTPS
 release URL. Receipts are limited to 16 KiB. The client rejects mismatched receipts.
-No production distribution service is configured in this repository; remote
-publishing and native mobile distribution downloads still need integration acceptance.
+No production distribution service is configured in this repository; production remote
+publishing/download endpoints and a final clean-environment release still need acceptance.
 
 `container/distribution.ts` now provides a host-owned reference HTTPS downloader.
 It bounds streaming and concurrency, rejects redirects, and stages authenticated
 native packages through `PackageStore.stageNative`; updates remain deferred until
 cold start. Actual local TLS tests cover updates, rollback, cancellation and
 separately configured publisher trust replacement. The server cannot introduce
-publisher keys. iOS/Android download wiring, production endpoint acceptance and
-mobile key-rotation handoff remain open.
+publisher keys. Native mobile HTTPS acceptance, production endpoint acceptance
+and mobile key-rotation handoff are tracked separately in the release audit.
+
+Both installed exports accept `--previous-public-key old.key` alongside
+`--public-key new.key` for a bounded publisher transition. The bundled release
+must be signed by the new publisher. Each key is a distinct raw 32-byte Ed25519
+public key, supplied by the host operator separately from downloaded metadata.
+Ship the host upgrade with both keys before serving new-key releases. During the
+overlap, cached packages, downloads and rollback may authenticate with either
+key. After migration, omit the previous key in a later host export to revoke it.
+Select a new-key active package first: an old-key pending or rollback selection
+fails closed after revocation rather than silently switching packages. Package
+responses cannot extend this trust set. Exports always bundle a two-byte
+`publisher.trust` record: format byte 1 followed by key count 1 or 2. Startup
+uses that record rather than the presence of the previous-key file, because a
+simulator upgrade may retain removed resources. A single-key record ignores
+such a stale file; malformed records fail closed. Hosts without a record use
+only the primary key for compatibility. Android APK signing and iOS application
+signing remain separate from publisher package signatures. Native cache
+transition/revocation tests pass. Android rendered handoff also passes on an
+owned emulator with distinct publisher keys and three APKs signed by the same
+temporary APK signer. The host upgrade preserves the old cache; overlap accepts
+new-key HTTPS staging and old-key rollback; removing the previous key rejects
+old-key rollback and downloading while the new release keeps rendering. iOS rendered key handoff also passes, including rejection after a simulator
+upgrade retains the removed previous-key file. Sustained deadline stability
+remains open.
+
+Run this Android acceptance flow with
+`PJM_UPDATE_KEY_TRANSITION=1 bun tests/package-update-owned-android.ts`.
+Optional existing timing diagnostics use `PJM_UPDATE_TRACE=1 PJM_GUEST_TURN_TRACE=1`;
+they do not alter the guest deadline. Evidence and cleanup receipts are written
+to `PJM_PACKAGE_LOAD_EVIDENCE` when supplied. The corresponding iOS flow is
+`PJM_PACKAGE_UI_UPDATE=1 PJM_UPDATE_KEY_TRANSITION=1 bun tests/package-matrix-owned-ios.ts`.
+It explicitly installs and inspects each host before UI execution, checks a
+private marker survives both upgrades, and preserves XCTest screenshots and
+cache-selection evidence. Both flows use temporary local HTTPS trust solely in
+their test exports; production endpoint and physical-device acceptance remain
+separate.
 
 Android exports now accept `--distribution <HTTPS-latest-index-url>`. This writes
 host-owned configuration and enables a native bounded update downloader. The
 latest index must contain exactly `appId`, `version`, `manifestUrl`, `packageUrl`;
-manifest and package URLs must share the configured HTTPS origin. The bundled
-publisher key authenticates every staged package. Updates activate at cold start,
+manifest and package URLs must share the configured HTTPS origin. The host-bundled
+publisher trust set authenticates every staged package. Updates activate at cold start,
 and destroying the activity suppresses late delivery. Controlled transport tests
 pass using the actual Android verifier/cache. Actual local Android HTTPS tests
-also pass with a temporary test CA and unchanged production trust; rendered
-activity/cold update acceptance and the iOS native download path remain open.
+also pass with a temporary test CA and unchanged production trust. Installed
+Android TSX checks pass staged old-screen/counter retention, visible cold update
+and cold rollback in traced and untraced emulator runs; sustained deadline
+stability remains open.
+
+iOS exports also accept `--distribution <HTTPS-latest-index-url>`. The optional
+bundled `distribution.json` uses the same latest-index contract. The native
+URLSession downloader uses system HTTPS trust, denies redirects and origin
+changes, and enforces a shared 30-second deadline, 64-KiB JSON and 64-MiB payload
+limits while streaming. Main-thread cache admission verifies the host-bundled
+publisher trust set and native package structure; the running guest retains its
+original snapshot. Two downloads may run per process, with one per cache root.
+Controller shutdown cancels delivery. Native Foundation and UIKit simulator
+controlled-transport cache tests cover cold promotion/rollback, malformed and tampered responses, quotas and
+cancellation. Actual local iOS HTTPS also passes with an explicitly trusted
+temporary test certificate and SSL hostname validation. Installed UIKit TSX
+checks also pass retained old-screen/counter behavior, visible cold update and
+cold rollback. Both platforms now have rendered simulator update/rollback
+evidence. Sustained stability, production endpoints and physical-device
+acceptance remain open.
 
 The JavaScript package store, export commands and publish command parse signed
 manifest bytes with strict UTF-8 JSON validation before signature verification.
@@ -715,6 +771,24 @@ Lifecycle hooks have a separate listener pool with the same configured `maxListe
 
 Run `bash tests/reference-check.sh` with Bun on PATH and pinned upstream dependencies installed to check SDK, reference container, publication and devtools/replay TypeScript and regressions together. This gate does not invoke native builds or devices; it cannot substitute for `tests/check.sh`, compiler integration checks or physical acceptance measurements.
 
+Run `bash tests/android-api-check.sh` with Android platform 34, command-line
+tools and JDK 17 installed to check host source API availability against API 23.
+It also verifies that lint rejects a deliberate API 28 call. This source check
+does not establish dependency bytecode compatibility or execution on older
+devices. The iOS source gate rejects unguarded APIs above its iOS 16 target.
+
+Android build and export also check required native imports against the NDK's
+API 23 platform libraries before packaging. Run `bun tests/android-native-api.ts`
+after building the Android native core to validate both host links and an API 26
+negative control. Optional weak imports are reported separately; this check
+does not establish their fallback behavior or older-device startup.
+
+Set `PJM_TEST_MISSING_WEAK_IMPORTS=1` when running
+`bun tests/package-load-owned-android.ts` to exercise the native package matrix
+with `getrandom` and `gettid` deliberately unavailable. This changes only a
+temporary test library and verifies null weak bindings in the same process.
+It does not emulate an older Android framework or kernel.
+
 `mini.location.get({timeoutMs, maximumAgeMs, highAccuracy})` defines the versioned SDK location contract. Replies contain latitude, longitude, accuracy in meters, and a Unix timestamp in milliseconds. Both installed hosts enforce signed declaration, persisted app consent, current OS authorization, bounded concurrency/rate, original request ownership, cancellation and frame-delivered replies. Android uses FusedLocation. iOS uses one-shot Core Location with cache-age, accuracy and foreground guards. The generated iOS simulator host executes controlled fresh/cached fixes, denial, timer timeout, cancellation followed by a stale callback, lifecycle rejection and protocol rejection in `tests/package-surface-ios.sh`. It also grants When In Use access to the temporary bundle, sets a simulator coordinate and verifies the complete `mini.location.get` path: signed TSX guest request, installed controller dispatch, production `CLLocationManager`, later-frame mailbox delivery and validated SDK promise result. These tests do not show the real system permission dialog, read physical sensors or establish physical-device acceptance.
 
 The same signed simulator guest writes `PocketJS SDK 😀` with `mini.clipboard.write`, waits for the frame-delivered acknowledgement, then reads it through an authenticated, pre-approved `clipboard.read` request and validates the exact Unicode result in the SDK promise. This exercises the real simulator `UIPasteboard` and installed controller. It does not exercise the first-call app approval alert, cross-app paste privacy UI or physical-device clipboard behavior.
@@ -767,3 +841,14 @@ Run `PJM_MEDIA_DEVELOPMENT=1 bun tests/media-library-ios.ts` for real iOS
 development image-selection acceptance. It creates and deletes its own simulator,
 adds an owned 64x32 fixture, and checks SDK JPEG resources across cold reopen
 and live guest reload while preserving existing simulators and their libraries.
+
+
+Minimum Android OS execution can be checked with
+`bun tests/minimum-os-owned-android.ts 26` for installed signed TSX HTTPS
+update/rollback, or `bun tests/minimum-os-owned-android.ts 23` for development
+TSX navigation. Install the corresponding official
+`system-images;android-<api>;google_apis;arm64-v8a` image first. The runner creates
+a temporary isolated AVD home, checks the actual runtime API/fingerprint, runs
+the relevant existing acceptance flow, and removes the owned emulator and AVD.
+It leaves saved user AVDs unchanged. These targeted flows do not establish
+all service paths, every device at that API level, or physical performance.

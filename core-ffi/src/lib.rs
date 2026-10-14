@@ -46,6 +46,7 @@ pub mod pool;
 pub mod pool_ffi;
 pub mod replay;
 pub mod retained;
+mod turn_trace;
 #[derive(Default)]
 struct Mailbox {
     incoming: VecDeque<String>,
@@ -314,6 +315,7 @@ impl Instance {
         self.budget.interrupted.set(false);
         // Diagnostic system calls must never consume the guest execution budget.
         let cpu_started = cpu_clock();
+        let trace = turn_trace::Turn::begin(milliseconds);
         let started = Instant::now();
         self.budget
             .deadline
@@ -329,6 +331,7 @@ impl Instance {
                 .get()
                 .is_some_and(|end| finished >= end);
         self.budget.deadline.set(None);
+        drop(trace);
         if expired {
             let total_cpu = cpu_started.zip(cpu_clock()).map(|(start, end)| end.saturating_sub(start));
             let diagnostic = format!(
@@ -337,6 +340,7 @@ impl Instance {
                 total_cpu.map_or_else(|| "unavailable".into(), |value| value.to_string()),
                 self.budget.interrupted.get()
             );
+            turn_trace::expired();
             Err(match result {
                 Ok(()) => format!("Guest turn deadline exceeded ({diagnostic})"),
                 Err(error) => format!("{error} (deadline {diagnostic})"),

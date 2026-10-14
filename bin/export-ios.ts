@@ -1,18 +1,18 @@
 import {existsSync,lstatSync,mkdirSync,rmSync} from "node:fs";
 import {resolve,join,dirname} from "node:path";
 import {fileURLToPath} from "node:url";
-import {verifyInstalledInputs,writeInstalledProject,iosDistributionUrl} from "./installed-project.ts";
-const usage="pjm export-ios --package <release-directory> --public-key <raw-key-file> --output <new-directory> [--target simulator|device] [--bundle <id>] [--distribution HTTPS-url]";
+import {verifyInstalledInputs,writeInstalledProject,iosDistributionUrl,previousPublisherKey} from "./installed-project.ts";
+const usage="pjm export-ios --package <release-directory> --public-key <raw-key-file> [--previous-public-key <raw-key-file>] --output <new-directory> [--target simulator|device] [--bundle <id>] [--distribution HTTPS-url]";
 async function main(){
   const args=process.argv.slice(2),flags=new Map<string,string>();
-  for(let index=0;index<args.length;index+=2){const name=args[index],value=args[index+1];if(!["--package","--public-key","--output","--target","--bundle","--distribution"].includes(name) || flags.has(name) || !value || value.startsWith("--"))throw new Error(usage);flags.set(name,value);}
+  for(let index=0;index<args.length;index+=2){const name=args[index],value=args[index+1];if(!["--package","--public-key","--previous-public-key","--output","--target","--bundle","--distribution"].includes(name) || flags.has(name) || !value || value.startsWith("--"))throw new Error(usage);flags.set(name,value);}
   for(const name of ["--package","--public-key","--output"])if(!flags.has(name))throw new Error(usage);
   const mode=flags.get("--target")??"device";if(!["device","simulator"].includes(mode))throw new Error(usage);
   const distributionUrl=flags.has("--distribution")?iosDistributionUrl(flags.get("--distribution")!):undefined;
   const directory=resolve(flags.get("--output")!),root=fileURLToPath(new URL("../",import.meta.url));
   try{lstatSync(directory);throw new Error("Output directory already exists; choose a new directory");}catch(error:any){if(error.code!=="ENOENT")throw error;}
-  const packageRoot=resolve(flags.get("--package")!),inputs={payload:join(packageRoot,"main.pocket"),envelope:join(packageRoot,"manifest.json"),publicKey:resolve(flags.get("--public-key")!)};
-  verifyInstalledInputs(inputs);
+  const packageRoot=resolve(flags.get("--package")!),inputs={payload:join(packageRoot,"main.pocket"),envelope:join(packageRoot,"manifest.json"),publicKey:resolve(flags.get("--public-key")!),previousPublicKey:flags.has("--previous-public-key")?resolve(flags.get("--previous-public-key")!):undefined};
+  const admitted=verifyInstalledInputs(inputs);previousPublisherKey(inputs.previousPublicKey,admitted.key);
   const bundle=flags.get("--bundle")??"dev.pjm.installed";if(!/^[a-zA-Z][a-zA-Z0-9-]*(?:\.[a-zA-Z][a-zA-Z0-9-]*)+$/.test(bundle))throw new Error("Invalid host bundle identity");
   if(process.platform!=="darwin")throw new Error("Native iOS export requires macOS and Xcode");
   const target=mode==="device"?"aarch64-apple-ios":process.arch==="arm64"?"aarch64-apple-ios-sim":"x86_64-apple-ios";

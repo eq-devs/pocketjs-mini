@@ -1,4 +1,5 @@
 import {copyAndroidMedia} from './android-media.ts';
+import {auditAndroidImports} from './android-elf.ts';
 import {copyAndroidLocation} from './android-location.ts';
 import {requireAndroidLaunch} from "./android-launch.ts";
 import {copyAndroidHttp} from "./android-http.ts";
@@ -95,6 +96,7 @@ export async function launchAndroid(options: { root: string; upstream: string; d
   await compile(join(options.root,"host/android/store_bridge.c"),"mini_store",["-Wall","-Wextra","-Werror"]);
   await run([clang, "-shared", "-Wl,--gc-sections", "-Wl,--exclude-libs,ALL", "-Wl,--no-undefined", "-Wl,-z,max-page-size=16384", ...compiled,
     join(rustBuild, "aarch64-linux-android/release/libmini_core_ffi.a"), "-o", join(staging, "lib/arm64-v8a/libpocketjs.so"), "-lEGL", "-lGLESv2", "-llog", "-ldl", "-lm"]);
+  auditAndroidImports(join(staging,"lib/arm64-v8a/libpocketjs.so"),join(ndk,".."),23);
   const runtime=join(build,"runtime"),generated=join(build,"generated"),resourceBuild=join(build,"resources");
   copyAndroidHttp(runtime);copyAndroidLocation(runtime);copyAndroidMedia(runtime);mkdirSync(generated,{recursive:true});mkdirSync(resourceBuild,{recursive:true});
   const resourceArgs:string[]=[];

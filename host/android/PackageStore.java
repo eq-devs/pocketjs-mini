@@ -9,13 +9,20 @@ import org.json.JSONObject;
 
 /** Host-owned signed cache. Updates are promoted only on a cold start. */
 final class PackageStore {
-  private final File root;private final byte[] key;private final Thread owner=Thread.currentThread();
+  private final File root;private final byte[][] keys;private final Thread owner=Thread.currentThread();
   private Exception lastCleanupError;
   static final class Busy extends IOException {Busy(){super("Package store is busy");}}
   PackageStore(File root,byte[] trustedKey)throws Exception{
-    if(root==null || trustedKey==null || trustedKey.length!=32)throw new IOException("Private root and publisher key required");
-    this.root=root.getAbsoluteFile();key=trustedKey.clone();directory(this.root);
+    this(root,new byte[][]{trustedKey});
   }
+  /** At most two host-provisioned signing keys during a transition. */
+  PackageStore(File root,byte[][] trustedKeys)throws Exception{
+    if(root==null || trustedKeys==null || trustedKeys.length<1 || trustedKeys.length>2)throw new IOException("Private root and bounded publisher keys required");
+    keys=new byte[trustedKeys.length][];
+    for(int i=0;i<keys.length;i++){if(trustedKeys[i]==null || trustedKeys[i].length!=32 || (i>0 && java.util.Arrays.equals(keys[0],trustedKeys[i])))throw new IOException("Invalid or duplicate publisher key");keys[i]=trustedKeys[i].clone();}
+    this.root=root.getAbsoluteFile();directory(this.root);
+  }
+  private VerifiedPackage admit(byte[] payload,byte[] envelope)throws Exception{return new VerifiedPackage(payload,envelope,keys.length==1?keys[0]:PackageVerifier.signingKey(envelope,keys));}
   private void owner(){if(Thread.currentThread()!=owner)throw new IllegalStateException("Package store owner thread required");}
   private static void real(File value)throws IOException{if(!value.getAbsoluteFile().equals(value.getCanonicalFile()))throw new IOException("Package path contains symbolic links");}
   private static void directory(File value)throws IOException{real(value);PackageFiles.directory(PackageFiles.path(value));real(value);}
@@ -37,7 +44,7 @@ final class PackageStore {
   private VerifiedPackage load(File app,String name,String identity)throws Exception{
     if(!slot(name))throw new IOException("Package is not installed");File folder=new File(app,name);real(folder);if(!folder.isDirectory())throw new IOException("Invalid package slot");
     byte[] payload=read(new File(folder,"main.pocket"),64*1024*1024,false),envelope=read(new File(folder,"manifest.json"),65536,false);
-    VerifiedPackage result=new VerifiedPackage(payload,envelope,key);if(!identity.equals(result.identity) || !name.equals(result.version+"-"+digest(payload)))throw new IOException("Installed package identity mismatch");return result;
+    VerifiedPackage result=admit(payload,envelope);if(!identity.equals(result.identity) || !name.equals(result.version+"-"+digest(payload)))throw new IOException("Installed package identity mismatch");return result;
   }
   private void commit(File app,JSONObject state)throws Exception{write(new File(app,"state.json"),state.toString().getBytes(StandardCharsets.UTF_8));}
   Exception lastCleanupError(){owner();return lastCleanupError;}
@@ -58,7 +65,7 @@ final class PackageStore {
   void seed(byte[] payload,byte[] envelope)throws Exception{stage(payload,envelope,true);}
   void stage(byte[] payload,byte[] envelope)throws Exception{stage(payload,envelope,false);}
   private void stage(byte[] payload,byte[] envelope,boolean seed)throws Exception{
-    owner();if(payload==null || payload.length<1 || payload.length>64*1024*1024 || envelope==null || envelope.length>65536)throw new IOException("Package inputs outside bounds");byte[] source=payload.clone(),manifest=envelope.clone();VerifiedPackage admitted=new VerifiedPackage(source,manifest,key);
+    owner();if(payload==null || payload.length<1 || payload.length>64*1024*1024 || envelope==null || envelope.length>65536)throw new IOException("Package inputs outside bounds");byte[] source=payload.clone(),manifest=envelope.clone();VerifiedPackage admitted=admit(source,manifest);
     identity(admitted.identity);String name=admitted.version+"-"+digest(source);if(!slot(name))throw new IOException("Invalid signed package version");
     locked(()->{File app=new File(root,admitted.identity);directory(app);JSONObject state=state(app);if(seed && (state.has("current") || state.has("pending")))return null;
       File destination=new File(app,name);real(destination);

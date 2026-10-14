@@ -46,10 +46,10 @@ final class LocationMailbox<P> {
     owner();long now=clock.now();
     for(Task<P> task:new ArrayList<>(pending.values())){String key=key(task.generation,task.id);if(pending.get(key)!=task)continue;
       if(!task.completed&&now>=task.deadline){task.completed=true;task.error=Error.TIMEOUT;stop(task);}
-      if(pending.get(key)==task&&task.completed&&delivery.post(task.value,task.generation,task.id,task.position,task.error)){pending.remove(key,task);stop(task);}}
+      if(pending.get(key)==task&&task.completed&&delivery.post(task.value,task.generation,task.id,task.position,task.error)){if(pending.get(key)==task)pending.remove(key);stop(task);}}
   }
   synchronized void cancel(long generation,long id){owner();Task<P> task=pending.remove(key(generation,id));if(task!=null)stop(task);}
-  synchronized void retire(long generation){owner();for(Task<P> task:new ArrayList<>(pending.values()))if(task.generation==generation&&pending.remove(key(task.generation,task.id),task))stop(task);}
+  synchronized void retire(long generation){owner();for(Task<P> task:new ArrayList<>(pending.values())){String key=key(task.generation,task.id);if(task.generation==generation&&pending.get(key)==task){pending.remove(key);stop(task);}}}
   synchronized void suspend(){owner();suspended=true;for(Task<P> task:new ArrayList<>(pending.values()))if(!task.completed)complete(task,null,Error.BUSY);}
   synchronized void resume(){owner();if(closed)throw new IllegalStateException("Location mailbox closed");suspended=false;}
   synchronized void close(){owner();closed=true;List<Task<P>> tasks=new ArrayList<>(pending.values());pending.clear();for(Task<P> task:tasks)stop(task);}

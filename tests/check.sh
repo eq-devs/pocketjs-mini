@@ -19,6 +19,8 @@ bun test "$ROOT/tests/pocket-inputs.test.ts"
 bash "$ROOT/tests/service-wire.sh"
 if [ "$(uname -s)" = Darwin ]; then bash "$ROOT/tests/native-storage.sh"; fi
 if [ "$(uname -s)" = Darwin ]; then bash "$ROOT/tests/package-native.sh"; fi
+if [ "$(uname -s)" = Darwin ]; then bash "$ROOT/tests/package-download-ios.sh"; fi
+if [ "$(uname -s)" = Darwin ]; then bash "$ROOT/tests/package-key-transition-ios.sh"; fi
 if [ "$(uname -s)" = Darwin ]; then bash "$ROOT/tests/native-core.sh"; fi
 bun test "$ROOT/tests/replay-tree.test.ts" "$ROOT/tests/replay-png.test.ts" "$ROOT/tests/replay-cli.test.ts" "$ROOT/tests/replay-plan.test.ts" "$ROOT/tests/golden.test.ts" "$ROOT/tests/recorder.test.ts" "$ROOT/tests/replay.test.ts" "$ROOT/tests/tape.test.ts" "$ROOT/tests/strict-json.test.ts" "$ROOT/tests/bounded-file.test.ts" "$ROOT/tests/atomic-file.test.ts" "$ROOT/tests/publish.test.ts" "$ROOT/tests/distribution.test.ts" "$ROOT/tests/devtools-panel.test.ts" "$ROOT/tests/build-history.test.ts" "$ROOT/tests/device-events.test.ts" "$ROOT/tests/package-hash.test.ts" "$ROOT/tests/development-console.test.ts" "$ROOT/tests/android-launch.test.ts"
 if [ "$(uname -s)" = Darwin ]; then

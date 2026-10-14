@@ -1,8 +1,9 @@
+import {RELEASE_VERSION,RELEASE_BUILD} from "./release-version.ts";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 // Two Xcode targets: a plain UIKit app and its actual input/rotation UI tests.
-export function writeNativeProject(directory: string, upstream: string, library: string, url: string, test: boolean, bundle = "dev.pjm.host", installed = false, distribution = false) {
+export function writeNativeProject(directory: string, upstream: string, library: string, url: string, test: boolean, bundle = "dev.pjm.host", installed = false, distribution = false, previousPublisher = false) {
   mkdirSync(join(directory, "Mini.xcodeproj/xcshareddata/xcschemes"), { recursive: true });
   const q = (value: string) => JSON.stringify(value);
   const configuration = installed ? "Release" : "Debug";
@@ -11,7 +12,7 @@ export function writeNativeProject(directory: string, upstream: string, library:
  archiveVersion = 1; classes = {}; objectVersion = 56;
  objects = {
   A001 = {isa = PBXProject; buildConfigurationList = A020; compatibilityVersion = "Xcode 14.0"; developmentRegion = en; hasScannedForEncodings = 0; knownRegions = (en, Base); mainGroup = A002; productRefGroup = A003; projectDirPath = ""; projectRoot = ""; targets = (A010, A011); attributes = {LastUpgradeCheck = 1640; TargetAttributes = {A011 = {TestTargetID = A010; }; }; }; };
-  A002 = {isa = PBXGroup; children = (A004, A005, A006, A007, A054, A056, A058, A065, A067, A069, A071, A073, A075, A077, A088, A090, A092, A094, ${distribution ? "A096," : ""} ${installed ? "A080, A082, A084, A086," : ""} A003); sourceTree = "<group>"; };
+  A002 = {isa = PBXGroup; children = (A004, A005, A006, A007, A054, A056, A058, A065, A067, A069, A071, A073, A075, A077, A088, A090, A092, A094, ${distribution ? "A096," : ""} ${previousPublisher ? "A098," : ""} ${installed ? "A080, A082, A084, A086, A100," : ""} A003); sourceTree = "<group>"; };
   A003 = {isa = PBXGroup; name = Products; children = (A008, A009); sourceTree = "<group>"; };
   A004 = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
   A005 = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = PocketSurfaceView.m; sourceTree = "<group>"; };
@@ -46,6 +47,7 @@ export function writeNativeProject(directory: string, upstream: string, library:
   A094 = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = PackageDownload.m; sourceTree = "<group>"; };
   A095 = {isa = PBXBuildFile; fileRef = A094; };
   ${distribution ? 'A096 = {isa = PBXFileReference; lastKnownFileType = file; path = "distribution.json"; sourceTree = "<group>"; }; A097 = {isa = PBXBuildFile; fileRef = A096; };' : ""}
+  ${previousPublisher ? 'A098 = {isa = PBXFileReference; lastKnownFileType = file; path = "publisher.previous.key"; sourceTree = "<group>"; }; A099 = {isa = PBXBuildFile; fileRef = A098; };' : ""}
   ${installed ? ["main.pocket", "manifest.json", "publisher.key", "app.id"].map((path,index)=>{
     const id=80+index*2;
     return `A0${id} = {isa = PBXFileReference; lastKnownFileType = file; path = ${q(path)}; sourceTree = "<group>"; };\n  A0${id+1} = {isa = PBXBuildFile; fileRef = A0${id}; };`;
@@ -60,7 +62,8 @@ export function writeNativeProject(directory: string, upstream: string, library:
   A031 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A052, A053); runOnlyForDeploymentPostprocessing = 0; };
   A032 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
   A033 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
-  A034 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (${installed ? "A081, A083, A085, A087" + (distribution ? ", A097" : "") : ""}); runOnlyForDeploymentPostprocessing = 0; };
+  ${installed ? 'A100 = {isa = PBXFileReference; lastKnownFileType = file; path = "publisher.trust"; sourceTree = "<group>"; }; A101 = {isa = PBXBuildFile; fileRef = A100; };' : ""}
+  A034 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (${installed ? "A081, A083, A085, A087" + (distribution ? ", A097" : "") + (previousPublisher ? ", A099" : "") + ", A101" : ""}); runOnlyForDeploymentPostprocessing = 0; };
   A035 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
   A050 = {isa = PBXBuildFile; fileRef = A004; };
   A051 = {isa = PBXBuildFile; fileRef = A005; };
@@ -91,7 +94,7 @@ export function writeNativeProject(directory: string, upstream: string, library:
 <plist version="1.0"><dict>
 <key>CFBundleExecutable</key><string>Mini</string><key>CFBundleIdentifier</key><string>${bundle}</string>
 <key>CFBundleName</key><string>PocketJS Mini</string><key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleShortVersionString</key><string>0.3.0</string><key>CFBundleVersion</key><string>1</string>
+<key>CFBundleShortVersionString</key><string>${RELEASE_VERSION}</string><key>CFBundleVersion</key><string>${RELEASE_BUILD}</string>
 <key>MinimumOSVersion</key><string>16.0</string><key>LSRequiresIPhoneOS</key><true/>
 <key>UILaunchScreen</key><dict/>
 <key>UIApplicationSceneManifest</key><dict>

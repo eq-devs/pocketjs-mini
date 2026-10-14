@@ -26,6 +26,7 @@ test("generated SDK preserves user config and refuses external dependency/file p
     const link=join(root,"node_modules/@pocketjs/mini"),sdk=join(root,".pjm/mini-sdk");
     assert.equal(resolve(dirname(link),readlinkSync(link)),sdk);
     assert.equal(readFileSync(join(root,"tsconfig.json"),"utf8"),'{"user":true}');
+    assert.equal(JSON.parse(readFileSync(join(sdk,"package.json"),"utf8")).version,"0.0.1");
     assert.ok(readFileSync(join(sdk,"index.ts"),"utf8").includes("connectMiniApp"));installSdk(root);
     assert.ok(readFileSync(join(sdk,"http.ts"),"utf8").includes("checkedHttpResponse"));
     rmSync(join(sdk,"runtime.ts"));writeFileSync(join(outside,"sentinel"),"keep");symlinkSync(join(outside,"sentinel"),join(sdk,"runtime.ts"));

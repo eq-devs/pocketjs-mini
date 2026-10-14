@@ -1,9 +1,10 @@
+import {RELEASE_VERSION,RELEASE_BUILD} from "./release-version.ts";
 import {androidMediaFiles,copyAndroidMedia} from './android-media.ts';
 import {cpSync,mkdirSync,writeFileSync} from "node:fs";
 import {join,resolve} from "node:path";
 import {fileURLToPath} from "node:url";
 import {canonical} from "../container/package.ts";
-import {verifyInstalledInputs} from "./installed-project.ts";
+import {verifyInstalledInputs,previousPublisherKey} from "./installed-project.ts";
 import {androidHttpFiles,copyAndroidHttp} from "./android-http.ts";
 import {androidLocationFiles,copyAndroidLocation} from "./android-location.ts";
 
@@ -14,8 +15,9 @@ export function androidDistributionUrl(address:string){
 }
 
 /** Portable signed-only host; APK signing remains owned by the distributor. */
-export function writeInstalledAndroidProject(options:{directory:string;library:string;payload:string;envelope:string;publicKey:string;bundle?:string;distributionUrl?:string}){
+export function writeInstalledAndroidProject(options:{directory:string;library:string;payload:string;envelope:string;publicKey:string;previousPublicKey?:string;bundle?:string;distributionUrl?:string}){
   const {payload,key,manifest}=verifyInstalledInputs(options,"pjm-android"),bundle=options.bundle??"dev.pjm.installed";
+  const previous=previousPublisherKey(options.previousPublicKey,key);
   const distribution=options.distributionUrl===undefined?undefined:androidDistributionUrl(options.distributionUrl);
   androidHttpFiles();androidLocationFiles();androidMediaFiles();
   if(!/^[a-zA-Z][a-zA-Z0-9_]*(?:\.[a-zA-Z][a-zA-Z0-9_]*)+$/.test(bundle))throw new Error("Invalid Android host package identity");
@@ -26,8 +28,10 @@ export function writeInstalledAndroidProject(options:{directory:string;library:s
   for(const name of ["TouchContact","FrameMeasurements","FramePacer","AppStorage","PackageVerifier","VerifiedPackage","VerifiedContainer","VerifiedPresenter","InstalledActivity","PackageStore","PackageDownload","PackageFiles","BoundedJson","VerifiedHttp","ManagedResources","VerifiedClipboard","PermissionGate","VerifiedLocation","LocationApproval","LocationContract","LocationMailbox","LocationRate","LocationStops","FusedLocationProvider","VerifiedNetwork","MediaContract","MediaImage","MediaInput","MediaPicker","VerifiedMedia"])cpSync(join(root,"host/android",name+".java"),join(directory,"src",name+".java"));
   writeFileSync(join(directory,"assets/main.pocket"),payload);writeFileSync(join(directory,"assets/manifest.json"),canonical(manifest));writeFileSync(join(directory,"assets/publisher.key"),key);
   if(distribution)writeFileSync(join(directory,"assets/distribution.json"),canonical({format:1,latestUrl:distribution}));
+  writeFileSync(join(directory,"assets/publisher.trust"),Buffer.from([1,previous?2:1]));
+  if(previous)writeFileSync(join(directory,"assets/publisher.previous.key"),previous);
   cpSync(resolve(options.library),join(directory,"lib/arm64-v8a/libpocketjs.so"));
-  writeFileSync(join(directory,"AndroidManifest.xml"),`<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="${bundle}" android:versionCode="1" android:versionName="1.0">
+  writeFileSync(join(directory,"AndroidManifest.xml"),`<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="${bundle}" android:versionCode="${RELEASE_BUILD}" android:versionName="${RELEASE_VERSION}">
 <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="34"/>
 <uses-permission android:name="android.permission.INTERNET"/>
 <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
@@ -91,25 +95,44 @@ and Android APK signatures are separate. This export does not create or use a
 distribution private key, install an app, or submit a store release.
 
 The native engine targets arm64 with 16 KiB library page alignment. Signed
-startup and lifecycle have been tested on API 37. Signature verification uses
-the bundled native Ed25519 verifier independently of Android JCA providers. Older
-Android runtime compatibility remains unverified; the manifest API 26 minimum
-does not establish compatibility across all those devices.
+startup and lifecycle have been tested on API 26 and API 37 ARM64 emulators.
+API 26 also passes real signed TSX local HTTPS staging, cold promotion and
+rollback. Signature verification uses the bundled native Ed25519 verifier
+independently of Android JCA providers. Broader service and physical-device
+compatibility remain separate; this flow does not cover every API 26 device.
 Target API/store submission requirements must be reviewed for distribution.
 If exported with --distribution, assets/distribution.json pins a host-owned HTTPS
 latest-index URL. The index has exactly appId, version, manifestUrl and packageUrl;
 asset URLs must share the configured origin. Downloads are bounded and verified
-against publisher.key before staging. Updates activate on a later cold start.
-The downloaded index cannot introduce publisher keys. Live network acceptance
-and mobile publisher-key rotation are still pending.
+against the host-bundled publisher trust set before staging. Updates activate on a later cold start.
+The downloaded index cannot introduce publisher keys. Installed update/cold
+promotion/rollback has been exercised on an emulator over local HTTPS with a
+test-only certificate client. Rendered publisher-key host upgrade/overlap/revocation also passes local HTTPS
+emulator checks. Production endpoints and sustained deadline stability still
+require validation.
 
-The current presenter uploads software BGRA frames; direct GPU draw lists and
-full native services are still incomplete.
+For a publisher transition, export the host with --public-key new.key and
+--previous-public-key old.key. Both must be distinct raw 32-byte public keys;
+the bundled release must authenticate with new.key. The host accepts either
+publisher during this overlap, including cached packages and rollback. Deliver
+this host upgrade before distributing releases signed with the new key. Once
+migration is complete, export a host without --previous-public-key to revoke
+the old publisher. An old-key cache selection then fails closed; ensure a
+new-key active package is selected before revocation. An explicit host-bundled publisher.trust record selects one or two keys;
+leftover previous-key files do not extend single-key trust. Server responses cannot
+add keys, and this option does not distribute or rotate Android APK signing keys.
+
+The installed host presents native draw lists through GLES2. Its bounded
+services include device information, isolated storage, HTTPS resource responses,
+clipboard, location, network status/events and image media. Signed declarations,
+app consent and current Android permissions govern sensitive operations.
+Physical-device performance and isolation acceptance remain unverified.
 
 Location uses the bundled checksum-pinned Google FusedLocation runtime, AndroidX
 resources and native app/OS permission dialogs. It requires compatible Google Play
 services on the device. The builder includes the inspected Google manifest entries
-and generated resource classes; location device acceptance remains pending.
+and generated resource classes. Older-Android execution and physical-device
+location/media acceptance remain unverified.
 `);
   return {directory,bundle,appId:manifest.appId,version:manifest.version};
 }

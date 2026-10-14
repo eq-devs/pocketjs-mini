@@ -1,6 +1,6 @@
 # v0.0.1 release audit
 
-Audit date: 2026-10-11. This is a readiness checklist, not a completed release.
+Audit date: 2026-10-12. This is a readiness checklist, not a completed release.
 The user's release priority defers additional DevTools work. The full attached
 technical plan remains the broader roadmap; this checklist does not remove its
 requirements.
@@ -13,13 +13,13 @@ requirements.
 | Essential native services | Signed hosts implement device info, storage, HTTP/resource responses, clipboard, location, network path status/events and media. Both platforms pass real media consent/denial/chooser cancellation and system image selection → JPEG → SDK resource read/release, including cold reopening. Android backend isolation/quota checks and iOS quotas/generation retirement pass. Production resource registries also pass process-cap stress with controlled producers on both platforms. Development hosts implement device info/storage, clipboard writes and native network snapshot/change events, with fresh subscriptions after hot reload. Both development hosts pass clipboard declaration denial, native deny/allow, exact SDK readback and persisted cold/hot reopening. Both development hosts pass real HTTPS SDK resource read/release and domain denial across initial, cold reopen and hot reload; Android also passes native controlled-transport HTTP/cancel tests. Android development location declaration/native denial passes SDK initial/cold/hot checks; approved fused-provider SDK coordinates also pass after a fresh request following native app/OS approval, including cold/hot reopening. Controlled wrapper approval/ownership/cancellation tests pass. iOS development location shares the bounded Core Location service and passes real SDK declaration/native consent denial and native app/system approval with actual Core Location coordinates across initial/cold/hot execution, plus controlled ownership/cancellation/activation checks. iOS development media now shares native picker/worker and HTTP resource accounting; controlled JPEG/resource/quota/retirement tests and real SDK declaration/native consent denial pass initial/cold/hot execution. Actual iOS development library selection also passes SDK JPEG header read/release, cold reopening and live reload in one UIKit test. Android development media shares the bounded native worker and HTTP resource registry; controlled ownership/cancellation checks, real SDK declaration/native consent denial, and actual system image selection with JPEG read/release pass across initial/cold/hot execution. | Physical camera acceptance, combined live HTTP/media worker stress, iOS camera checks, wider location revocation/stress and extended development HTTP stress, remaining consent UI acceptance and Android first-request location timing/stability. Physical network transitions and iOS connectivity-change acceptance remain unverified. |
 | Packages and isolation | Gate passes signature/metadata, store, permissions, isolated storage and retained-engine tests. A named 26-case native package matrix passes on Android and in a UIKit simulator app, including retained-state and storage checks. Signed heap-limit and infinite-loop guests are also stopped on both native platforms, with healthy retained state preserved and failed effects denied. Core tests cover interruption and retirement. | Wider malicious workload/service-flood acceptance and physical memory/isolation acceptance across concurrent guests. |
 | Examples and performance | The 1,000-row list/form fixture and benchmark runners exist. | Establish physical cold-start, sustained scroll, frame-latency and memory evidence against the plan's suggested budgets. |
-| CLI and distribution | Create/build/run, signed export and publish validation have automated coverage. The reference HTTPS downloader passes actual local TLS update/rollback, bounded streaming/cancellation and externally configured publisher trust replacement. Android native update discovery/staging is integrated optionally and passes controlled checks plus actual local HTTPS/native verifier/cache update/cold promotion/rollback with a temporary test CA. | Rendered Android activity/cold update acceptance, iOS native distribution downloads, mobile key-rotation handoff, production endpoints and final clean-environment release workflow. |
+| CLI and distribution | Create/build/run, signed export and publish validation have automated coverage. The reference HTTPS downloader passes actual local TLS update/rollback, bounded streaming/cancellation and externally configured publisher trust replacement. Android native update discovery/staging is integrated optionally and passes controlled checks plus actual local HTTPS/native verifier/cache update/cold promotion/rollback with a temporary test CA. iOS native discovery/staging is now optionally integrated and passes native Foundation/UIKit controlled checks and actual UIKit HTTPS/native cache updates using a temporary test trust anchor. Installed UIKit TSX HTTPS staging, running counter retention, new cold screen and cold rollback pixels also pass. Android installed TSX staging, counter retention, cold update and rollback pixels pass traced and untraced emulator runs. | Sustained deadline/lifecycle stability, production endpoints and final clean-environment release workflow. |
 | DevTools | Existing inspection, replay and root-highlight evidence is retained. | Further work deferred until after v0.0.1; not a release gate. |
 
 ## Executed checks
 
 The current full `tests/check.sh` run completed successfully. Its retained log is
-`build/validation/cpu-clock-outside-budget-20261011/check.log` (exit receipt: `result.json`, exitCode=0). It includes the 74-test Rust library
+`build/validation/integration-20261012/check.log` (exit receipt: `result.json`, fullRegressionExitCode=0). It includes the 74-test Rust library
 suite, optimized native core/replay execution, compiler/server integration,
 SDK/package/store/storage/permissions checks and installed host export checks.
 This command does not run all mobile UI/device acceptance scripts.
@@ -1836,3 +1836,610 @@ iOS native downloading, publisher trust transition/mobile cache handoff and a
 real distribution endpoint/clean release workflow. Android lifecycle stability,
 minimum-version and physical performance/isolation acceptance also remain open.
 DevTools stays deferred for v0.0.1.
+
+## iOS native distribution implementation and regression checks (2026-10-11)
+
+Added optional host-owned update discovery/download to the installed iOS host
+and `pjm export-ios --distribution <HTTPS-latest-index-url>`. The export writes
+and bundles bounded host configuration separately from the pinned publisher key.
+The native URLSession pipeline uses system HTTPS trust, denies redirects and
+cross-origin manifest/payload URLs, and applies a shared monotonic 30-second
+deadline, 64-KiB JSON and 64-MiB streamed payload limits. Downloads are limited to
+two per process and one per cache directory inode. All cache admission stays on
+the main owner and uses the existing signature/structure verifier; shutdown
+cancels requests and rejects late delivery. Running guests retain their original
+authenticated snapshot; updates are promoted only at cold start.
+
+Native Foundation controlled-transport tests pass update/cold cache reopening,
+rollback, signature tampering, changed origins, redirect status, duplicate JSON,
+streamed byte limits, process/root quotas and cancellation recovery. Both mobile
+export suites pass (4 tests, 97 assertions); iOS host source compilation passes.
+The full regression suite passed with local networking enabled at
+`build/validation/ios-distribution-20261011/check-network.log`. Its first sandboxed
+run failed to bind the existing localhost HTTPS test server; that failed run is
+retained separately. The component test uses controlled NSURLProtocol responses,
+so it does not establish real iOS HTTPS transport or rendered app cold updates.
+
+UIKit acceptance is tracked separately below. Actual iOS HTTPS acceptance,
+rendered mobile update/cold behavior, publisher-key rotation handoff, production
+endpoints, lifecycle stability and physical-device performance/isolation remain
+open. Further DevTools work stays deferred for v0.0.1; the goal remains active.
+
+## UIKit native controlled-download acceptance (2026-10-11)
+
+The corrected test runs inside an actual UIKit simulator app and passes native
+URLSession controlled downloads with the production signature verifier/cache:
+update to 2.0.0 preserves the running 1.0.0 snapshot, a reopened cache promotes
+2.0.0 cold, rollback restores 1.0.0, and invalid/tampered/cross-origin/redirect/
+duplicate/oversized streamed responses preserve the selected state. Process and
+same-root quotas, shutdown suppression and admission recovery also pass. The
+same app passes the 26-case package matrix (one accepted, 25 rejected) and both
+runtime attack cases with healthy retained state and no failed effects delivered.
+
+Evidence: `build/ios-validation/package-download-controlled-20261011-return`,
+including the XCTest attachment, passed summary and owned-simulator cleanup
+receipt. Two earlier failed harness attempts are retained: the first blocked
+main-queue delegates by waiting inside a main-queue block; the second reached the
+download PASS result but trapped because the reusable C test entry lacked an
+explicit return. The entry now runs from a run-loop timer and returns zero.
+Every disposable simulator was deleted; the preexisting simulator was untouched.
+A fresh native Foundation test also passed after these fixture repairs.
+
+These responses come from a test-only NSURLProtocol, not an HTTPS server. Actual
+iOS TLS/transport, rendered installed-controller cold updates, production
+endpoints, mobile trust-key handoff and physical-device acceptance remain open.
+Further DevTools work remains deferred for v0.0.1; the full goal stays active.
+
+## Actual iOS native HTTPS package downloads (2026-10-11)
+
+The production URLSession downloader now passes actual HTTPS discovery/download
+inside a UIKit simulator app. Its ordinary system-trust client rejects the
+self-signed temporary server certificate with NSURLError -1202. A test-only
+subclass explicitly anchors that certificate, retains the SSL hostname policy,
+and downloads a signed package accepted by the production verifier/store. The
+running 1.0.0 snapshot stays intact; a reopened cache promotes 2.0.0 cold, and
+rollback restores 1.0.0. Real TLS tampered bodies, redirects, duplicate manifest
+keys and an oversized chunked manifest are rejected without changing selection.
+A deliberately wrong SSL hostname policy also fails certificate evaluation.
+
+Evidence: `build/ios-validation/package-download-actual-tls-20261011-eku`, including
+the passed XCTest attachment/summary, native receipt, 11 observed HTTPS requests,
+public test certificate, acceptance summary and owned-simulator cleanup receipt.
+Only one request reached the normal latest index, confirming the redirect did
+not follow and the rejected trust/hostname cases did not reach HTTP. The server
+was stopped, host-only private key deleted, and disposable simulator removed.
+Neither production trust nor the preexisting simulator trust store was changed.
+The earlier failed test-certificate attempt is retained separately: system trust
+correctly rejected it, but its explicit test anchor failed before HTTP. The
+replacement fixture certificate includes explicit TLS server key usage and
+extended usage; Apple certificate/hostname verification remains enabled.
+
+The same run passes the 26-case signed package matrix and both runtime attacks.
+The previous full regression gate remains passed; this turn changes test code,
+not production downloading logic. iOS source/fixture compilation is rerun.
+This proves native transport and cache behavior, not a rendered installed host
+update/cold UI flow, a production endpoint or physical-device performance.
+Rendered mobile update acceptance, native trust-key rotation handoff, final
+release distribution, lifecycle stability and physical-device acceptance remain
+open. DevTools stays deferred for v0.0.1; the full goal remains active.
+
+## Rendered installed iOS HTTPS update and cold rollback (2026-10-11)
+
+A real signed TSX fixture now passes the installed UIKit host's optional export
+configuration → native HTTPS discovery/download → authenticated staging → cold
+startup flow. The two independently compiled releases share the host-pinned
+publisher key: 1.0.0 renders red and 2.0.0 green. While 2.0.0 is pending, 1.0.0
+keeps rendering and a real tap increments its counter; Home/resume preserves
+that counter. Process termination/relaunch selects 2.0.0, renders green pixels
+and starts its fresh counter at zero. A test-only host rollback button calls the
+existing store rollback API; the next process launch renders 1.0.0 red again.
+
+The test compares native active-package metadata, newly written guest SDK
+storage receipts, current/pending cache versions and screenshot pixel colors.
+Screenshots were also visually inspected: staged 1.0.0 has Counter: 1, cold 2.0.0
+has Counter: 0. Both saved package signatures were independently verified with
+the retained public publisher key. Three launches each completed actual HTTPS
+index, manifest and payload requests (nine requests total).
+
+Evidence: `build/ios-validation/installed-update-20261011`, including passed
+XCTest summary, screenshots and exact proof attachments, both signed releases,
+public publisher/server keys, generated test host source, acceptance summary,
+network trace and owned-simulator cleanup receipt. The temporary private TLS key
+and exported project were removed, server stopped, test app uninstalled and
+only the disposable simulator deleted. The preexisting simulator was untouched.
+
+Transport uses a test-only TLS certificate trust subclass in the generated host;
+SSL certificate/hostname evaluation and the production downloader/store remain
+in use. The read-only observer and rollback control are test-only. This is a
+local simulator acceptance run, not production endpoint or physical acceptance.
+Android rendered update/cold acceptance, mobile publisher-key transition,
+production distribution/clean release, lifecycle stability and physical-device
+performance/isolation remain open. DevTools remains deferred for v0.0.1; the
+full goal remains active.
+
+## Rendered installed Android HTTPS update and rollback (2026-10-12)
+
+Android now passes the installed Activity's optional export configuration → real
+HTTPS discovery/download → authenticated staging → cold startup flow with two
+signed TSX releases sharing a host-pinned publisher key. While 2.0.0 is pending,
+1.0.0 continues rendering red and a real tap increments its counter. Home/resume
+preserves that running counter. Force-stop/relaunch selects 2.0.0, renders green
+pixels and resets the fresh guest counter. A test-only host control invokes the
+existing cache rollback API; the next cold launch renders red 1.0.0 again.
+
+Both traced and untraced runs pass all stages. Each compares native package
+version, freshly written SDK storage, current/pending cache selection and
+screenshot pixels (red 220/38/38, green 22/163/74). Each observes nine actual HTTPS
+requests across three launches. Traced screenshots were also visually inspected.
+The saved traced-run signatures were independently verified with the retained
+public publisher key. Evidence: `build/android-validation/installed-update-20261012-trace` and `build/android-validation/installed-update-20261012-untraced`.
+Both include XML receipts, screenshots, pixel checks, both signed releases,
+public keys, generated test host source, acceptance and cleanup receipts.
+
+The bounded 14.38-MB scheduling trace stopped cleanly and reported no error,
+overrun or lost-event stats. It contains 1,233 JNI frame markers, mean 5.907 ms
+and maximum 214.868 ms. These sections include native rendering/GPU work outside
+the guest turn budget; their durations do not measure guest execution alone.
+The trace passed rather than reproducing the earlier deadline failure, so it
+cannot establish that failure's scheduling cause.
+
+Earlier attempts remain retained: the first stopped at missing SDK build setup;
+a later observer used an uncanonicalized private path and could not read cache
+state; the canonical-path run failed the actual guest deadline (50-ms budget,
+86.537-ms elapsed, 7.041-ms thread CPU). The successful runs do not erase that
+failure or prove sustained deadline stability. No guest budget, interruption,
+heap limit, worker quota or production scheduler policy was relaxed.
+
+The test injects only an explicit temporary certificate client with ordinary
+hostname verification into the generated export; the production updater,
+verifier/cache and rendering code remain in use. The read-only observer and
+rollback control are test-only. Each test app, reverse mapping, XML file,
+server, TLS/APK private keys and owned read-only emulator were cleaned up.
+This establishes simulator rendered update behavior, not production endpoint,
+physical-device performance or general lifecycle/deadline stability. Native
+publisher-key handoff, final release/distribution, minimum-version audit,
+stability and physical performance/isolation remain open. DevTools remains
+deferred for v0.0.1; the full goal stays active.
+
+## v0.0.1 release metadata alignment (2026-10-12)
+
+Added shared release metadata in `bin/release-version.ts` and `pjm --version`
+(`pjm 0.0.1 (build 5)`). Generated UIKit hosts, installed Android exports and the
+Android development host now advertise 0.0.1/build 5. Android build/code 5 is
+higher than its earlier development code 4, preserving update installation
+ordering. Generated SDK package metadata and the compiler's default version for
+new apps also use 0.0.1. Explicit guest versions remain independent: exports of
+the signed 1.0.0 fixture retain that signed version, and the real compiler build
+check authenticates a new default app at 0.0.1. Host ABI remains 7.
+
+The full regression suite passes with evidence at
+`build/validation/release-metadata-20261012/check.log` and its exit receipt. It
+includes version/upgrade metadata assertions on both generated exports, CLI
+version output, SDK package version, real compiler/signed build/publication
+checks and native/core/service regressions. The earlier focused sandbox run
+could not write a generated transform cache in pinned upstream; the authorized
+full run passes and leaves tracked upstream source unchanged.
+
+Declared platform minimums are unchanged: iOS 16.0, development Android API 23,
+and installed Android API 26. These declarations are not minimum-version runtime
+acceptance. Final native release packages after all changes, dependency/API
+minimum audits and execution, key handoff, production/clean distribution,
+sustained deadline stability and physical performance/isolation remain open.
+DevTools remains deferred for v0.0.1; the full goal stays active.
+
+## Minimum OS availability audit (2026-10-12)
+
+The iOS source gate now uses the declared iOS 16.0 deployment target and
+rejects unguarded newer Objective-C APIs with compiler errors. Swift availability
+checking and the native source gate pass; see
+`build/validation/minimum-api-20261012/ios-availability.log`. This proves source
+availability checking, not execution on iOS 16 or physical devices.
+
+Added `tests/android-api-check.sh`, an offline host source/bytecode analysis
+runner with an intentional API 28 negative control against minimum API 23.
+The local lint installation reports no issues even for that control, so the
+runner exits with failure and its output is not accepted as compatibility
+proof. Earlier reports of no issues are retained as invalid audit attempts.
+`android-api-jdk.log` and `result.json` record the unresolved analyzer validation.
+The vendored Android location/media dependency manifests declare minimum API
+levels no higher than 21; this alone does not prove their bytecode/runtime
+compatibility. Android minimum-OS API analysis, dependency checks and baseline
+execution remain open. DevTools remains deferred for v0.0.1.
+
+## Android minimum API source fixes and validated analyzer (2026-10-12)
+
+Resolved the previous invalid lint audit: the manual project descriptor must
+list individual Java source files. The offline runner now supplies those files,
+compiled classes, dependency classpaths and a temporary API cache. It verifies
+its own configuration by rejecting an intentional API 28 ImageDecoder call
+with `current min is 23`. No lint issue suppression is used.
+
+The first valid run found API 24 `AtomicInteger.getAndUpdate` and two-argument
+`Map.remove` calls in shared location code. Replaced them with a saturating
+compare-and-set allocator and synchronized identity-checked removals. Request
+codes still never wrap or reuse, and reentrant callback replacement remains
+protected. Also replaced installed-host `ArrayList.removeIf` with backward
+contact removal so all host sources pass the conservative API 23 source check;
+the installed manifest still declares API 26.
+
+The validated API runner, Android service source compilation, existing location
+contract/mailbox/quota/cleanup tests and five focused SDK/export/input tests
+pass. Existing mailbox tests cover replacement during delivery and reentrant
+retirement. Evidence: `build/validation/minimum-api-enumerated-20261012`,
+including `android-api-final.log` and `result.json`. One focused invocation
+failed because the CLI inherited a PATH without Bun; the configured-PATH rerun
+passes and both logs are retained. The earlier false-green analyzer attempts
+remain retained and superseded by this validated run.
+
+This establishes host source API availability, not a dependency bytecode audit
+or execution at Android 23/26. Older runtime tests, deadline stability, mobile
+key transition and physical acceptance remain open. DevTools stays deferred.
+
+## Android native minimum API import gate (2026-10-12)
+
+Added `bin/android-elf.ts` to inspect arm64 ELF dynamic imports against the
+selected NDK's API 23 system-library stubs, including transitive platform
+libraries and symbol versions. Missing required imports, unavailable platform
+libraries, wrong architecture and an empty required-import parse fail the
+check. The development builder and installed exporter execute it after linking
+and before packaging. Optional weak imports are reported separately, not
+accepted as proof of their fallback behavior.
+
+`tests/android-native-api.ts` relinks both current JNI hosts and validates the
+checker with an actual API 26 `ASharedMemory_create` library: rejected against
+API 23, accepted against API 26. Both hosts pass: 149 required installed imports
+and 154 development imports. Current optional weak imports are `getrandom`
+and `gettid@LIBC`; older-runtime fallback behavior remains unverified.
+
+The real `pjm export-android` command rebuilt the native core and completed
+with the new gate. Its generated portable project built an unsigned APK, and
+three focused export/launch regressions passed. Evidence:
+`build/validation/android-native-api-20261012/result.json`,
+`export-cli-target-adapter.log`, `apk-build.log`, `regressions.log` and
+`controlled-rebuilt/result.json`. The environment has no actual rustup binary;
+the first export attempt failed on the existing adapter's unsupported target
+query. A temporary adapter subsequently verified the installed Android standard
+library before returning that target and delegated cargo to the existing stable
+toolchain adapter. No target installation or toolchain settings were changed.
+Both attempts are retained. D8 emitted existing dependency debug-local
+information diagnostics, but APK construction exited zero.
+
+This proves native strong-import availability and packaging, not execution at
+API 23/26, Java dependency runtime compatibility, publisher-key transition,
+physical acceptance or sustained deadline stability. DevTools remains deferred.
+
+## Android optional weak-import absence acceptance (2026-10-12)
+
+Added a test-only ELF fixture that renames only the undefined weak imports
+`getrandom` and `gettid` to absent names of the same byte length. A test JNI
+probe observes null weak bindings, then invokes the existing native package
+matrix in the same app_process. The normal production source and library
+artifacts are unchanged by this fixture; the optional mode is enabled with
+`PJM_TEST_MISSING_WEAK_IMPORTS=1` on the owned matrix runner.
+
+The actual read-only emulator run passed all 26 package cases (one valid,
+25 rejected), both infinite-loop/heap isolation attacks with the healthy guest
+retained, controlled native location/clipboard/container checks, and controlled
+cold-update/rollback/downloader rejection checks. It printed the required
+`WEAK_IMPORTS missing-getrandom missing-gettid loader-passed` receipt before
+running the matrix. Independent ELF inspection confirms the original optional
+import names are absent and renamed bindings remain weak, while required
+imports still pass the API 23 stub audit. Native error output is empty.
+
+Evidence: `build/android-validation/weak-imports-20261012/native.log`,
+`weak-missing.so`, `acceptance-summary.json`, `result.json` and
+`owned-emulator.json`. The owned emulator and temporary device fixture were
+cleaned up. The SDK server needed authorized local-socket access for this run;
+no user emulator was reused or removed.
+
+This establishes the tested absent-import loader/engine path on the emulator.
+It does not emulate Android API 23/26, force an unavailable kernel entropy
+syscall, prove every fallback branch or establish physical memory/performance
+acceptance. Minimum-OS startup, dependency bytecode compatibility, deadline
+stability and wider release work remain open. DevTools stays deferred.
+
+## Guest-turn scheduling trace diagnostics (2026-10-12)
+
+The attached plan describes excessive JS execution as a security limit; the
+current implementation enforces 50 ms elapsed wall time for frame/lifecycle
+turns. Earlier ordinary failures recorded much less thread CPU time than wall
+time, but the previous JNI trace section also included rendering. No deadline
+or interrupt policy was changed in this unit.
+
+Added an opt-in `android-turn-trace` core feature. It emits native Android
+trace sections for guest boot, each action/job turn and deadline failures.
+Trace calls occur outside the active guest deadline. Default builds use no-op
+hooks. The installed update UI runner enables the feature only with
+`PJM_GUEST_TURN_TRACE=1` and `PJM_UPDATE_TRACE=1`, builds it in the separate
+`core-ffi/target/android-turn-trace` directory and links Android's API 23 trace
+library. Normal release archives are not replaced by the diagnostic build.
+
+All 74 core tests pass, including wall-clock enforcement and the slow diagnostic
+sampling regression. The actual installed TSX HTTPS update/counter retention,
+Home/resume, cold promotion and rollback test passes with the feature. Perfetto
+records 990 guest turns (mean 0.198 ms, maximum 15.712 ms), three boots (maximum
+24.421 ms), and 982 JNI frames. The longest guest section contains 3.017 ms
+running, 3.289 ms runnable waiting and 9.406 ms blocked. These sections exclude
+the native GPU presentation scope, though trace boundaries themselves sit just
+outside the exact enforced window. Trace error/overrun/lost-event checks report
+no positive values, and native error output is empty.
+
+Evidence: `build/android-validation/guest-turn-trace-20261012`, including the
+7,130,454-byte stopped trace, `guest-sections.csv`, `guest-scheduling.csv`,
+`trace-errors.csv`, build commands and `guest-turn-acceptance.json`. The owned
+emulator, app, private test keys and HTTPS server were cleaned up. The test did
+not reproduce an earlier deadline failure, so sustained stability remains open.
+This diagnostic instrumentation adds no DevTools UI feature; further DevTools
+work stays deferred for v0.0.1.
+
+## Integrated default-build regression checkpoint (2026-10-12)
+
+The complete `tests/check.sh` gate passes after the Android source API fixes,
+native import gates, weak-import test fixture and opt-in guest-turn tracing.
+It includes 74 core tests, optimized native/replay checks, iOS availability
+source checks, compiler/watch/recovery integration, SDK, signed package/store
+and generated installed-host export checks. The independent Android source
+API 23 check also passes and rejects its deliberate API 28 control.
+Evidence: `build/validation/integration-20261012/check.log`, `android-api.log`
+and `result.json`. Authorized execution was needed for local HTTPS test sockets
+and generated pinned-upstream compiler caches. No mobile UI acceptance scripts
+or physical-device measurements are included in this full gate.
+
+Corrected the generated installed Android guide, which still described software
+BGRA uploads and incomplete native services. It now describes the GLES2 native
+draw-list presenter and implemented bounded services, and distinguishes local
+HTTPS emulator evidence from production endpoints, key transition, older OS
+execution and physical acceptance. No new tests were added solely for this
+text correction. Existing exported artifacts retain their prior generated
+text; newly generated exports receive the corrected guide.
+
+The current default 50 ms wall-clock execution policy remains unchanged.
+Deadline stability, baseline OS/runtime dependency acceptance, physical
+performance/isolation and broader release work remain open. DevTools stays
+deferred for v0.0.1; the goal remains active.
+
+## Bounded native publisher-key overlap (2026-10-12)
+
+Native Android/iOS package stores now accept at most two distinct host-provided
+32-byte publisher keys through an explicit constructor; their existing single-
+key constructors retain the single-key policy. Inputs are copied. For overlap,
+strictly parsed signed envelope bytes select one of those keys before the full
+payload hash, metadata, target/ABI and native plan admission runs. The selector
+is bounded to two signature checks and does not clone/hash a payload for every
+candidate key. Downloaded metadata cannot supply or replace trusted keys.
+
+Both native cache implementations pass old-key seed → two-key overlap → new-
+key stage/cold promotion → overlap rollback → old-key removal. Removing the old
+key rejects an old-key pending cold start, rollback and staging while preserving
+selection bytes. The currently verified running snapshot is unchanged by
+staging. Tests also cover caller mutation of the key inputs, duplicate/empty/
+oversized/invalid key sets and a correctly signed envelope containing forbidden
+trusted-key fields. Both keys are trusted during overlap; removal is the
+revocation step. No signed-envelope format or host ABI was changed.
+
+Android app_process execution passes the complete 26-case package matrix and
+two retained isolation attacks, controlled location/clipboard/container and
+native downloader checks; evidence:
+`build/android-validation/key-transition-20261012-fixed`. The owned read-only
+emulator was cleaned up and native error output is empty. iOS uses an actual
+Foundation/native verifier/cache harness on macOS, not a rendered mobile host;
+`ios-native-fixed.log` records its transition receipt. iOS controlled downloader
+regressions, 17 verifier interoperability/rejection cases, four export regressions,
+iOS source availability, Android Java types and the validated source API gate
+pass. The new Foundation transition regression is part of `tests/check.sh`.
+Overall unit evidence: `build/validation/key-transition-20261012/result.json`.
+
+The initial iOS fixture used a data allocation method on the wrong class;
+corrected to NSMutableData and reran. The first Android attempt exposed a test
+runner regression: macOS Bash nounset rejects an empty array expansion in the
+normal mode. Source arrays now include mandatory entries and append optional
+weak-import fixtures. The rerun passes; failed attempts remain retained and
+the first owned emulator was also cleaned up.
+
+Export CLI and installed entry-point provisioning still use one key. Wiring the
+explicit host keyring through those paths and exercising rendered HTTPS key
+handoff remain open; this unit does not claim end-to-end mobile key transition.
+Deadline stability, minimum-OS and physical acceptance remain open. DevTools
+stays deferred for v0.0.1; the full goal remains active.
+
+
+## Installed publisher-key provisioning (2026-10-12)
+
+Both export commands now accept `--previous-public-key <raw-key-file>` with the
+primary `--public-key`. The primary key still authenticates the bundled release
+before export. The optional previous key must be a distinct regular, non-symlink
+file containing exactly 32 bytes, validated before output creation and before
+native CLI build work. iOS project resources and Android APK assets include the
+previous public key only when explicitly supplied. Installed startup passes this
+host-owned bounded trust set into the native package store. Invalid optional
+assets fail startup; downloaded metadata cannot add keys.
+
+The operator ships a host upgrade with new plus previous keys before serving
+new-key packages. Both keys are trusted during overlap, including rollback.
+After a new-key active package is selected, a subsequent host export can omit
+the previous key to revoke it. Old-key cache selections then fail closed; there
+is no automatic selection reset. Publisher keys are separate from Android APK
+and iOS application signing keys. README, CLI usage and the generated Android
+export guide describe this sequence.
+
+Four export regression cases pass with 131 assertions, covering new-key bundle
+and previous-key assets, unchanged default single-key exports, malformed and
+duplicate keys, symlink refusal and preserved output on failure. iOS availability,
+Android Java compilation and the source API gate with API 28 negative control
+also pass. `tests/package-key-provisioning-build.ts` builds the actual portable
+Android APK and arm64 iOS simulator app and checks exact key bytes in their
+finished resources. Both builds pass. The first generic iOS build attempted
+x86_64 against an arm64 engine; the corrected harness specifies its engine
+architecture and retains the failed attempt.
+
+Evidence is in `build/validation/key-provisioning-20261012`: focused test/source
+logs, `android-build/result.json`, and `ios-build-arm64/result.json`. These prove
+export packaging and source integration, not rendered startup or HTTPS key
+handoff across a host upgrade. Rendered handoff/revocation, production endpoints,
+deadline stability, minimum-OS execution and physical performance/isolation
+acceptance remain open. Additional DevTools stays deferred for v0.0.1; the full
+goal remains active.
+
+The complete `tests/check.sh` regression run also exits 0 after this integration,
+including native publisher-key transition checks. See `full-check.log` and
+`result.json` in the same evidence folder. Finished exported-resource builds
+remain distinct from runtime host-upgrade acceptance.
+
+
+## Rendered Android publisher-key host handoff (2026-10-12)
+
+`PJM_UPDATE_KEY_TRANSITION=1` now exercises the installed Android UI acceptance
+with two independently generated publisher pairs. The real TSX red v1 package
+is signed only by A, green v2 only by B. Three host APK builds share one temporary
+APK signer and package identity: initial A-only host, upgrade with B plus previous
+A, and final B-only host. The upgrade uses install-replace without clearing app
+data. Publisher and APK/TLS private keys stay in temporary storage and are removed.
+
+The A-only baseline renders v1. The overlap host bundles B-signed v2 but opens
+the retained A-signed cache; actual local HTTPS stages B-signed v2. It preserves
+the old screen/counter through staging and background/resume, promotes green v2
+on cold start, and rolls back to red v1 while A is still trusted. After selecting
+v2 again, the B-only host upgrade preserves the cache and renders green v2.
+Old-key rollback is rejected with an exact native state-byte comparison, and an
+actual HTTPS download of A-signed v1 is rejected for publisher signature. The
+next cold start still renders green v2 with no old-key pending selection.
+
+The test-only rollback observer now reads the same bounded host asset keyring
+rather than reconstructing a single-key store, and reports rejected rollback
+without crashing the guest. It also clears its proof when the production host
+has failed, preventing stale storage values from looking like a live screen.
+No production deadline or trust mechanism was loosened, and no DevTools feature
+was added. Standard update mode keeps a single publisher by default.
+
+Both the traced run and an untraced repeat exit 0, each with six actual HTTPS
+payload transfers, independently verified public signatures, rendered pixel
+checks, empty native error output and an owned-emulator cleanup receipt.
+Evidence: `build/android-validation/key-handoff-20261012-traced` and
+`build/android-validation/key-handoff-20261012-untraced`.
+
+The first untraced attempt remains in `key-handoff-20261012`. Its background/
+resume guest frame failed at 53.623 ms elapsed with 9.474 ms thread CPU, so this
+unit does not close sustained deadline stability. The passing 14,729,244-byte
+trace did not reproduce that failure: 1,577 guest turns average 0.338 ms, maximum
+27.645 ms; its slowest turn contains 2.082 ms running, 0.899 ms runnable and
+24.663 ms uninterruptible blocked time. No positive trace loss/error/overrun
+counters were found. Broader JNI draw frames include GPU/presentation work
+outside the guest budget. Trace timing does not establish the cause of the
+separate failed attempt.
+
+Android rendered publisher-key handoff/revocation is covered. iOS rendered key
+handoff, production endpoint/clean-release acceptance, sustained deadlines,
+minimum-OS execution and physical performance/isolation remain open. Additional
+DevTools stays deferred for v0.0.1; the full goal remains active.
+
+
+## Rendered iOS key handoff and explicit host trust record (2026-10-14)
+
+The installed iOS acceptance flow now builds and explicitly installs three hosts
+with one app identity: A-only baseline, B-primary/A-previous overlap with a
+B-signed bundled release, and B-only revocation. Each finished and installed host
+is checked for the expected key resources before XCTest runs. A random marker
+in private app data survives both upgrades, even when the simulator relocates
+the data directory. Real TSX red/green pixels, storage counter retention through
+staging and background/resume, cold promotion and old-key rollback are checked.
+
+This flow exposed a real startup-policy weakness: the simulator retained
+publisher.previous.key when installing a host whose finished bundle omitted it.
+Explicit simctl installation reproduced the leftover file. File presence alone
+therefore cannot represent revocation. Both export writers now always produce
+publisher.trust, exactly two bytes: format 1 and key count 1 or 2. Installed
+startup follows that host-owned record. Count 1 ignores a stale previous-key file;
+count 2 requires a distinct valid previous key. Invalid/unreadable/oversized
+records fail closed. Absence selects primary-only trust for legacy packaging,
+never automatic overlap. No package response supplies the record or keys, and
+no package-envelope or FFI ABI format changed. The Android test observer now
+uses the production host's bounded trust-selection method.
+
+The final iOS run passes all three UI phases. Its installed B-only host still
+contains the stale old-key file, but explicitly disables it. Actual old-key HTTPS
+staging and old-key rollback reject without changing native cache-state bytes;
+new-key green pixels remain visible through another cold start. Six real local
+HTTPS payload transfers are recorded. Distinct public signatures and cross-key
+rejection are independently checked, and the owned simulator is deleted without
+touching preexisting devices. Evidence:
+`build/ios-validation/key-handoff-20261014-trust-record`, including each phase's
+installed-trust.json, XCTest summary/attachments/state and the top-level
+signature-and-cleanup-verification.json. The explicit installed-file receipt
+records previousKeyFilePresent=true and previousKeyEnabled=false after revocation.
+
+Android's complete rendered handoff/revocation is rerun with the new production
+trust record and also exits 0: six HTTPS payload transfers, retained counter,
+cold promotion/rollback and rejection after revocation. Its owned read-only
+emulator is cleaned up. Evidence:
+`build/android-validation/key-handoff-20261014-trust-record`. Export regressions
+pass four cases/135 assertions and both native source type gates pass; logs are
+in `build/validation/key-trust-record-20261014`.
+
+Earlier attempts remain retained: the missing temporary compiler adapter stopped
+before simulator creation (`key-handoff-20261014`); an overly strict data-directory
+identity assertion stopped after successful baseline/overlap UI (`...-tools`);
+the subsequent rendered revocation failed while an old key resource remained
+(`...-marker`); explicit installation then independently reproduced the stale
+resource before launching the revocation UI (`...-explicit-install`). The final
+fix changes production trust selection, rather than deleting files or clearing
+the app cache to force a passing test. System production TLS trust is unchanged;
+only temporary test exports trust the local test certificate.
+
+Both mobile rendered publisher-key handoff gates are covered. Sustained guest
+wall-deadline stability, production endpoint/clean release validation, minimum-OS
+execution, and physical camera/performance/isolation acceptance remain open.
+Additional DevTools stays deferred for v0.0.1; the full goal remains active.
+
+The complete regression suite exits 0 after this fix, including 74 Rust core
+checks and the native publisher-key transition regression. The validated Android
+API 23 source gate also exits 0 with its API 28 negative control rejected.
+`build/validation/key-trust-record-20261014/result.json` links the full results.
+These checks do not close older-device execution or physical performance gates.
+
+
+## Exact guest deadline trace and lifecycle comparison (2026-10-14)
+
+The Android installed update harness accepts bounded
+PJM_UPDATE_LIFECYCLE_CYCLES=1..50 (default 1). It performs fresh Home/resume/UI
+proofs with the same running guest/counter before the existing HTTPS cold update
+and rollback checks, recording each completed cycle. Scheduler tracing now also
+requests sched_blocked_reason. The owned emulator wrapper optionally accepts
+PJM_PACKAGE_EMULATOR_MEMORY_MB=2048..8192, passing a temporary -memory override
+without editing saved AVD settings. It records actual boot memory and attempts
+optional CPU/memory pressure reads. No production budget, interrupt or failure
+handling was changed; these are acceptance diagnostics, not new DevTools UI.
+
+A 20-cycle attempt on the configured 2-GiB profile reproduced the ordinary-frame
+deadline failure before the first resume cycle. Native diagnostics report a
+50-ms budget, action 87 us, total 96,091 us and thread CPU 4,689 us. The exact
+trace failure marker identifies guest slice 19 (96.097 ms): 5.012 ms on CPU and
+91.085 ms runnable, with no blocked interval. Raw scheduler intervals show the
+GL thread at intended Linux display priority 116. Other Android tasks ran in
+that gap, including memory reclaim and system graphics. This establishes a
+scheduling gap in this failure; it does not prove memory pressure is its sole
+cause, nor that a JS optimization would fix it. The trace was stopped and the
+owned emulator cleaned. Evidence: build/android-validation/lifecycle-deadline-20261014.
+
+The controlled comparison changes only the owned emulator's memory profile to
+4 GiB. Actual boot MemTotal is 4,062,880 KiB. It passes all 20 Home/resume cycles
+with counter retention, followed by real HTTPS cold update/rollback and pixel
+checks. There are 2,509 guest turns, mean 0.296 ms and maximum 21.760 ms, no guest
+failure marker and empty native error output. The 21,451,664-byte trace is
+stopped, the temporary app/server/keys are removed, and the emulator cleaned.
+Evidence: build/android-validation/lifecycle-deadline-20261014-4gb.
+
+Both traces report informational interned-data tokenizer counters (124,870 and
+273,574). These are retained with severity info, not hidden or called a clean
+symbol trace. No positive lost-event/overrun counters were found. Scheduler
+intervals used above are directly retained; blocked-function symbol analysis
+remains limited. Android denies shell reads of /proc/pressure, so pressure
+metrics are explicitly unavailable. Broader JNI/presentation sections are
+outside the guest-turn budget and do not establish JS execution time.
+
+This is diagnostic progress, not closure of deadline stability: the default
+profile still has a real failure, and the 4-GiB pass does not establish behavior
+under load or physical-device acceptance. The guard remains unchanged. The
+original proposal is also no longer present at its supplied Desktop path;
+requested its current path while continuing from the recorded plan. Final
+requirement-by-requirement audit still needs the original. Additional DevTools
+stays deferred for v0.0.1; the full goal remains active.

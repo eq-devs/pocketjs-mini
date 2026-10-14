@@ -30,13 +30,21 @@ static BOOL writeAtomic(int parent,NSString *name,NSData *data){
     if(ok)ok=renameat(parent,temporary.fileSystemRepresentation,parent,name.fileSystemRepresentation)==0;
     if(ok)ok=fsync(parent)==0;unlinkat(parent,temporary.fileSystemRepresentation,0);return ok;
 }
-@implementation MiniPackageStore {int _root;NSData *_key;}
+@implementation MiniPackageStore {int _root;NSArray<NSData *> *_keys;}
 - (instancetype)initWithRoot:(NSString *)root trustedKey:(NSData *)key error:(NSError **)error {
+    return [self initWithRoot:root trustedKeys:key?@[key]:@[] error:error];
+}
+- (instancetype)initWithRoot:(NSString *)root trustedKeys:(NSArray<NSData *> *)keys error:(NSError **)error {
     self=[super init];if(!self)return nil;_root=-1;
-    if(!NSThread.isMainThread || !root.isAbsolutePath || key.length!=32){failure(error,@"Store requires an absolute private root, trusted key and main-thread owner");return nil;}
+    if(!NSThread.isMainThread || !root.isAbsolutePath || ![keys isKindOfClass:NSArray.class] || keys.count<1 || keys.count>2){failure(error,@"Store requires an absolute private root, bounded trusted keys and main-thread owner");return nil;}
+    NSMutableArray *copied=[NSMutableArray array];for(id key in keys){if(![key isKindOfClass:NSData.class] || [key length]!=32 || [copied containsObject:key]){failure(error,@"Invalid or duplicate trusted key");return nil;}[copied addObject:[key copy]];}
     int fd=open("/",O_RDONLY|O_DIRECTORY|O_CLOEXEC);
     for(NSString *part in root.pathComponents){if([part isEqual:@"/"])continue;if([part isEqual:@"."] || [part isEqual:@".."]){close(fd);failure(error,@"Invalid store path");return nil;}int next=directory(fd,part,YES);close(fd);fd=next;if(fd<0)break;}
-    if(fd<0){failure(error,@"Store root must contain real directories");return nil;}_root=fd;_key=[key copy];return self;
+    if(fd<0){failure(error,@"Store root must contain real directories");return nil;}_root=fd;_keys=[copied copy];return self;
+}
+- (MiniVerifiedPackage *)admit:(NSData *)payload envelope:(NSData *)envelope error:(NSError **)error {
+    NSData *key=_keys.count==1?_keys[0]:[MiniPackageVerifier signingKeyForEnvelope:envelope trustedKeys:_keys error:error];
+    return key?[[MiniVerifiedPackage alloc] initWithPayload:payload envelope:envelope trustedKey:key error:error]:nil;
 }
 - (NSString *)rootIdentity {struct stat status;if(!NSThread.isMainThread || _root<0 || fstat(_root,&status)!=0)return nil;return [NSString stringWithFormat:@"%llu:%llu",(unsigned long long)status.st_dev,(unsigned long long)status.st_ino];}
 - (BOOL)lock:(NSError **)error {if(NSThread.isMainThread && _root>=0 && flock(_root,LOCK_EX|LOCK_NB)==0)return YES;failure(error,@"Package store unavailable or busy");return NO;}
@@ -54,7 +62,7 @@ static BOOL writeAtomic(int parent,NSString *name,NSData *data){
     int folder=directory(app,slot,NO);if(folder<0){failure(error,@"Invalid installed package directory");return nil;}
     NSData *payload=readFile(folder,@"main.pocket",64*1024*1024),*envelope=readFile(folder,@"manifest.json",65536);close(folder);
     if(!payload || !envelope){failure(error,@"Invalid installed package files");return nil;}
-    MiniVerifiedPackage *package=[[MiniVerifiedPackage alloc] initWithPayload:payload envelope:envelope trustedKey:_key error:error];
+    MiniVerifiedPackage *package=[self admit:payload envelope:envelope error:error];
     NSString *expected=[NSString stringWithFormat:@"%@-%@",package.metadata[@"version"],package.metadata[@"sha256"]];
     if(!package || ![package.metadata[@"appId"] isEqual:identity] || ![expected isEqual:slot]){failure(error,@"Installed package identity mismatch");return nil;}return package;
 }
@@ -69,7 +77,7 @@ static BOOL writeAtomic(int parent,NSString *name,NSData *data){
 - (BOOL)stagePayload:(NSData *)payload envelope:(NSData *)envelope error:(NSError **)error {return [self stagePayload:payload envelope:envelope onlyIfEmpty:NO error:error];}
 - (BOOL)stagePayload:(NSData *)payload envelope:(NSData *)envelope onlyIfEmpty:(BOOL)onlyIfEmpty error:(NSError **)error {
     if(!NSThread.isMainThread){failure(error,@"Package stage requires main-thread owner");return NO;}
-    NSData *manifest=[envelope copy];MiniVerifiedPackage *package=[[MiniVerifiedPackage alloc] initWithPayload:payload envelope:manifest trustedKey:_key error:error];if(!package)return NO;
+    NSData *manifest=[envelope copy];MiniVerifiedPackage *package=[self admit:payload envelope:manifest error:error];if(!package)return NO;
     if(![self lock:error])return NO;int app=-1;BOOL result=NO;
     @try {
         NSString *identity=package.metadata[@"appId"],*slot=[NSString stringWithFormat:@"%@-%@",package.metadata[@"version"],package.metadata[@"sha256"]];

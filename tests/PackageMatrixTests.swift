@@ -12,6 +12,8 @@ final class MiniTests: XCTestCase {
         XCTAssertTrue(proof.label.hasPrefix("native-package-matrix PASS "), proof.label)
         let data = Data(proof.label.dropFirst("native-package-matrix PASS ".count).utf8)
         let receipt = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        XCTAssertEqual(receipt?["nativePackageDownloadActualTLS"] as? Bool, pjmPackageActualTLS)
+        XCTAssertEqual(receipt?["nativePackageDownloadControlled"] as? Bool, true)
         XCTAssertEqual(receipt?["cases"] as? Int, pjmPackageCaseCount)
         XCTAssertEqual(receipt?["accepted"] as? Int, 1)
         XCTAssertEqual(receipt?["rejected"] as? Int, pjmPackageCaseCount - 1)

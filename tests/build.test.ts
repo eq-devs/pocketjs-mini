@@ -52,7 +52,7 @@ test("public check/build use actual compiler artifacts and authenticated release
     expect(readdirSync(directory).sort()).toEqual(["main.pocket", "manifest.json"]);
     const payload = readFileSync(join(directory, "main.pocket")), manifest = JSON.parse(readFileSync(join(directory, "manifest.json"), "utf8"));
     expect(verifyPackage(payload, manifest, keys.publicKey, {abi:7,target:"pjm-android"}).permissions).toEqual(["media"]);
-    expect(manifest.appId).toBe("dev.pjm.release-app");
+    expect(manifest.appId).toBe("dev.pjm.release-app");expect(manifest.version).toBe("0.0.1");
     const trustedKey=join(temp,"publisher.raw");writeFileSync(trustedKey,keys.publicKey.export({format:"der",type:"spki"}).subarray(-32));
     const publication=await run(["publish","--package",directory,"--public-key",trustedKey,"--device","android","--dry-run"]);expect(publication.status).toBe(0);expect(JSON.parse(publication.out).sha256).toBe(manifest.sha256);
     expect((await run(["build", "--release", "--device", "android", "--key", path])).status).not.toBe(0);

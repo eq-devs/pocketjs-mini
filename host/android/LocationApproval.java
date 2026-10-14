@@ -67,7 +67,8 @@ final class LocationApproval {
   private void requestOS(Pending request){
     if(pending!=request||request.done)return;
     if(osGranted(request.options)){finish(request,true);return;}
-    int code=nextCode.getAndUpdate(current->current<=0xffff?current+1:current);
+    int code;
+    do{code=nextCode.get();if(code>0xffff)break;}while(!nextCode.compareAndSet(code,code+1));
     if(code>0xffff)throw new IllegalStateException("Location permission request identifiers exhausted");
     osRequestCode=code;osInFlight=true;
     try{

@@ -3,6 +3,20 @@ import CryptoKit
 
 @objc(MiniPackageVerifier)
 public final class NativePackageVerifier: NSObject {
+    @objc(signingKeyForEnvelope:trustedKeys:error:)
+    public static func signingKey(envelope: Data, trustedKeys: [Data]) throws -> Data {
+        guard envelope.count <= 65536, (1...2).contains(trustedKeys.count), trustedKeys.allSatisfy({ $0.count == 32 }),
+              Set(trustedKeys).count == trustedKeys.count,
+              var body = try StrictPackageJSON.parse(envelope) as? [String: Any],
+              let text = body.removeValue(forKey: "signature") as? String,
+              text.range(of: "^[A-Za-z0-9+/]{86}==$", options: .regularExpression) != nil,
+              let signature = Data(base64Encoded: text) else { throw PackageVerifier.Failure.rejected("Trusted key or signature envelope") }
+        let message = try CanonicalPackageJSON.data(body)
+        for key in trustedKeys {
+            if try Curve25519.Signing.PublicKey(rawRepresentation: key).isValidSignature(signature, for: message) { return key }
+        }
+        throw PackageVerifier.Failure.rejected("Publisher signature")
+    }
     @objc(parseStrictJSON:error:) public static func parseStrictJSON(_ data: Data) throws -> Any { try StrictPackageJSON.parse(data) }
     @objc(canonicalJSON:error:) public static func canonicalJSON(_ value: Any) throws -> Data { try CanonicalPackageJSON.data(value) }
     @objc public static func verifyPlanHash(_ plan: NSDictionary) throws {

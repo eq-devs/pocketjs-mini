@@ -113,6 +113,10 @@ const updatePlan={...basePlan,app:{...basePlan.app,version:"2.0.0"}};delete upda
 updateDecoded.variants[0].sections.find(section=>section.kind===2)!.bytes=Buffer.from(JSON.stringify(hashPlan(updatePlan)));
 const updatePayload=Buffer.from(encodePocketPackage(updateDecoded));
 const update={payload:updatePayload.toString("base64"),manifest:signPackage(updatePayload,{...metadata,version:"2.0.0"},keys.privateKey)};
+const rotatedKeys=generateKeyPairSync('ed25519');
+const rotatedKey=rotatedKeys.publicKey.export({format:'der',type:'spki'}).subarray(-32).toString('base64');
+const rotation={key:rotatedKey,payload:update.payload,manifest:signPackage(updatePayload,{...metadata,version:'2.0.0'},rotatedKeys.privateKey),injectedManifest:signPackage(updatePayload,{...metadata,version:'2.0.0',trustedKeys:[key,rotatedKey]} as any,rotatedKeys.privateKey)};
+
 const peers=[1,2,3].map(index=>{
  const appId=metadata.appId+".peer"+index,decoded=decodePocketPackage(payload),plan={...basePlan,app:{...basePlan.app,id:appId}};delete plan.planHash;
  decoded.variants[0].sections.find(section=>section.kind===1)!.bytes=encodeIdentity({output:"fixture",id:appId,title:"Fixture"});
@@ -144,4 +148,4 @@ const attacks=[
  {...valid,name:'wrong-signed-target',manifest:signPackage(payload,{...metadata,targets:[target==='pjm-ios'?'pjm-android':'pjm-ios']},keys.privateKey),valid:false},
  {...valid,name:'signed-truncated-container',payload:truncated.toString('base64'),manifest:signPackage(truncated,metadata,keys.privateKey),valid:false},
 ];
-writeFileSync(process.argv[2],JSON.stringify([...realCases.map((item,index)=>({...item,name:'real-package-'+index})),{...valid,name:'valid-retained-execution',update,peers,runtimeAttacks},...rejectedPlans.map((item,index)=>({...item,name:rejectedNames[index]})),...attacks]));
+writeFileSync(process.argv[2],JSON.stringify([...realCases.map((item,index)=>({...item,name:'real-package-'+index})),{...valid,name:'valid-retained-execution',update,rotation,peers,runtimeAttacks},...rejectedPlans.map((item,index)=>({...item,name:rejectedNames[index]})),...attacks]));

@@ -44,6 +44,11 @@ public class InstalledActivity extends Activity {
       byte[] buffer=new byte[8192];int count;while((count=input.read(buffer))!=-1){if(output.size()+count>limit)throw new IOException("Installed asset exceeds budget");output.write(buffer,0,count);}return output.toByteArray();
     }
   }
+  protected final byte[][] publisherKeys(byte[] current)throws IOException{
+    byte[] trust;try{trust=asset("publisher.trust",2);}catch(FileNotFoundException legacy){return new byte[][]{current};}
+    if(trust.length!=2 || trust[0]!=1 || (trust[1]!=1 && trust[1]!=2))throw new IOException("Invalid publisher trust record");
+    return trust[1]==2?new byte[][]{current,asset("publisher.previous.key",32)}:new byte[][]{current};
+  }
   private void fail(Throwable error){failed=true;android.util.Log.e("PocketJS","Installed container failed",error);runOnUiThread(()->{message.setText("Cannot open installed mini app");message.setVisibility(View.VISIBLE);});}
   private void configureRenderThread(){
     // The GL owner drives guest frames and presentation; configure that thread only.
@@ -52,7 +57,7 @@ public class InstalledActivity extends Activity {
   }
   @Override public void onCreate(Bundle state){
     super.onCreate(state);if(getIntent().getBooleanExtra("pjm-measure",false))measurements=new FrameMeasurements();FrameLayout root=new FrameLayout(this);message=new TextView(this);message.setTextColor(0xffffffff);message.setBackgroundColor(0xff0f172a);message.setGravity(Gravity.CENTER);message.setText("Opening mini app…");
-    try{byte[] payload=asset("main.pocket",64*1024*1024),envelope=asset("manifest.json",65536),key=asset("publisher.key",32);VerifiedPackage bundled=new VerifiedPackage(payload,envelope,key);PackageStore store=new PackageStore(new File(getFilesDir().getCanonicalFile(),"mini-packages"),key);store.seed(payload,envelope);admitted=store.coldStart(bundled.identity);permissions=new PermissionGate(store);try{String latest=PackageDownload.configuration(asset("distribution.json",4096));android.os.Handler handler=new android.os.Handler(android.os.Looper.getMainLooper());packageDownload=new PackageDownload(store,handler::post);packageDownload.start(latest,bundled.identity,(version,error)->{if(error!=null)android.util.Log.w("PocketJS","Package update rejected",error);else android.util.Log.i("PocketJS","Package update staged for cold start: "+version);});}catch(FileNotFoundException absent){/* Optional host-owned update configuration. */}catch(Exception updateError){android.util.Log.w("PocketJS","Package update unavailable",updateError);}}catch(Exception error){root.addView(message,new FrameLayout.LayoutParams(-1,-1));setContentView(root);fail(error);return;}
+    try{byte[] payload=asset("main.pocket",64*1024*1024),envelope=asset("manifest.json",65536),key=asset("publisher.key",32);VerifiedPackage bundled=new VerifiedPackage(payload,envelope,key);PackageStore store=new PackageStore(new File(getFilesDir().getCanonicalFile(),"mini-packages"),publisherKeys(key));store.seed(payload,envelope);admitted=store.coldStart(bundled.identity);permissions=new PermissionGate(store);try{String latest=PackageDownload.configuration(asset("distribution.json",4096));android.os.Handler handler=new android.os.Handler(android.os.Looper.getMainLooper());packageDownload=new PackageDownload(store,handler::post);packageDownload.start(latest,bundled.identity,(version,error)->{if(error!=null)android.util.Log.w("PocketJS","Package update rejected",error);else android.util.Log.i("PocketJS","Package update staged for cold start: "+version);});}catch(FileNotFoundException absent){/* Optional host-owned update configuration. */}catch(Exception updateError){android.util.Log.w("PocketJS","Package update unavailable",updateError);}}catch(Exception error){root.addView(message,new FrameLayout.LayoutParams(-1,-1));setContentView(root);fail(error);return;}
     network=new VerifiedNetwork(this);
     locationApproval=new LocationApproval(this,permissions,()->!paused&&!stopped&&!closed&&!failed);
     mediaPicker=new MediaPicker(this,permissions,()->!paused&&!stopped&&!closed&&!failed,()->permissionDialog!=null||locationApproval.active());
@@ -97,7 +102,7 @@ public class InstalledActivity extends Activity {
         location.drain((value,gen,reply)->{try{container.post(value.identity,gen,reply);return true;}catch(IllegalArgumentException retired){return true;}catch(IllegalStateException busy){return false;}});
         ArrayList<TouchContact> sample=new ArrayList<>(contacts);int[] packed=new int[sample.size()],hits=new int[sample.size()];
         for(int i=0;i<sample.size();i++){TouchContact contact=sample.get(i);int x=contact.sampleX(),y=contact.sampleY();packed[i]=x>511 || y>511?0x80000000|(contact.identifier<<20)|(y<<10)|x:(contact.identifier<<18)|(y<<9)|x;hits[i]=contact.hit;}
-        drawGpu(packed,hits,new byte[0]);for(TouchContact contact:sample)contact.sampled();frames++;contacts.removeIf(TouchContact::drained);dispatch(container.effects());
+        drawGpu(packed,hits,new byte[0]);for(TouchContact contact:sample)contact.sampled();frames++;for(int i=contacts.size()-1;i>=0;i--)if(contacts.get(i).drained())contacts.remove(i);dispatch(container.effects());
         if(frames==1)runOnUiThread(()->{surface.setContentDescription("signed="+admitted.identity+" version="+admitted.version+" frames="+frames);message.setVisibility(View.GONE);});
       }catch(Throwable error){fail(error);}finally{if(measurements!=null)measurements.record(measuredStart,System.nanoTime());pacer.complete();}}
     });surface.setRenderMode(GLSurfaceView.RENDERMODE_WHEN_DIRTY);

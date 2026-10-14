@@ -10,6 +10,16 @@ import java.util.*;
 final class PackageVerifier {
   static {System.loadLibrary("pocketjs");}
   private static native boolean verifySignature(byte[] key,byte[] signature,byte[] message);
+  // Host-owned overlap only. Full metadata/hash/plan admission follows selection.
+  static byte[] signingKey(byte[] envelope,byte[][] trustedKeys)throws Exception {
+    require(trustedKeys!=null && trustedKeys.length>=1 && trustedKeys.length<=2,"Trusted key count");
+    for(int i=0;i<trustedKeys.length;i++){require(trustedKeys[i]!=null && trustedKeys[i].length==32,"Trusted key");if(i>0)require(!Arrays.equals(trustedKeys[0],trustedKeys[i]),"Duplicate trusted key");}
+    JSONObject body=BoundedJson.object(envelope,65536);String text=string(body,"signature");
+    require(text.matches("[A-Za-z0-9+/]{86}=="),"Signature envelope");body.remove("signature");
+    byte[] signature=android.util.Base64.decode(text,android.util.Base64.NO_WRAP),message=canonical(body).getBytes(StandardCharsets.UTF_8);
+    for(byte[] key:trustedKeys)if(verifySignature(key,signature,message))return key.clone();
+    throw new GeneralSecurityException("Publisher signature");
+  }
   static final class Policy {
     private final Set<String> domains,permissions;
     private Policy(JSONObject verified) throws Exception {

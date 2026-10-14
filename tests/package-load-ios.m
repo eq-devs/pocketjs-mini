@@ -2,6 +2,7 @@
 #import "VerifiedContainer.h"
 #import "AppStorage.h"
 #import "PackageStore.h"
+#import "PackageKeyTransition.h"
 #include <sys/file.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -127,6 +128,7 @@ int main(int argc,char **argv){@autoreleasepool{
         if([package.metadata[@"appId"] isEqual:@"dev.pjm.fixture"]){MiniAppStorage *stored=[[MiniAppStorage alloc] initWithRoot:storageRoot appId:package.metadata[@"appId"] error:&error];assert(stored);assert([[stored dispatch:@"storage.get.v1" arguments:@{@"key":@"cleanup-proof"} error:&error] isEqual:@"saved"]);}
         [container shutdown];[container shutdown];
         if(item[@"update"]){
+            PackageKeyTransition([storageRoot stringByAppendingPathComponent:@"key-transition"],package.payload,envelope,key,item[@"rotation"]);
             NSString *root=[storageRoot stringByAppendingPathComponent:@"packages"];error=nil;
             MiniPackageStore *store=[[MiniPackageStore alloc] initWithRoot:root trustedKey:key error:&error];assert(store && !error);
             assert([store stagePayload:package.payload envelope:envelope error:&error]);

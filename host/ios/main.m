@@ -349,11 +349,29 @@ static NSData *bundledData(NSString *name,NSString *type){NSString *path=[NSBund
 static UIViewController *installedController(void) {
   NSError *error=nil;
   NSData *key=bundledData(@"publisher",@"key");
+  // An explicit host record controls overlap. A removed resource can survive a
+  // simulator/delta install; mere file presence must never extend trust.
+  NSString *trustPath=[NSBundle.mainBundle pathForResource:@"publisher" ofType:@"trust"];
+  BOOL wantsPrevious=NO;
+  if(trustPath){
+    NSDictionary *attributes=[NSFileManager.defaultManager attributesOfItemAtPath:trustPath error:&error];
+    NSData *trust=([attributes[NSFileSize] unsignedLongLongValue]==2 && [attributes[NSFileType] isEqual:NSFileTypeRegular])?[NSData dataWithContentsOfFile:trustPath]:nil;
+    const uint8_t *bytes=trust.bytes;
+    if(trust.length!=2 || bytes[0]!=1 || (bytes[1]!=1 && bytes[1]!=2)){key=nil;error=[NSError errorWithDomain:@"MiniPackage" code:1 userInfo:@{NSLocalizedDescriptionKey:@"Invalid publisher trust record"}];}
+    else wantsPrevious=bytes[1]==2;
+  }
+  NSData *previous=nil;
+  if(wantsPrevious){
+    NSString *previousPath=[NSBundle.mainBundle pathForResource:@"publisher.previous" ofType:@"key"];
+    NSDictionary *attributes=previousPath?[NSFileManager.defaultManager attributesOfItemAtPath:previousPath error:&error]:nil;
+    if([attributes[NSFileSize] unsignedLongLongValue]==32 && [attributes[NSFileType] isEqual:NSFileTypeRegular])previous=[NSData dataWithContentsOfFile:previousPath];
+    if(previous.length!=32 || [previous isEqual:key]){key=nil;error=[NSError errorWithDomain:@"MiniPackage" code:1 userInfo:@{NSLocalizedDescriptionKey:@"Invalid previous publisher key"}];}
+  }
   NSData *payload=bundledData(@"main",@"pocket");
   NSData *envelope=bundledData(@"manifest",@"json");
   NSData *identityBytes=bundledData(@"app",@"id");NSString *identity=identityBytes?[[NSString alloc] initWithData:identityBytes encoding:NSUTF8StringEncoding]:nil;
   NSString *root=[NSSearchPathForDirectoriesInDomains(NSLibraryDirectory,NSUserDomainMask,YES).firstObject stringByAppendingPathComponent:@"mini-packages"];
-  MiniPackageStore *store=key?[[MiniPackageStore alloc] initWithRoot:root trustedKey:key error:&error]:nil;
+  MiniPackageStore *store=key?[[MiniPackageStore alloc] initWithRoot:root trustedKeys:previous?@[key,previous]:@[key] error:&error]:nil;
   if(store && payload && envelope && identity && [store seedPayload:payload envelope:envelope error:&error]){
     NSData *launch=[@"{\"source\":\"installed\",\"path\":\"/\",\"query\":{}}" dataUsingEncoding:NSUTF8StringEncoding];
     MiniInstalledController *controller=[[MiniInstalledController alloc] initWithIdentity:identity store:store launchData:launch error:&error];if(controller){NSString *configurationPath=[NSBundle.mainBundle pathForResource:@"distribution" ofType:@"json"];if(configurationPath){NSData *configuration=bundledData(@"distribution",@"json");if(configuration)[controller startDistribution:configuration identity:identity];}return controller;}

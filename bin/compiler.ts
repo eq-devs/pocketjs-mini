@@ -1,3 +1,4 @@
+import {RELEASE_VERSION} from "./release-version.ts";
 import {developmentConsole} from "./development-console.ts";
 import {verifyPocketHash} from "./package-hash.ts";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -26,7 +27,7 @@ export async function resolveApplication(options: CompileOptions, deferTypeCheck
       throw new Error("mini.json requires a lowercase app name (a-z, 0-9, -, maximum 48 characters)");
     return {
       $schema: "https://pocketjs.dev/schema/pocket-2.json", pocket: 2,
-      id: mini.appId ?? `dev.pjm.${mini.name}`, name: mini.name, title: mini.title ?? mini.name, version: mini.version ?? "0.3.0",
+      id: mini.appId ?? `dev.pjm.${mini.name}`, name: mini.name, title: mini.title ?? mini.name, version: mini.version ?? RELEASE_VERSION,
       engine: { capabilities: { requires: ["text.glyphs.baked", "input.touch"] } },
       app: { entry: "app/main.tsx", output: mini.name, framework: "solid",
         viewport: { fixed: { logical: [window.width, window.height], presentation: "native" } } },

@@ -9,6 +9,10 @@ publish = false
 [lib]
 crate-type = ["rlib", "staticlib", "cdylib"]
 
+[features]
+# Acceptance diagnostics only; normal hosts do not enable this feature.
+android-turn-trace = []
+
 [dependencies]
 libc = "=0.2.186"
 ed25519-dalek = "=2.2.0"

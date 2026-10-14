@@ -6,7 +6,25 @@ import android.util.Base64;
 final class NativePackageStoreTest {
   interface Action{void run()throws Exception;}
   private static void rejected(Action action)throws Exception{boolean failed=false;try{action.run();}catch(Exception expected){failed=true;}if(!failed)throw new AssertionError("Invalid package store operation accepted");}
+  static void transition(File root,byte[] payload,byte[] envelope,byte[] oldKey,JSONObject rotation)throws Exception{
+    String id="dev.pjm.fixture";byte[] nextKey=Base64.decode(rotation.getString("key"),Base64.DEFAULT),next=Base64.decode(rotation.getString("payload"),Base64.DEFAULT),manifest=rotation.getJSONObject("manifest").toString().getBytes("UTF-8");
+    PackageStore original=new PackageStore(root,oldKey);original.seed(payload,envelope);VerifiedPackage running=original.coldStart(id);
+    rejected(()->original.stage(next,manifest));
+    byte[][] provided={nextKey.clone(),oldKey.clone()};PackageStore overlap=new PackageStore(root,provided);provided[0][0]^=1;provided[1]=new byte[32];
+    if(!overlap.coldStart(id).version.equals("1.0.0"))throw new AssertionError("Old key lost during overlap");
+    overlap.stage(next,manifest);PackageStore reopened=new PackageStore(root,new byte[][]{nextKey,oldKey});if(!reopened.coldStart(id).version.equals("2.0.0") || !running.version.equals("1.0.0"))throw new AssertionError("Key handoff replaced running snapshot");
+    reopened.rollback(id);File state=new File(new File(root,id),"state.json");byte[] before=Files.readAllBytes(state.toPath());PackageStore revoked=new PackageStore(root,nextKey);
+    rejected(()->revoked.coldStart(id));if(!java.util.Arrays.equals(before,Files.readAllBytes(state.toPath())))throw new AssertionError("Revoked pending selection changed");
+    if(!reopened.coldStart(id).version.equals("1.0.0"))throw new AssertionError("Overlap rollback rejected");
+    reopened.stage(next,manifest);reopened.coldStart(id);if(!revoked.coldStart(id).version.equals("2.0.0"))throw new AssertionError("New key cold start rejected");
+    before=Files.readAllBytes(state.toPath());rejected(()->revoked.rollback(id));rejected(()->revoked.stage(payload,envelope));
+    byte[] injected=rotation.getJSONObject("injectedManifest").toString().getBytes("UTF-8");rejected(()->reopened.stage(next,injected));
+    if(!java.util.Arrays.equals(before,Files.readAllBytes(state.toPath())))throw new AssertionError("Rejected key or envelope changed selection");
+    rejected(()->new PackageStore(root,new byte[0][]));rejected(()->new PackageStore(root,new byte[][]{oldKey,oldKey}));rejected(()->new PackageStore(root,new byte[][]{oldKey,nextKey,new byte[32]}));rejected(()->new PackageStore(root,new byte[][]{new byte[31]}));
+    System.out.println("PACKAGE_KEYS transition rollback revocation bounds snapshots passed");
+  }
   static void verify(File root,byte[] payload,byte[] envelope,byte[] key,JSONObject fixture)throws Exception{
+    transition(new File(root.getParentFile(),root.getName()+"-rotation"),payload,envelope,key,fixture.getJSONObject("rotation"));
     String id="dev.pjm.fixture";PackageStore store=new PackageStore(root,key);store.seed(payload,envelope);
     VerifiedPackage first=store.coldStart(id);if(!first.version.equals("1.0.0"))throw new AssertionError("Seed failed");
     JSONObject update=fixture.getJSONObject("update");byte[] next=Base64.decode(update.getString("payload"),Base64.DEFAULT),manifest=update.getJSONObject("manifest").toString().getBytes("UTF-8");

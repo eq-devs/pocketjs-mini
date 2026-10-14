@@ -17,21 +17,30 @@ export function verifyInstalledInputs(options:{payload:string;envelope:string;pu
   const manifest=verifyPackage(payload,envelope,publicKey,{abi:7,target});
   return {payload,key,manifest};
 }
+export function previousPublisherKey(path:string|undefined,current:Uint8Array){
+  if(path===undefined)return undefined;
+  const key=readBoundedFile(path,32);
+  if(key.length!==32||key.equals(Buffer.from(current)))throw Error('Previous publisher key must be a distinct raw 32-byte public key');
+  return key;
+}
 export function iosDistributionUrl(address:string){
   const url=new URL(address),authority=address.match(/^https:\/\/([^/?#]*)/i)?.[1];
   if(address.length>2048 || !authority || authority.includes('@') || /\s/.test(address) || url.protocol!=='https:' || url.username || url.password || url.search || url.hash || address.includes('?') || address.includes('#'))throw Error('Distribution endpoint must be HTTPS without credentials, query or fragment');
   return url.href;
 }
-export function writeInstalledProject(options:{directory:string;library:string;payload:string;envelope:string;publicKey:string;bundle?:string;distributionUrl?:string}) {
+export function writeInstalledProject(options:{directory:string;library:string;payload:string;envelope:string;publicKey:string;previousPublicKey?:string;bundle?:string;distributionUrl?:string}) {
   const distribution=options.distributionUrl===undefined?undefined:iosDistributionUrl(options.distributionUrl);
   const {payload,key,manifest}=verifyInstalledInputs(options);
+  const previous=previousPublisherKey(options.previousPublicKey,key);
   const bundle=options.bundle??"dev.pjm.installed";
   if(!/^[a-zA-Z][a-zA-Z0-9-]*(?:\.[a-zA-Z][a-zA-Z0-9-]*)+$/.test(bundle))throw new Error("Invalid installed host bundle identity");
   const root=fileURLToPath(new URL("../",import.meta.url)),directory=resolve(options.directory);
   mkdirSync(directory,{recursive:true});cpSync(join(root,"host/ios"),directory,{recursive:true});cpSync(join(root,"core-ffi/include/mini_core.h"),join(directory,"mini_core.h"));
   writeFileSync(join(directory,"main.pocket"),payload);writeFileSync(join(directory,"manifest.json"),canonical(manifest));writeFileSync(join(directory,"publisher.key"),key);writeFileSync(join(directory,"app.id"),manifest.appId);
   if(distribution)writeFileSync(join(directory,"distribution.json"),canonical({format:1,latestUrl:distribution}));
+  writeFileSync(join(directory,"publisher.trust"),Buffer.from([1,previous?2:1]));
+  if(previous)writeFileSync(join(directory,"publisher.previous.key"),previous);
   cpSync(resolve(options.library),join(directory,"libmini_core_ffi.a"));
-  writeNativeProject(directory,"","$(PROJECT_DIR)/libmini_core_ffi.a","",false,bundle,true,!!distribution);
+  writeNativeProject(directory,"","$(PROJECT_DIR)/libmini_core_ffi.a","",false,bundle,true,!!distribution,!!previous);
   return {directory,bundle,appId:manifest.appId,version:manifest.version};
 }

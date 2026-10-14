@@ -1,5 +1,5 @@
 import {test,expect} from "bun:test";
-import {mkdtempSync,readFileSync,writeFileSync,rmSync,existsSync,readdirSync} from "node:fs";
+import {mkdtempSync,readFileSync,writeFileSync,rmSync,symlinkSync,existsSync,readdirSync} from "node:fs";
 import {tmpdir} from "node:os";
 import {join} from "node:path";
 import {spawnSync} from "node:child_process";
@@ -12,7 +12,10 @@ test("Android installed export preserves separate trust and portable signed-only
     writeFileSync(payload,Buffer.from(item.payload,"base64"));writeFileSync(envelope,JSON.stringify(item.manifest));writeFileSync(publicKey,Buffer.from(item.key,"base64"));writeFileSync(join(root,"core.so"),"test library");
     const options={directory,library:join(root,"core.so"),payload,envelope,publicKey},result=writeInstalledAndroidProject(options);
     expect(result.appId).toBe("dev.pjm.fixture");expect(readFileSync(join(directory,"assets/main.pocket"))).toEqual(readFileSync(payload));expect(readFileSync(join(directory,"assets/publisher.key"))).toEqual(Buffer.from(item.key,"base64"));
-    const manifest=readFileSync(join(directory,"AndroidManifest.xml"),"utf8");expect(manifest).toContain('android:debuggable="false"');expect(manifest).toContain('android:usesCleartextTraffic="false"');expect(manifest).toContain("InstalledActivity");expect(manifest).not.toContain("MiniActivity");
+    const manifest=readFileSync(join(directory,"AndroidManifest.xml"),"utf8");expect(manifest).toContain('android:versionName="0.0.1"');expect(manifest).toContain('android:versionCode="5"');
+    const development=readFileSync(join(import.meta.dir,"../host/android/AndroidManifest.xml"),"utf8");expect(development).toContain('android:versionName="0.0.1"');expect(Number(development.match(/android:versionCode="(\d+)"/)![1])).toBeGreaterThan(4);
+    expect(JSON.parse(readFileSync(join(directory,"assets/manifest.json"),"utf8")).version).toBe("1.0.0");
+    expect(manifest).toContain('android:debuggable="false"');expect(manifest).toContain('android:usesCleartextTraffic="false"');expect(manifest).toContain("InstalledActivity");expect(manifest).not.toContain("MiniActivity");
     expect(readdirSync(join(directory,"src"))).not.toContain("MiniActivity.java");expect(readFileSync(join(directory,"lib/arm64-v8a/libpocketjs.so"),"utf8")).toBe("test library");
     expect(readdirSync(join(directory,"src"))).not.toContain("HttpSurfaceActivity.java");
     expect(readFileSync(join(directory,"src/VerifiedClipboard.java"),"utf8")).toBe(readFileSync(join(import.meta.dir,"../host/android/VerifiedClipboard.java"),"utf8"));
@@ -32,6 +35,23 @@ test("Android installed export preserves separate trust and portable signed-only
     const updating=join(root,'updating');writeInstalledAndroidProject({...options,directory:updating,distributionUrl:'https://distribution.example/apps/fixture/latest.json'});
     expect(JSON.parse(readFileSync(join(updating,'assets/distribution.json'),'utf8'))).toEqual({format:1,latestUrl:'https://distribution.example/apps/fixture/latest.json'});
     for(const address of ['http://localhost/latest','https://user:pass@example.com/latest','https://@example.com/latest','https://example.com/latest?token=x','https://example.com/latest#x']){const rejected=join(root,'bad-distribution');expect(()=>writeInstalledAndroidProject({...options,directory:rejected,distributionUrl:address})).toThrow();expect(existsSync(rejected)).toBe(false);}
+    const rotated=item.rotation,newPayload=join(root,'rotated.pocket'),newEnvelope=join(root,'rotated.json'),newKey=join(root,'rotated.key');
+    writeFileSync(newPayload,Buffer.from(rotated.payload,'base64'));writeFileSync(newEnvelope,JSON.stringify(rotated.manifest));writeFileSync(newKey,Buffer.from(rotated.key,'base64'));
+    const transitionDirectory=join(root,'transition-host');
+    writeInstalledAndroidProject({...options,directory:transitionDirectory,payload:newPayload,envelope:newEnvelope,publicKey:newKey,previousPublicKey:publicKey});
+    expect(readFileSync(join(transitionDirectory,'assets/publisher.key'))).toEqual(Buffer.from(rotated.key,'base64'));
+    expect(readFileSync(join(transitionDirectory,'assets/publisher.previous.key'))).toEqual(Buffer.from(item.key,'base64'));
+    expect(existsSync(join(directory,'assets/publisher.previous.key'))).toBe(false);
+    expect(readFileSync(join(directory,'assets/publisher.trust'))).toEqual(Buffer.from([1,1]));
+    expect(readFileSync(join(transitionDirectory,'assets/publisher.trust'))).toEqual(Buffer.from([1,2]));
+    const linkedPrevious=join(root,'linked-previous.key');symlinkSync(publicKey,linkedPrevious);
+    const linkedOutput=join(root,'linked-key-host');
+    expect(()=>writeInstalledAndroidProject({...options,directory:linkedOutput,previousPublicKey:linkedPrevious})).toThrow();expect(existsSync(linkedOutput)).toBe(false);
+    const invalidPrevious=join(root,'invalid-previous.key');
+    for(const bytes of [Buffer.alloc(31),Buffer.alloc(33),Buffer.from(item.key,'base64')]){
+      writeFileSync(invalidPrevious,bytes);const rejected=join(root,'invalid-key-host');
+      expect(()=>writeInstalledAndroidProject({...options,directory:rejected,previousPublicKey:invalidPrevious})).toThrow();expect(existsSync(rejected)).toBe(false);
+    }
     writeFileSync(payload,"tampered");expect(()=>writeInstalledAndroidProject({...options,directory:join(root,"rejected")})).toThrow();expect(existsSync(join(root,"rejected"))).toBe(false);
   }finally{rmSync(root,{recursive:true,force:true});}
 });
