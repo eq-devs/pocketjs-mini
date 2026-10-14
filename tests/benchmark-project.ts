@@ -1,6 +1,8 @@
 import {generateKeyPairSync} from "node:crypto";
 import {mkdirSync,readFileSync,writeFileSync,existsSync} from "node:fs";
 import {resolve,join} from "node:path";
+import {selectPocketInputs} from '../container/pocket-inputs.ts';
+import {strictJson} from '../container/strict-json.ts';
 import {signPackage} from "../container/package.ts";
 import {writeInstalledAndroidProject} from "../bin/installed-android-project.ts";
 const [output,library]=process.argv.slice(2);
@@ -8,8 +10,9 @@ if(!output||!library)throw Error("benchmark-project <new-output> <native-library
 const directory=resolve(output);if(existsSync(directory))throw Error("Output already exists");
 mkdirSync(directory,{recursive:true});
 const payload=readFileSync(join(import.meta.dir,"../examples/benchmark/build/benchmark.pocket"));
+const plan=strictJson(selectPocketInputs(payload,"pjm-android","dev.pjm.benchmark").plan) as {app:{id:string;version:string}};
 const keys=generateKeyPairSync("ed25519");
-const metadata={appId:"dev.pjm.benchmark",version:"0.3.0",minHostAbi:7,entry:"main.pocket" as const,pages:["/"],permissions:[],domains:[],targets:["pjm-android"]};
+const metadata={appId:plan.app.id,version:plan.app.version,minHostAbi:7,entry:"main.pocket" as const,pages:["/"],permissions:[],domains:[],targets:["pjm-android"]};
 const envelope=signPackage(payload,metadata,keys.privateKey);
 writeFileSync(join(directory,"main.pocket"),payload);
 writeFileSync(join(directory,"manifest.json"),JSON.stringify(envelope));

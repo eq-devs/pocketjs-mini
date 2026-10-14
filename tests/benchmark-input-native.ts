@@ -1,11 +1,14 @@
 import {readFileSync,writeFileSync,mkdirSync} from "node:fs";
 import {createHash} from "node:crypto";
+import {selectPocketInputs} from '../container/pocket-inputs.ts';
+import {strictJson} from '../container/strict-json.ts';
 import {nativeReplayEngine} from "../devtools/native-engine.ts";
 import {decodeInspectorTree} from "../devtools/tree.ts";
 const payload=readFileSync(new URL("../examples/benchmark/build/benchmark.pocket",import.meta.url));
-const engine=nativeReplayEngine(new URL("../core-ffi/target/release/libmini_core_ffi.dylib",import.meta.url).pathname,{appId:"dev.pjm.benchmark",version:"0.3.0"},true);
+const plan=strictJson(selectPocketInputs(payload,"pjm-android","dev.pjm.benchmark").plan) as {app:{id:string;version:string};viewport:{logical:number[];rasterDensity:number}};
+const engine=nativeReplayEngine(new URL("../core-ffi/target/release/libmini_core_ffi.dylib",import.meta.url).pathname,{appId:plan.app.id,version:plan.app.version},true);
 try{
-  engine.boot(payload,{format:1,packageSha256:createHash("sha256").update(payload).digest("hex"),target:"pjm-android",launchData:"{}",window:{width:390,height:844,density:1},steps:[]});
+  engine.boot(payload,{format:1,packageSha256:createHash("sha256").update(payload).digest("hex"),target:"pjm-android",launchData:"{}",window:{width:plan.viewport.logical[0],height:plan.viewport.logical[1],density:plan.viewport.rasterDensity},steps:[]});
   engine.frame([],[],[]);
   for(const invalid of [NaN,Infinity,-Infinity]){
     let rejected=false;try{engine.hitTest!(invalid,0);}catch{rejected=true;}

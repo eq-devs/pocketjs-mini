@@ -3,6 +3,7 @@ import {mkdtempSync,readFileSync,writeFileSync,rmSync,symlinkSync,existsSync} fr
 import {tmpdir} from "node:os";
 import {join} from "node:path";
 import {spawnSync} from "node:child_process";
+import {writeInstalledAndroidProject} from "../bin/installed-android-project.ts";
 import {writeInstalledProject} from "../bin/installed-project.ts";
 test("installed host export bundles separate trust and excludes the development entry",()=>{
   const root=mkdtempSync(join(tmpdir(),"pjm-installed-project-"));
@@ -73,5 +74,23 @@ test("public export command rejects invalid options and preserves existing outpu
     expect(run(["--package","x","--public-key","x","--output",join(root,"new"),"--target","android"]).status).not.toBe(0);
     expect(existsSync(join(root,"new"))).toBe(false);
     expect(run(["--package","x","--package","y","--public-key","x","--output",join(root,"new")]).status).not.toBe(0);
+  }finally{rmSync(root,{recursive:true,force:true});}
+});
+
+test("both installed exports reject authenticated packages with incompatible native plans before writing output",()=>{
+  const root=mkdtempSync(join(tmpdir(),"pjm-installed-plan-rejection-"));
+  try{
+    for(const target of ["ios","android"] as const){
+      const casesPath=join(root,target+"-cases.json"),fixture=spawnSync(process.execPath,[join(import.meta.dir,"package-load-fixtures.ts"),casesPath],{env:{...process.env,PJM_PACKAGE_TARGET:target,PJM_PACKAGE_REAL:"",PJM_PACKAGE_HTTP_TEST:"",PJM_PACKAGE_LOCATION_SDK_TEST:""},encoding:"utf8"});expect(fixture.status).toBe(0);
+      const cases=JSON.parse(readFileSync(casesPath,"utf8"));
+      for(const name of ["plan-version-mismatch","signed-identity-mismatch","unsupported-presentation"]){
+        const item=cases.find((value:any)=>value.name===name);expect(item).toBeDefined();
+        const payload=join(root,"main.pocket"),envelope=join(root,"manifest.json"),publicKey=join(root,"publisher.key"),directory=join(root,target+"-"+name);
+        writeFileSync(payload,Buffer.from(item.payload,"base64"));writeFileSync(envelope,JSON.stringify(item.manifest));writeFileSync(publicKey,Buffer.from(item.key,"base64"));
+        const exportHost=target==="ios"?writeInstalledProject:writeInstalledAndroidProject;
+        expect(()=>exportHost({directory,library:join(root,"unused-native-library"),payload,envelope,publicKey})).toThrow(/plan|identity/);
+        expect(existsSync(directory)).toBe(false);
+      }
+    }
   }finally{rmSync(root,{recursive:true,force:true});}
 });

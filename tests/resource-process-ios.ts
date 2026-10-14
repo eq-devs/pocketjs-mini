@@ -15,12 +15,13 @@ try{
  const item=JSON.parse(readFileSync(join(temp,'cases.json'),'utf8'))[0];
  for(const [name,data] of [['main.pocket',Buffer.from(item.payload,'base64')],['manifest.json',JSON.stringify(item.manifest)],['publisher.key',Buffer.from(item.key,'base64')]] as const)writeFileSync(join(temp,name),data);
  writeInstalledProject({directory:native,bundle,library:join(root,'core-ffi/target/aarch64-apple-ios-sim/release/libmini_core_ffi.a'),payload:join(temp,'main.pocket'),envelope:join(temp,'manifest.json'),publicKey:join(temp,'publisher.key')});
+ assert.equal(item.peers.length,3);writeFileSync(join(evidence,'peers.json'),JSON.stringify(item.peers,null,2)+'\n');writeFileSync(join(native,'ResourcePeers.h'),'static NSString * const ResourcePeersJSON = @'+JSON.stringify(JSON.stringify(item.peers))+';\n');
  cpSync(join(root,'tests/ResourceProcessApp.m'),join(native,'main.m'));cpSync(join(root,'tests/ResourceProcessTests.swift'),join(native,'Tests.swift'));launched=true;
  await run(['xcodebuild','-quiet','-project',join(native,'Mini.xcodeproj'),'-scheme','Mini','-configuration','Release','-destination','platform=iOS Simulator,id='+serial,'-derivedDataPath',join(native,'DerivedData'),'-parallel-testing-enabled','NO','-resultBundlePath',join(evidence,'Tests.xcresult'),'CODE_SIGNING_ALLOWED=NO','test']);
  await run(['xcrun','xcresulttool','export','attachments','--path',join(evidence,'Tests.xcresult'),'--output-path',join(evidence,'attachments')]);
  writeFileSync(join(evidence,'summary.json'),await run(['xcrun','xcresulttool','get','test-results','summary','--path',join(evidence,'Tests.xcresult')]));
  for(const name of ['main.pocket','manifest.json','publisher.key'])cpSync(join(temp,name),join(evidence,name));
- writeFileSync(join(evidence,'result.json'),JSON.stringify({productionRegistry:true,authenticatedControllers:6,rounds:32,processCap:16,perGenerationCap:4,nativeGenerationRetirements:128,delayedProducerTokenLifetime:true,foreignAndRetiredHandlesDenied:true,controlledProducerTokens:true,actualHttpMediaWorkers:false,physicalMemoryAcceptance:false},null,2));
+ writeFileSync(join(evidence,'result.json'),JSON.stringify({productionRegistry:true,authenticatedControllers:6,roundsPerScenario:32,scenarios:2,authenticatedIdentities:4,processCap:16,perGenerationCap:4,nativeGenerationRetirements:256,delayedProducerTokenLifetime:true,foreignAndRetiredHandlesDenied:true,controlledProducerTokens:true,actualHttpMediaWorkers:false,physicalMemoryAcceptance:false},null,2));
  console.log('Native UIKit shared-resource process cap, generation retirement and delayed-token recovery passed.');
 }finally{
  if(launched){await run(['xcrun','simctl','terminate',serial,bundle]).catch(()=>{});await run(['xcrun','simctl','uninstall',serial,bundle]).catch(()=>{});}

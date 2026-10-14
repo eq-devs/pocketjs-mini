@@ -1,7 +1,7 @@
 import {readFileSync} from "node:fs";
 const xml=readFileSync(process.argv[2],"utf8");
 const nodes=xml.match(/<node\b[^>]*>/g)??[];
-const node=nodes.find(value=>value.includes('class="android.view.SurfaceView"')&&value.includes('package="dev.pjm.benchmark.validation"')&&value.includes('signed=dev.pjm.benchmark version=0.3.0 frames='));
+const node=nodes.find(value=>value.includes('class="android.view.SurfaceView"')&&value.includes('package="dev.pjm.benchmark.validation"')&&/signed=dev\.pjm\.benchmark version=[0-9]+\.[0-9]+\.[0-9]+ frames=/.test(value));
 const bounds=node?.match(/bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"/);
 if(!bounds)throw Error("Authenticated benchmark surface missing");
 const [left,top,right,bottom]=bounds.slice(1).map(Number),width=right-left,height=bottom-top;

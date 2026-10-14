@@ -7,10 +7,11 @@ import {androidSdk} from '../bin/android.ts';
 // Use an installed official image and an isolated AVD home. Never reuse or
 // rewrite a user's saved emulator to establish minimum-version acceptance.
 const api=Number(Bun.argv[2]);assert.ok(api===23||api===26,'Pass API 23 or API 26');
+const resourceProcess=process.env.PJM_RESOURCE_PROCESS==='1';
 const clipboardMatrix=process.env.PJM_MINIMUM_CLIPBOARD_MATRIX==='1';assert.ok(!clipboardMatrix||api===23,'Clipboard matrix requires the API 23 development host');
 const locationMatrix=process.env.PJM_MINIMUM_LOCATION_MATRIX==='1';assert.ok(!locationMatrix||api===23,'Location matrix requires the API 23 development host');
 const mediaCases=process.env.PJM_MINIMUM_MEDIA_CASES?.split(',');assert.ok(!mediaCases||(api===23&&mediaCases.length>0&&mediaCases.length<=5&&new Set(mediaCases).size===mediaCases.length&&mediaCases.every(mode=>['undeclared','deny','cancel','camera-cancel','camera'].includes(mode))),'Invalid API 23 media cases');
-assert.ok(Number(clipboardMatrix)+Number(locationMatrix)+Number(!!mediaCases)<=1,'Choose one permission matrix per run');
+assert.ok(Number(clipboardMatrix)+Number(locationMatrix)+Number(!!mediaCases)+Number(resourceProcess)<=1,'Choose one permission matrix per run');
 const root=resolve(import.meta.dir,'..'),sdk=androidSdk();
 const image=join(sdk,'system-images','android-'+api,'google_apis','arm64-v8a');
 assert.ok(existsSync(join(image,'package.xml')),'Install the official ARM64 Google APIs image first');
@@ -47,7 +48,9 @@ try{
   for(const setting of ['window_animation_scale','transition_animation_scale','animator_duration_scale'])await run(adb('shell','settings','put','global',setting,'0'));
   feeding=true;feed=(async()=>{try{while(feeding){await run(adb('emu','geo','fix','76.889709','43.238949','800','12','0'));await Bun.sleep(1000);}}catch(error){feedFailure=error;}})();
  }
- if(mediaCases){
+ if(resourceProcess){
+  await run([process.execPath,join(root,'tests/native-media-image-android.ts'),serial],900000,undefined,{PJM_MEDIA_SERVICE:'0',PJM_MEDIA_EVIDENCE:evidence});
+ }else if(mediaCases){
   for(const [index,mode] of mediaCases.entries()){
    if(index>0)await run(adb('shell','pm','clear','dev.pjm.android'));
    await run([process.execPath,join(root,'tests/navigation-native-android.ts'),serial],900000,undefined,{PJM_DEVELOPMENT_NETWORK:'1',PJM_DEVELOPMENT_MEDIA:mode,PJM_NAVIGATION_EVIDENCE:join(evidence,mode)});
@@ -59,7 +62,7 @@ try{
   }
  }else await run([process.execPath,join(root,api===26?'tests/package-update-ui-android.ts':'tests/navigation-native-android.ts'),serial],900000);
  assert.equal(feedFailure,undefined,'Location feeder failed');
- writeFileSync(join(evidence,'minimum-os-result.json'),JSON.stringify({actualApi:api,installedSignedTsxHttpsUpdateAndRollbackPassed:api===26,developmentTsxNavigationPassed:api===23,developmentClipboardMatrixPassed:clipboardMatrix,developmentLocationMatrixPassed:locationMatrix,developmentMediaCases:mediaCases??null,physicalAcceptance:false},null,2));
+ writeFileSync(join(evidence,'minimum-os-result.json'),JSON.stringify({actualApi:api,installedSignedTsxHttpsUpdateAndRollbackPassed:api===26&&!resourceProcess,developmentTsxNavigationPassed:api===23&&!resourceProcess,authenticatedResourceProcessStressPassed:resourceProcess,developmentClipboardMatrixPassed:clipboardMatrix,developmentLocationMatrixPassed:locationMatrix,developmentMediaCases:mediaCases??null,physicalAcceptance:false},null,2));
 }finally{
  feeding=false;await feed;
  let cleanupError:unknown;

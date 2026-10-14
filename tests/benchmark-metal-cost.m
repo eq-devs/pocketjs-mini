@@ -28,6 +28,6 @@ int main(int argc,char **argv){@autoreleasepool{
     if(turn>=30){measured++;total+=duration;if(duration>maximum)maximum=duration;if(duration>33000000)over33++;if(driver.bytes>maxBytes)maxBytes=driver.bytes;double gpu=buffer.GPUEndTime-buffer.GPUStartTime;if(buffer.GPUStartTime>0&&gpu>0){gpuSamples++;gpuTotal+=gpu;if(gpu>gpuMax)gpuMax=gpu;}}
   }}
   int after=rowMax(engine);assert(after>before);
-  printf("{\"kind\":\"host_metal_offscreen_cost\",\"frames\":%u,\"visibleRowBefore\":%d,\"visibleRowAfter\":%d,\"cpuTotalNs\":%llu,\"cpuMaxNs\":%llu,\"cpuOver33ms\":%llu,\"gpuSamples\":%u,\"gpuTotalSeconds\":%.9f,\"gpuMaxSeconds\":%.9f,\"maxCopiedTextureBytes\":%llu}\n",measured,before,after,(unsigned long long)total,(unsigned long long)maximum,(unsigned long long)over33,gpuSamples,gpuTotal,gpuMax,(unsigned long long)maxBytes);
+  printf("{\"kind\":\"host_metal_offscreen_cost\",\"frames\":%u,\"visibleRowBefore\":%d,\"visibleRowAfter\":%d,\"submissionWallTotalNs\":%llu,\"submissionWallMaxNs\":%llu,\"submissionWallOver33ms\":%llu,\"gpuSamples\":%u,\"gpuTotalSeconds\":%.9f,\"gpuMaxSeconds\":%.9f,\"maxCopiedTextureBytes\":%llu}\n",measured,before,after,(unsigned long long)total,(unsigned long long)maximum,(unsigned long long)over33,gpuSamples,gpuTotal,gpuMax,(unsigned long long)maxBytes);
   [renderer reset];assert(mp_destroy(engine)==0);
 }}

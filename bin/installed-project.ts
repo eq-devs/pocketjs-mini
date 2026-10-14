@@ -4,17 +4,19 @@ import {join,resolve} from "node:path";
 import {fileURLToPath} from "node:url";
 import {createPublicKey} from "node:crypto";
 import {verifyPackage,canonical,MAX_PACKAGE_BYTES} from "../container/package.ts";
+import {admitInstalledPayload} from '../container/installed-payload.ts';
 import {strictJson} from "../container/strict-json.ts";
 import {writeNativeProject} from "./native-project.ts";
 /** Produce a signed-only iOS host project. The caller supplies a trusted public
  * key separately from the envelope; private publisher keys are never bundled.
  * Native startup additionally verifies structure and admits the build plan. */
-export function verifyInstalledInputs(options:{payload:string;envelope:string;publicKey:string},target="pjm-ios") {
+export function verifyInstalledInputs(options:{payload:string;envelope:string;publicKey:string},target:"pjm-ios"|"pjm-android"="pjm-ios") {
   const read=(path:string,limit:number)=>{try{return readBoundedFile(path,limit);}catch(cause){throw new Error("Installed host input must be a bounded regular file",{cause});}};
   const payload=read(options.payload,MAX_PACKAGE_BYTES), envelope=strictJson(read(options.envelope,65536)),key=read(options.publicKey,32);
   if(key.length!==32)throw new Error("Installed host requires a trusted raw 32-byte Ed25519 public key");
   const publicKey=createPublicKey({key:Buffer.concat([Buffer.from("302a300506032b6570032100","hex"),key]),format:"der",type:"spki"});
   const manifest=verifyPackage(payload,envelope,publicKey,{abi:7,target});
+  admitInstalledPayload(payload,manifest,target);
   return {payload,key,manifest};
 }
 export function previousPublisherKey(path:string|undefined,current:Uint8Array){

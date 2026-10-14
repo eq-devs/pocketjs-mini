@@ -5490,3 +5490,164 @@ deadlines, wider concurrency/isolation, production endpoint/clean release and
 physical performance acceptance remain open. The original proposal's supplied
 path is still missing and its current path requested for final audit. Additional
 DevTools stays deferred for v0.0.1; the full goal remains active.
+
+
+## Older iOS execution and reviewable physical benchmark (2026-10-14)
+
+The available runtimes are iOS 17.5, 18.5 and 26.4. The owned UIKit runner now
+accepts an explicit validated iPhone device-type override, so an older runtime
+uses a compatible device instead of the default iPhone 17 Pro. The actual signed
+TSX local HTTPS staging/counter retention/cold promotion/rollback flow passes on
+an owned iOS 17.5 iPhone 15 Pro simulator, with three payload downloads and zero
+XCTest failures. Evidence: build/ios-validation/installed-update-ios17-20261014.
+The simulator is deleted; preexisting devices remain unchanged.
+
+The native package matrix also passes there after fixing its test export:
+the old exact resource-list assertion predated publisher.trust, and the new
+PackageKeyTransition.h fixture dependency had not been copied. It now selects
+the installed resource phase, checks required package/trust entries, preserves
+its existing resources and appends its test case asset. The header is copied.
+The failed pre-compilation attempt remains retained, with owned-device cleanup.
+The rerun passes 26 native cases (one accept, 25 reject), two live isolation
+attacks, native cache/key-transition fixtures and controlled downloader checks.
+C assertions remain enabled in the Release test app. Evidence:
+build/ios-validation/package-matrix-ios17-20261014-resources.
+
+The iOS 16.4 download request is unavailable in Apple's current catalog, but an
+exact iOS 16.0 request does start an official 6.28-GB Universal Simulator download.
+That active download is distinct from successful import/boot/execution; none of
+those iOS 16 acceptance claims is made yet. Availability/download evidence is
+under build/validation/ios-minimum-availability-20261014.
+
+A physical Pixel 8 Pro (API 36) is connected. Read-only model/display queries
+were used to prepare the existing 1000-row list/form benchmark. No phone app was
+installed or launched and no phone screen was captured. A fresh native bridge
+and a 3x raster, 390x844 logical benchmark were exported, APK-built, temporarily
+signed, verified and checked for 16-KiB alignment; temporary private signing
+keys were removed and the publisher private key never saved. Review artifact:
+build/validation/physical-benchmark-preparation-20261014/Benchmark-review.apk,
+with its SHA-256 and scope in preparation.json. The initial 1x build is retained.
+The physical-target decision is requested from the user because the connected
+phone may be in personal use; actual installation/input/capture waits for that
+answer. This is not a physical performance result.
+
+Before measurement, corrected misleading timing labels: Android's existing
+FrameMeasurements uses System.nanoTime around render/submission, not thread CPU.
+It now reports host_submission_wall and totalWallNs/maxWallNs/wallOver33ms.
+The offscreen Metal fixture similarly reports submissionWall* fields separately
+from GPU timestamps. Historical CPU-labelled fields from these two producers
+were elapsed wall times; core guest totalCpuUs diagnostics remain actual thread
+CPU readings and are unchanged. Existing counter/pacer/touch tests, Android
+source compilation and the validated API 23 source gate pass. A separately
+compiled iOS offscreen Metal fixture passes 366 measured frames with advancing
+rows and the corrected labels. The first Metal attempt rejected the wrong
+Android-target payload; it remains retained, as does a wrong-directory CLI
+benchmark build rejection. Neither is treated as a product-runtime failure.
+Evidence: build/validation/measurement-clock-20261014/result.json.
+
+The Android benchmark driver now waits for activity launch and checks that the
+benchmark owns input focus before capturing/interacting, preventing input into
+an unrelated foreground app. It refuses replacement of an existing benchmark
+package and removes only its owned test installation. Syntax checks pass.
+No extra DevTools UI was added. iOS 16 execution, physical presentation/startup/
+touch/memory/isolation acceptance, sustained default-profile deadlines, production
+endpoint/clean release and the missing original-proposal audit remain open.
+The full goal remains active and additional DevTools stays deferred for v0.0.1.
+
+## Executed iOS 16.0 acceptance and distinct-app resource stress (2026-10-14)
+
+The official 6.28-GB iOS 16.0 (20A360) download completed with exit zero and
+registered as available. An owned iPhone 14 Pro simulator booted that exact
+runtime. The real signed TSX local HTTPS test passes running-counter retention,
+background/resume, cold update pixels and cold rollback pixels with three
+payload transfers. Separately, the native package matrix passes all 26 cases
+(one accept, 25 reject), plus two runtime attacks with healthy retained state
+and no failed effects. Both XCTest suites report one pass and zero failures.
+Both owned simulators were deleted. Evidence:
+`build/ios-validation/installed-update-ios16-20261014` and
+`build/ios-validation/package-matrix-ios16-20261014`.
+
+Strengthened the iOS production resource-registry fixture with a second scenario
+using four distinct signed identities, preserving the original same-identity
+scenario. Six authenticated controllers run 32 rounds per scenario; all 16
+process slots fill, a seventeenth is refused, four slots per generation remain
+the limit, and delayed producer tokens keep their slots until released after
+retirement. Across 256 native generation retirements, old handles are denied and
+capacity recovers. Completed resources also reject another authenticated app's
+identity for read/release without changing the owner's bytes. XCTest checks the
+native receipt, including four identities, two scenarios and 256 retirements.
+The owned runner now selects this suite with PJM_RESOURCE_PROCESS=1 and removes
+its simulator afterward. A future run also retains public signed peer fixtures
+in peers.json; no private signing key is persisted.
+
+The strengthened test passes on iOS 16.0 with one passed XCTest, zero failures
+and owned-simulator cleanup. Evidence and independently checked native JSON
+attachment: `build/ios-validation/resource-process-ios16-multi-identity-20261014`.
+These are controlled producer tokens in the shipping registry, not 16 live
+HTTP/JPEG workers or physical memory acceptance. Exact iOS 16 update/package/
+controlled-resource paths are now proven; every native service on that runtime,
+physical performance, default-profile deadline stability, production release
+workflow and the original-proposal audit remain open. Additional DevTools
+remains deferred beyond v0.0.1. The full goal stays active.
+
+## Authenticated Android resource contention and first physical benchmark (2026-10-14)
+
+The Android resource stress fixture now authenticates four distinct signed
+packages with the shipping PackageVerifier/VerifiedPackage and native selector,
+instead of inventing owner identity strings. Eight owner threads contend for
+16 process resources over 64 rounds (1,024 admissions), with four resources per
+generation. Foreign authenticated identities and foreign registry handles cannot
+read or release a resource; rejected release leaves the owner's bytes unchanged.
+Delayed producer callbacks retain their permits across controlled retirement,
+then restore capacity. These are controlled registry generations, not eight
+running native guest containers or actual HTTP/media workers.
+
+The strengthened fixture passes on isolated official ARM64 Android API 23 and
+API 26 emulators. Native receipts report 499 and 430 delayed-producer checks,
+respectively. Both temporary AVDs were removed. API 23's four signatures were
+also independently verified and four tampered signatures rejected. The driver
+now checks native receipt counts and handles single- or double-quoted XML
+attributes. Evidence: `build/android-validation/resource-process-api23-authenticated-20261014`
+and `build/android-validation/resource-process-api26-authenticated-20261014`.
+
+The user explicitly selected the connected Pixel 8 Pro for the prepared benchmark.
+Its first run exposed a fixture bug: a hard-coded signed version 0.3.0 disagreed
+with compiled plan version 0.0.1. Native admission correctly rejected it before
+guest launch; the owned app was removed. Evidence remains in
+`build/android-validation/physical-benchmark-pixel8pro-20261014`.
+The exporter had only authenticated the envelope before writing a host project.
+It now reuses installed-payload plan admission before producing either platform's
+host. Tests verify signed version/identity/incompatible-presentation rejection
+before output is written; five focused export tests pass with 155 assertions.
+The first focused command lacked Bun on PATH and its two CLI tests failed for
+that setup reason; the corrected PATH run passed. Full regression passes with the pinned local upstream configured: evidence is
+`build/validation/export-plan-admission-20261014/full-check-local-upstream.log`.
+The first full attempt omitted that setting and timed out waiting for the CLI
+development session; its separate failed log is retained.
+
+The Android benchmark exporter and native input fixture derive version/viewport
+from the compiled plan. A corrected, verified and 16-KiB-aligned APK ran on the
+approved physical Pixel 8 Pro: six swipes advanced rows from item 1 to about 61,
+and the form opened. The script used that exact prepared APK, enforced benchmark
+focus before each input/capture, collected only benchmark screens/app diagnostics,
+and removed its owned app; a separate package query confirmed absence. Evidence:
+`build/android-validation/physical-benchmark-pixel8pro-20261014-corrected/result.json`.
+
+This first physical sample reveals remaining work. Scrolled rows visibly occlude
+the header, requiring clipping investigation. Android reports COLD activity total
+284 ms, which is not a first-present timestamp. Total app PSS is 126,247 KiB
+(123.3 MiB), including 85,760 KiB graphics. The 907 recorded host submissions
+average 3.03 ms, with max 138.18 ms, two over 33 ms, and 11 submission intervals
+over 33 ms. These are elapsed host submission times, not CPU time, display
+presentation, touch-to-present or sustained-scroll acceptance. No full physical
+performance acceptance is claimed. The phone test is complete and cleaned up;
+additional DevTools remains deferred and the full goal stays active.
+
+The native deterministic benchmark input check also passes after deriving its
+identity/version/density from the compiled plan: visible row maximum advances
+17 → 69, form navigation works and newsletter state remains unchanged. A separate
+CPU-rendered six-gesture diagnostic preserves the header/footer after scrolling,
+whereas the physical GLES screenshot occludes them. This narrows investigation
+to the GPU path but does not prove a root cause or identical-frame pixel parity.
+Evidence: `build/validation/scroll-clip-diagnostic-20261014` and
+`build/validation/physical-benchmark-corrected-20261014/native-input.log`.
