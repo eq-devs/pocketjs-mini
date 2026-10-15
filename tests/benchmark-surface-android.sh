@@ -14,7 +14,7 @@ temporary=$(mktemp -d /private/tmp/pjm-benchmark-device.XXXXXX)
 remote=/data/local/tmp/$(basename "$temporary")
 installed=0
 cleanup(){ if [ "$installed" = 1 ];then "$adb" -s "$serial" uninstall "$bundle" >/dev/null;fi;"$adb" -s "$serial" shell rm -rf "$remote";rm -rf "$temporary"; }
-trap cleanup EXIT
+trap 'original_status=$?; trap - EXIT; cleanup_status=0; cleanup || cleanup_status=$?; if [ "$original_status" -ne 0 ];then exit "$original_status";else exit "$cleanup_status";fi' EXIT
 mkdir -p "$evidence"
 if [ -n "${PJM_BENCHMARK_APK:-}" ];then
   test -f "$PJM_BENCHMARK_APK"
@@ -46,22 +46,31 @@ require_benchmark_focus
 "$adb" -s "$serial" shell screencap -p "$remote/screen.png"
 "$adb" -s "$serial" pull "$remote/screen.png" "$evidence/screen.png" >/dev/null
 test "$found" = 1
-read -r sx sy ex ey tx ty <<< "$(bun tests/benchmark-input-points.ts "$evidence/screen.xml")"
+if ! coordinates=$(bun tests/benchmark-input-points.ts "$evidence/screen.xml");then echo 'Cannot resolve authenticated benchmark input coordinates' >&2;exit 1;fi
+IFS=' ' read -r sx sy ex ey tx ty remainder <<< "$coordinates"
+for coordinate in "$sx" "$sy" "$ex" "$ey" "$tx" "$ty";do case "$coordinate" in ''|*[!0-9]*) echo 'Invalid benchmark input coordinate' >&2;exit 1;; esac;done
+test -z "$remainder"
+benchmark_input(){
+ require_benchmark_focus
+ local response
+ if ! response=$("$adb" -s "$serial" shell input "$@" 2>&1);then printf '%s\n' "$response" >&2;return 1;fi
+ if printf '%s\n' "$response" | rg -q '(^Error:|^Usage:|Exception)';then printf '%s\n' "$response" >&2;return 1;fi
+}
 swipes=${PJM_BENCHMARK_SWIPES:-6}
 case "$swipes" in 0|1|2|3|4|5|6) ;; *) echo 'Use 0 through 6 swipes' >&2;exit 1;; esac
-for ((swipe=0;swipe<swipes;swipe++));do require_benchmark_focus;"$adb" -s "$serial" shell input swipe "$sx" "$sy" "$ex" "$ey" 1000;done
+for ((swipe=0;swipe<swipes;swipe++));do require_benchmark_focus;benchmark_input swipe "$sx" "$sy" "$ex" "$ey" 1000;done
 require_benchmark_focus
 "$adb" -s "$serial" shell screencap -p "$remote/scroll.png"
 "$adb" -s "$serial" pull "$remote/scroll.png" "$evidence/scroll.png" >/dev/null
 require_benchmark_focus
-"$adb" -s "$serial" shell input tap "$tx" "$ty"
+benchmark_input tap "$tx" "$ty"
 sleep 1
 require_benchmark_focus
 "$adb" -s "$serial" shell screencap -p "$remote/form.png"
 "$adb" -s "$serial" pull "$remote/form.png" "$evidence/form.png" >/dev/null
 "$adb" -s "$serial" shell dumpsys meminfo "$bundle" > "$evidence/memory.log"
 require_benchmark_focus
-"$adb" -s "$serial" shell input keyevent 3
+benchmark_input keyevent 3
 for ((attempt=0;attempt<20;attempt++));do
   "$adb" -s "$serial" logcat -d --pid="$pid" -s PocketJS AndroidRuntime > "$evidence/runtime.log"
   if rg -q 'host_submission_wall' "$evidence/runtime.log";then break;fi

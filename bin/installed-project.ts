@@ -30,7 +30,7 @@ export function iosDistributionUrl(address:string){
   if(address.length>2048 || !authority || authority.includes('@') || /\s/.test(address) || url.protocol!=='https:' || url.username || url.password || url.search || url.hash || address.includes('?') || address.includes('#'))throw Error('Distribution endpoint must be HTTPS without credentials, query or fragment');
   return url.href;
 }
-export function writeInstalledProject(options:{directory:string;library:string;payload:string;envelope:string;publicKey:string;previousPublicKey?:string;bundle?:string;distributionUrl?:string}) {
+export function writeInstalledProject(options:{directory:string;library:string;payload:string;envelope:string;publicKey:string;previousPublicKey?:string;bundle?:string;distributionUrl?:string;architecture?:"arm64"|"x86_64"}) {
   const distribution=options.distributionUrl===undefined?undefined:iosDistributionUrl(options.distributionUrl);
   const {payload,key,manifest}=verifyInstalledInputs(options);
   const previous=previousPublisherKey(options.previousPublicKey,key);
@@ -43,6 +43,6 @@ export function writeInstalledProject(options:{directory:string;library:string;p
   writeFileSync(join(directory,"publisher.trust"),Buffer.from([1,previous?2:1]));
   if(previous)writeFileSync(join(directory,"publisher.previous.key"),previous);
   cpSync(resolve(options.library),join(directory,"libmini_core_ffi.a"));
-  writeNativeProject(directory,"","$(PROJECT_DIR)/libmini_core_ffi.a","",false,bundle,true,!!distribution,!!previous);
+  writeNativeProject(directory,"","$(PROJECT_DIR)/libmini_core_ffi.a","",false,bundle,true,!!distribution,!!previous,options.architecture);
   return {directory,bundle,appId:manifest.appId,version:manifest.version};
 }

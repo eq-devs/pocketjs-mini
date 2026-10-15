@@ -49,7 +49,7 @@
             #endif
             NSUInteger accepted=0;NSMutableArray *verdicts=[NSMutableArray new];
             for(NSDictionary *item in cases){BOOL valid=[item[@"valid"] boolValue];accepted+=valid;[verdicts addObject:@{@"name":item[@"name"],@"verdict":valid?@"accepted":@"rejected"}];}
-            NSDictionary *receipt=@{@"nativePackageDownloadActualTLS":@(actualTLS),@"nativePackageDownloadControlled":@YES,@"cases":@(cases.count),@"accepted":@(accepted),@"rejected":@(cases.count-accepted),@"verdicts":verdicts,@"runtimeAttacks":MiniRuntimeAttackResults?:@[]};
+            NSDictionary *receipt=@{@"nativePackageDownloadActualTLS":@(actualTLS),@"nativePackageDownloadControlled":@YES,@"cases":@(cases.count),@"accepted":@(accepted),@"rejected":@(cases.count-accepted),@"verdicts":verdicts,@"runtimeAttacks":MiniRuntimeAttackResults?:@[],@"floodRecovery":MiniFloodRecoveryResult?:@{}};
             NSData *receiptData=[NSJSONSerialization dataWithJSONObject:receipt options:NSJSONWritingSortedKeys error:nil];
             proof.text=[@"native-package-matrix PASS " stringByAppendingString:[[NSString alloc] initWithData:receiptData encoding:NSUTF8StringEncoding]];
             [NSFileManager.defaultManager removeItemAtPath:root error:nil];

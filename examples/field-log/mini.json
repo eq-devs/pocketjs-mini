@@ -1,0 +1,7 @@
+{
+  "name": "field-log",
+  "version": "0.0.1",
+  "pages": ["/", "/log", "/entry", "/lab"],
+  "permissions": ["location", "media", "clipboard.read"],
+  "domains": ["api.github.com", "example.com"]
+}

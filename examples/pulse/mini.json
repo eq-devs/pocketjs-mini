@@ -1,0 +1,8 @@
+{
+  "name": "pulse",
+  "title": "Pulse",
+  "version": "0.0.1",
+  "pages": ["/", "/cities", "/story", "/comment", "/currency"],
+  "permissions": ["location"],
+  "domains": ["api.open-meteo.com", "hn.algolia.com", "api.frankfurter.dev"]
+}

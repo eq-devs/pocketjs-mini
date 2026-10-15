@@ -21,7 +21,7 @@ mod es2;
 use core::ffi::c_void;
 use core::mem::size_of;
 use es2::Pipeline;
-use std::{vec, vec::Vec};
+use std::{collections::BTreeMap, vec, vec::Vec};
 
 use pocketjs_core::spec;
 use crate::gpu_texture::texture_rgba;
@@ -151,6 +151,9 @@ pub(crate) struct Renderer {
     vertex_buffer: GLuint,
     white: GLuint,
     images: Vec<Option<ImageTexture>>,
+    // At most one entry per admitted linear image; lookup is logarithmic in
+    // the bounded texture set and does not scan sparse source texture slots.
+    sample_grids: BTreeMap<GLuint, [f32; 2]>,
     fonts: Vec<Option<FontTexture>>,
     vertices: Vec<Vertex>,
     commands: Vec<Command>,
@@ -313,6 +316,7 @@ impl Renderer {
             vertex_buffer,
             white,
             images: Vec::new(),
+            sample_grids: BTreeMap::new(),
             fonts: Vec::new(),
             vertices: Vec::new(),
             commands: Vec::new(),
@@ -337,6 +341,7 @@ impl Renderer {
             }
         }
         self.images.clear();
+        self.sample_grids.clear();
         self.fonts.clear();
         self.vertices.clear();
         self.commands.clear();
@@ -469,6 +474,7 @@ impl Renderer {
                     });
             if !matches {
                 if let Some(old) = cached.take() {
+                    self.sample_grids.remove(&old.name);
                     glDeleteTextures(1, &old.name);
                 }
             }
@@ -483,16 +489,25 @@ impl Renderer {
                         continue;
                     }
                     if let Some(old) = self.images[slot].take() {
+                        self.sample_grids.remove(&old.name);
                         glDeleteTextures(1, &old.name);
                     }
                     self.images[slot] = match self.upload_image(view) {
-                        Some((name, white_uv)) => Some(ImageTexture {
-                            handle,
-                            revision,
-                            name,
-                            white_uv,
-                            dirty: false,
-                        }),
+                        Some((name, white_uv)) => {
+                            if view.linear && self.pipeline.quantizes_coordinates() {
+                                self.sample_grids.insert(
+                                    name,
+                                    [view.w as f32 * 256.0, view.h as f32 * 256.0],
+                                );
+                            }
+                            Some(ImageTexture {
+                                handle,
+                                revision,
+                                name,
+                                white_uv,
+                                dirty: false,
+                            })
+                        },
                         None => {
                             ok = false;
                             None
@@ -501,6 +516,7 @@ impl Renderer {
                 }
                 None => {
                     if let Some(old) = self.images[slot].take() {
+                        self.sample_grids.remove(&old.name);
                         glDeleteTextures(1, &old.name);
                     }
                 }
@@ -933,6 +949,9 @@ impl Renderer {
         for command in &self.commands {
             if command.texture != bound {
                 glBindTexture(GL_TEXTURE_2D, command.texture);
+                self.pipeline.set_sample_grid(
+                    self.sample_grids.get(&command.texture).copied().unwrap_or([0.0, 0.0]),
+                );
                 bound = command.texture;
             }
             let physical = Self::physical_clip(
@@ -1104,6 +1123,7 @@ mod tests {
             vertex_buffer: 0,
             white: 1,
             images,
+            sample_grids: BTreeMap::new(),
             fonts: Vec::new(),
             vertices: Vec::new(),
             commands: Vec::new(),

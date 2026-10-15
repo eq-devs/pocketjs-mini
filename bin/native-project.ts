@@ -3,7 +3,8 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 // Two Xcode targets: a plain UIKit app and its actual input/rotation UI tests.
-export function writeNativeProject(directory: string, upstream: string, library: string, url: string, test: boolean, bundle = "dev.pjm.host", installed = false, distribution = false, previousPublisher = false) {
+export function writeNativeProject(directory: string, upstream: string, library: string, url: string, test: boolean, bundle = "dev.pjm.host", installed = false, distribution = false, previousPublisher = false, architecture?: "arm64" | "x86_64") {
+  if(architecture!==undefined && !["arm64","x86_64"].includes(architecture))throw Error("Unsupported exported iOS architecture");
   mkdirSync(join(directory, "Mini.xcodeproj/xcshareddata/xcschemes"), { recursive: true });
   const q = (value: string) => JSON.stringify(value);
   const configuration = installed ? "Release" : "Debug";
@@ -72,7 +73,7 @@ export function writeNativeProject(directory: string, upstream: string, library:
   A020 = {isa = XCConfigurationList; buildConfigurations = (A060); defaultConfigurationIsVisible = 0; defaultConfigurationName = ${configuration}; };
   A021 = {isa = XCConfigurationList; buildConfigurations = (A061); defaultConfigurationIsVisible = 0; defaultConfigurationName = ${configuration}; };
   A022 = {isa = XCConfigurationList; buildConfigurations = (A062); defaultConfigurationIsVisible = 0; defaultConfigurationName = ${configuration}; };
-  A060 = {isa = XCBuildConfiguration; name = ${configuration}; buildSettings = {SDKROOT = iphoneos; IPHONEOS_DEPLOYMENT_TARGET = 16.0; CLANG_ENABLE_MODULES = YES; CLANG_ENABLE_OBJC_ARC = YES; CODE_SIGNING_ALLOWED = NO; ONLY_ACTIVE_ARCH = YES; GCC_OPTIMIZATION_LEVEL = 1; }; };
+  A060 = {isa = XCBuildConfiguration; name = ${configuration}; buildSettings = {SDKROOT = iphoneos; IPHONEOS_DEPLOYMENT_TARGET = 16.0; CLANG_ENABLE_MODULES = YES; CLANG_ENABLE_OBJC_ARC = YES; CODE_SIGNING_ALLOWED = NO; ONLY_ACTIVE_ARCH = YES; ${architecture ? `ARCHS = ${architecture};` : ""} GCC_OPTIMIZATION_LEVEL = 1; }; };
   A061 = {isa = XCBuildConfiguration; name = ${configuration}; buildSettings = {
    PRODUCT_BUNDLE_IDENTIFIER = ${q(bundle)}; PRODUCT_NAME = Mini; INFOPLIST_FILE = Info.plist; SWIFT_VERSION = 5.0; DEFINES_MODULE = YES; PRODUCT_MODULE_NAME = Mini;
    TARGETED_DEVICE_FAMILY = 1; HEADER_SEARCH_PATHS = ("$(PROJECT_DIR)");

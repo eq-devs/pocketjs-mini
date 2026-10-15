@@ -28,6 +28,7 @@ const GL_FRAGMENT_SHADER: GLenum = 0x8b30;
 const GL_COMPILE_STATUS: GLenum = 0x8b81;
 const GL_LINK_STATUS: GLenum = 0x8b82;
 const GL_TEXTURE0: GLenum = 0x84c0;
+const GL_HIGH_FLOAT: GLenum = 0x8df2;
 
 unsafe extern "C" {
     fn glActiveTexture(texture: GLenum);
@@ -48,6 +49,12 @@ unsafe extern "C" {
     fn glEnableVertexAttribArray(index: GLuint);
     fn glGetProgramiv(program: GLuint, parameter: GLenum, value: *mut GLint);
     fn glGetShaderiv(shader: GLuint, parameter: GLenum, value: *mut GLint);
+    fn glGetShaderPrecisionFormat(
+        shader: GLenum,
+        precision_type: GLenum,
+        range: *mut GLint,
+        precision: *mut GLint,
+    );
     fn glGetUniformLocation(program: GLuint, name: *const c_char) -> GLint;
     fn glLinkProgram(program: GLuint);
     fn glShaderSource(
@@ -97,6 +104,26 @@ void main() {
 }
 \0";
 
+// Stabilize interpolated coordinates on an eight-bit subtexel grid. Tiny
+// negative interpolation error at an exact texel center can otherwise select
+// the preceding filter interval and change glyph coverage by two byte levels.
+// Only full float fragment precision can represent this grid for bounded images.
+const QUANTIZED_FRAGMENT_SHADER: &[u8] = b"
+precision highp float;
+uniform sampler2D u_texture;
+uniform vec2 u_sample_grid;
+varying mediump vec2 v_uv;
+varying lowp vec4 v_color;
+void main() {
+    vec2 uv = v_uv;
+    if (u_sample_grid.x > 0.0) {
+        uv = floor(uv * u_sample_grid + vec2(0.5)) / u_sample_grid;
+    }
+    gl_FragColor = texture2D(u_texture, uv) * v_color;
+}
+\0";
+const UNIFORM_SAMPLE_GRID: &[u8] = b"u_sample_grid\0";
+
 const ATTR_POSITION: &[u8] = b"a_position\0";
 const ATTR_UV: &[u8] = b"a_uv\0";
 const ATTR_COLOR: &[u8] = b"a_color\0";
@@ -124,6 +151,7 @@ unsafe fn compile_shader(kind: GLenum, source: &[u8]) -> Option<GLuint> {
 pub(super) struct Pipeline {
     program: GLuint,
     viewport_uniform: GLint,
+    sample_grid_uniform: GLint,
 }
 
 impl Pipeline {
@@ -133,12 +161,23 @@ impl Pipeline {
         Self {
             program: 0,
             viewport_uniform: 0,
+            sample_grid_uniform: -1,
         }
     }
 
     pub(super) unsafe fn new() -> Option<Self> {
+        let mut range = [0; 2];
+        let mut precision = 0;
+        glGetShaderPrecisionFormat(
+            GL_FRAGMENT_SHADER,
+            GL_HIGH_FLOAT,
+            range.as_mut_ptr(),
+            &mut precision,
+        );
+        let quantized = precision >= 23;
         let vertex = compile_shader(GL_VERTEX_SHADER, VERTEX_SHADER)?;
-        let fragment = match compile_shader(GL_FRAGMENT_SHADER, FRAGMENT_SHADER) {
+        let fragment_source = if quantized { QUANTIZED_FRAGMENT_SHADER } else { FRAGMENT_SHADER };
+        let fragment = match compile_shader(GL_FRAGMENT_SHADER, fragment_source) {
             Some(shader) => shader,
             None => {
                 glDeleteShader(vertex);
@@ -175,6 +214,16 @@ impl Pipeline {
             glDeleteProgram(program);
             return None;
         }
+        let sample_grid_uniform = if quantized {
+            let location = glGetUniformLocation(program, UNIFORM_SAMPLE_GRID.as_ptr() as *const c_char);
+            if location < 0 {
+                glDeleteProgram(program);
+                return None;
+            }
+            location
+        } else {
+            -1
+        };
         glUniform1i(texture_uniform, 0);
         glActiveTexture(GL_TEXTURE0);
         if glGetError() != GL_NO_ERROR {
@@ -184,6 +233,7 @@ impl Pipeline {
         Some(Self {
             program,
             viewport_uniform,
+            sample_grid_uniform,
         })
     }
 
@@ -197,6 +247,16 @@ impl Pipeline {
         glUseProgram(self.program);
         glUniform2f(self.viewport_uniform, logical_width, logical_height);
         glActiveTexture(GL_TEXTURE0);
+    }
+
+    pub(super) fn quantizes_coordinates(&self) -> bool {
+        self.sample_grid_uniform >= 0
+    }
+
+    pub(super) unsafe fn set_sample_grid(&self, grid: [f32; 2]) {
+        if self.sample_grid_uniform >= 0 {
+            glUniform2f(self.sample_grid_uniform, grid[0], grid[1]);
+        }
     }
 
     /// Straight alpha for color, accumulate-to-opaque for the destination.

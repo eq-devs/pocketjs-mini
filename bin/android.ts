@@ -1,4 +1,5 @@
 import {copyAndroidMedia} from './android-media.ts';
+import {prepareNativeEngineBuild} from './native-engine-build.ts';
 import {auditAndroidImports} from './android-elf.ts';
 import {copyAndroidLocation} from './android-location.ts';
 import {requireAndroidLaunch} from "./android-launch.ts";
@@ -80,7 +81,8 @@ export async function launchAndroid(options: { root: string; upstream: string; d
   env.BINDGEN_EXTRA_CLANG_ARGS_aarch64_linux_android=`--target=aarch64-linux-android23 --sysroot=${join(ndk,"../sysroot")}`;
   if(process.platform==="darwin")env.LIBCLANG_PATH="/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib";
   env.RUSTFLAGS=[process.env.RUSTFLAGS,"-C link-arg=-Wl,-z,max-page-size=16384"].filter(Boolean).join(" ");
-  await run(["rustup","run","stable","cargo","build","--release","--locked","--manifest-path",join(options.root,"core-ffi/Cargo.toml"),"--target","aarch64-linux-android","--target-dir",rustBuild]);
+  const engine=await prepareNativeEngineBuild(options.root,args=>run(args,undefined,true),options.upstream);Object.assign(env,engine.env);
+  await run(["rustup","run","stable","cargo","build","--release","--locked","--manifest-path",engine.manifest,"--target","aarch64-linux-android","--target-dir",rustBuild]);
   const objects = join(build, "objects"), staging = join(build, "staging"), classes = join(build, "classes"), dex = join(build, "dex");
   for (const path of [objects, join(staging, "lib/arm64-v8a"), classes, dex]) mkdirSync(path, { recursive: true });
   const includes = ["engine/quickjs-c", "engine/ui-cabi/include", "contracts/generated", "hosts/shared", "hosts/blackberry-classic"].map(path => `-I${join(options.upstream, path)}`);

@@ -3,6 +3,20 @@ import org.json.*;
 import java.nio.file.*;
 import android.util.Base64;
 public final class NativePackageLoadTest {
+  private static void floodRecovery(VerifiedPackage healthy,JSONObject item,byte[] key,java.io.File root)throws Exception{
+    JSONObject entry=item.getJSONObject("floodRecovery");VerifiedPackage flood=new VerifiedPackage(Base64.decode(entry.getString("payload"),Base64.DEFAULT),entry.getJSONObject("manifest").toString().getBytes("UTF-8"),key);
+    try(VerifiedContainer pool=new VerifiedContainer(root,new VerifiedContainer.Listener(){public void cleanup(VerifiedPackage p,long g,byte[] r){}public void retired(VerifiedPackage p,long g){}})){
+      byte[] launch="{}".getBytes("UTF-8");long healthyGeneration=pool.activate(healthy,launch);pool.frame(new int[0],new int[0],new byte[0]);pool.effects();long floodGeneration=pool.activate(flood,launch);
+      for(int turn=0;turn<65;turn++){
+        pool.frame(new int[0],new int[0],new byte[0]);String effects=new String(pool.effects(),"UTF-8").trim();
+        if(turn<64?!effects.isEmpty():!effects.equals("flood-recovery-pass:64:2048:14336"))throw new AssertionError("Flood response or queue recovery failed at turn "+turn+": "+effects);
+      }
+      if(!"63:31".equals(new AppStorage(root,flood.identity).dispatch("storage.get.v1",new JSONObject().put("key","flood-live-proof"))))throw new AssertionError("Flood persisted value mismatch");
+      if(pool.activate(healthy,launch)!=healthyGeneration)throw new AssertionError("Healthy generation changed after flood");pool.frame(new int[0],new int[0],new byte[0]);if(!new String(pool.effects(),"UTF-8").contains("verified:1:2"))throw new AssertionError("Healthy state lost after flood");
+      if(pool.activate(flood,launch)!=floodGeneration)throw new AssertionError("Flood generation changed after suspension");pool.frame(new int[0],new int[0],new byte[0]);if(!new String(pool.effects(),"UTF-8").trim().equals("flood-recovery-retained"))throw new AssertionError("Flood state lost after suspension");
+    }
+    System.out.println("SERVICE_FLOOD_RECOVERY passed rounds=64 completed=2048 busy=14336 retained=2");
+  }
   private static void runtimeAttacks(VerifiedPackage healthy,JSONObject item,byte[] key,java.io.File root)throws Exception{
     JSONArray attacks=item.getJSONArray("runtimeAttacks");
     for(int index=0;index<attacks.length();index++){
@@ -14,6 +28,7 @@ public final class NativePackageLoadTest {
         if(failure==null||!failure.toLowerCase(java.util.Locale.ROOT).contains(entry.getString("expected")))throw new AssertionError("Wrong attack failure "+entry.getString("name")+": "+failure);
         long elapsed=android.os.SystemClock.elapsedRealtime()-started;if(elapsed>5000)throw new AssertionError("Unbounded native attack turn");
         boolean deniedEffects=false;try{pool.effects();}catch(RuntimeException expected){deniedEffects=true;}if(!deniedEffects)throw new AssertionError("Failed guest effects remained accessible");
+        if(new AppStorage(root,attack.identity).dispatch("storage.get.v1",new JSONObject().put("key","attack-must-not-dispatch"))!=JSONObject.NULL)throw new AssertionError("Failed guest storage request was dispatched");
         boolean terminal=false;try{pool.frame(new int[0],new int[0],new byte[0]);}catch(RuntimeException expected){terminal=true;}if(!terminal)throw new AssertionError("Failed attack remained scheduled");
         if(pool.activate(healthy,launch)!=generation)throw new AssertionError("Healthy retained generation changed");
         VerifiedContainer.Frame frame=pool.frame(new int[0],new int[0],new byte[0]);String effects=new String(pool.effects(),"UTF-8");
@@ -33,6 +48,7 @@ public final class NativePackageLoadTest {
       if((packageValue!=null)!=item.getBoolean("valid"))throw new AssertionError("Admission mismatch case "+index);
       if(packageValue!=null){
         if(item.has("runtimeAttacks"))runtimeAttacks(packageValue,item,key,new java.io.File(args[0]).getParentFile());
+        if(item.has("floodRecovery"))floodRecovery(packageValue,item,key,new java.io.File(args[0]).getParentFile());
         if(!gpuChecked){NativeGpuCloseTest.verify(packageValue,new java.io.File(args[0]).getParentFile());gpuChecked=true;}
         if(!clipboardChecked){NativeClipboardTest.verify(packageValue);clipboardChecked=true;}
         if(!locationChecked&&item.has("locationCase")){JSONObject locationCase=item.getJSONObject("locationCase");VerifiedPackage locationValue=new VerifiedPackage(Base64.decode(locationCase.getString("payload"),Base64.DEFAULT),locationCase.getJSONObject("manifest").toString().getBytes("UTF-8"),key);NativeLocationTest.verify(locationValue);locationChecked=true;}

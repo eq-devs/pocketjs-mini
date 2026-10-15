@@ -126,14 +126,36 @@ const peers=[1,2,3].map(index=>{
 const runtimeAttacks=[
  {name:'infinite-frame-loop',expected:'interrupted',source:"globalThis.frame=()=>{ui.svcSend('attack-must-not-dispatch');while(true){}}"},
  {name:'heap-limit',expected:'out of memory',source:"globalThis.frame=()=>{ui.svcSend('attack-must-not-dispatch');globalThis.attackBuffer=new ArrayBuffer(1073741824)}"},
+ {name:'service-mailbox-flood',expected:'flood-bounded accepted=32 denied=224',source:"globalThis.frame=()=>{let accepted=0,denied=0;for(let i=0;i<256;i++){try{ui.svcSend(JSON.stringify({v:1,id:i+1,kind:'storage.set.v1',args:{key:'attack-must-not-dispatch',value:i}}));accepted++}catch(error){if(error.code!=='BUSY')throw error;denied++}}throw Error('flood-bounded accepted='+accepted+' denied='+denied)}"},
 ].map(attack=>{
- const appId=metadata.appId+'.'+(attack.name==='heap-limit'?'heapAttack':'loopAttack'),decoded=decodePocketPackage(payload),plan={...basePlan,app:{...basePlan.app,id:appId}};delete plan.planHash;
+ const appId=metadata.appId+'.'+({'heap-limit':'heapAttack','infinite-frame-loop':'loopAttack','service-mailbox-flood':'floodAttack'}[attack.name]),decoded=decodePocketPackage(payload),plan={...basePlan,app:{...basePlan.app,id:appId}};delete plan.planHash;
  decoded.variants[0].sections.find(section=>section.kind===1)!.bytes=encodeIdentity({output:'attack',id:appId,title:attack.name});
  decoded.variants[0].sections.find(section=>section.kind===2)!.bytes=Buffer.from(JSON.stringify(hashPlan(plan)));
  decoded.variants[0].sections.find(section=>section.kind===3)!.bytes=Buffer.from(attack.source+'\0');
  const bytes=Buffer.from(encodePocketPackage(decoded));return {name:attack.name,expected:attack.expected,payload:bytes.toString('base64'),manifest:signPackage(bytes,{...metadata,appId},keys.privateKey)};
 });
 const rejectedNames=['malformed-plan-hash','wrong-plan-hash','missing-primary-screen','unsupported-pointer','unsupported-buttons','invalid-analog-type','screen-viewport-mismatch','unsupported-feature','invalid-feature-type','unsupported-companion','unsupported-presentation','plan-version-mismatch','physical-viewport-mismatch','invalid-density-type','duplicate-plan-key','escaped-duplicate-plan-key','plan-bom'];
+// Keep the guest alive after overflow: every admitted storage request must
+// complete on the next turn, and each fresh turn must recover all 32 slots.
+const recoverySource=`let round=0,done=false;
+globalThis.frame=()=>{
+ if(done){ui.svcSend('flood-recovery-retained');return}
+ const incoming=ui.svcPoll();
+ if(round>0){const replies=(incoming||'').trim().split('\\n').map(line=>JSON.parse(line));const ids=new Set;
+  if(replies.length!==32)throw Error('flood reply count');
+  for(const reply of replies){if(reply.v!==1||reply.ok!==true||reply.id<(round-1)*256+1||reply.id>(round-1)*256+32||ids.has(reply.id))throw Error('flood reply ownership');ids.add(reply.id)}
+ }else if(incoming)throw Error('unexpected first-turn reply');
+ if(round===64){done=true;ui.svcSend('flood-recovery-pass:64:2048:14336');return}
+ let accepted=0,denied=0;
+ for(let i=0;i<256;i++){try{ui.svcSend(JSON.stringify({v:1,id:round*256+i+1,kind:'storage.set.v1',args:{key:'flood-live-proof',value:round+':'+i}}));accepted++}catch(error){if(error.code!=='BUSY')throw error;denied++}}
+ if(accepted!==32||denied!==224)throw Error('flood capacity changed');round++;
+};`;
+const recoveryId=metadata.appId+'.floodRecovery',recoveryDecoded=decodePocketPackage(payload),recoveryPlan={...basePlan,app:{...basePlan.app,id:recoveryId}};delete recoveryPlan.planHash;
+recoveryDecoded.variants[0].sections.find(section=>section.kind===1)!.bytes=encodeIdentity({output:'recovery',id:recoveryId,title:'Service flood recovery'});
+recoveryDecoded.variants[0].sections.find(section=>section.kind===2)!.bytes=Buffer.from(JSON.stringify(hashPlan(recoveryPlan)));
+recoveryDecoded.variants[0].sections.find(section=>section.kind===3)!.bytes=Buffer.from(recoverySource+'\0');
+const recoveryBytes=Buffer.from(encodePocketPackage(recoveryDecoded));
+const floodRecovery={payload:recoveryBytes.toString('base64'),manifest:signPackage(recoveryBytes,{...metadata,appId:recoveryId},keys.privateKey)};
 if(rejectedNames.length!==rejectedPlans.length)throw Error('Package case labels out of sync');
 const wrongKey=Buffer.from(key,'base64');wrongKey[0]^=1;
 const wrongSignature=Buffer.from(valid.manifest.signature,'base64');wrongSignature[0]^=1;
@@ -148,4 +170,4 @@ const attacks=[
  {...valid,name:'wrong-signed-target',manifest:signPackage(payload,{...metadata,targets:[target==='pjm-ios'?'pjm-android':'pjm-ios']},keys.privateKey),valid:false},
  {...valid,name:'signed-truncated-container',payload:truncated.toString('base64'),manifest:signPackage(truncated,metadata,keys.privateKey),valid:false},
 ];
-writeFileSync(process.argv[2],JSON.stringify([...realCases.map((item,index)=>({...item,name:'real-package-'+index})),{...valid,name:'valid-retained-execution',update,rotation,peers,runtimeAttacks},...rejectedPlans.map((item,index)=>({...item,name:rejectedNames[index]})),...attacks]));
+writeFileSync(process.argv[2],JSON.stringify([...realCases.map((item,index)=>({...item,name:'real-package-'+index})),{...valid,name:'valid-retained-execution',update,rotation,peers,runtimeAttacks,floodRecovery},...rejectedPlans.map((item,index)=>({...item,name:rejectedNames[index]})),...attacks]));

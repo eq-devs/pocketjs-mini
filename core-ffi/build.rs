@@ -1,7 +1,10 @@
 use std::{path::PathBuf, process::Command};
 fn main() {
-    let root = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap())
-        .join("../examples/hello/.pjm/pocketjs");
+    println!("cargo:rerun-if-env-changed=PJM_UPSTREAM_ROOT");
+    let root = std::env::var_os("PJM_UPSTREAM_ROOT").map(PathBuf::from).unwrap_or_else(|| {
+        PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap())
+            .join("../examples/hello/.pjm/pocketjs")
+    });
     let git = |args: &[&str]| {
         Command::new("git")
             .arg("-C")

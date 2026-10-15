@@ -1,3 +1,4 @@
+import {prepareNativeEngineBuild} from './native-engine-build.ts';
 import {existsSync,lstatSync,mkdirSync,rmSync} from "node:fs";
 import {resolve,join,dirname} from "node:path";
 import {fileURLToPath} from "node:url";
@@ -16,12 +17,14 @@ async function main(){
   const bundle=flags.get("--bundle")??"dev.pjm.installed";if(!/^[a-zA-Z][a-zA-Z0-9-]*(?:\.[a-zA-Z][a-zA-Z0-9-]*)+$/.test(bundle))throw new Error("Invalid host bundle identity");
   if(process.platform!=="darwin")throw new Error("Native iOS export requires macOS and Xcode");
   const target=mode==="device"?"aarch64-apple-ios":process.arch==="arm64"?"aarch64-apple-ios-sim":"x86_64-apple-ios";
-  async function run(command:string[],capture=false){const child=Bun.spawn(command,{stdout:capture?"pipe":"inherit",stderr:"inherit",env:{...process.env,IPHONEOS_DEPLOYMENT_TARGET:"16.0"}});const [status,output]=await Promise.all([child.exited,capture?new Response(child.stdout).text():Promise.resolve("")]);if(status!==0)throw new Error(`${command[0]} failed (${status})`);return output;}
+  const env={...process.env,IPHONEOS_DEPLOYMENT_TARGET:"16.0"};
+  async function run(command:string[],capture=false){const child=Bun.spawn(command,{stdout:capture?"pipe":"inherit",stderr:"inherit",env});const [status,output]=await Promise.all([child.exited,capture?new Response(child.stdout).text():Promise.resolve("")]);if(status!==0)throw new Error(`${command[0]} failed (${status})`);return output;}
   const installed=await run(["rustup","target","list","--installed","--toolchain","stable"],true);
   if(!installed.trim().split("\n").includes(target))await run(["rustup","target","add","--toolchain","stable",target]);
-  await run(["rustup","run","stable","cargo","build","--release","--locked","--manifest-path",join(root,"core-ffi/Cargo.toml"),"--target",target]);
+  const engine=await prepareNativeEngineBuild(root,args=>run(args,true));Object.assign(env,engine.env);
+  await run(["rustup","run","stable","cargo","build","--release","--locked","--manifest-path",engine.manifest,"--target",target,"--target-dir",engine.targetDirectory]);
   mkdirSync(dirname(directory),{recursive:true});mkdirSync(directory,{recursive:false});let complete=false;
-  try{const result=writeInstalledProject({...inputs,directory,library:join(root,"core-ffi/target",target,"release/libmini_core_ffi.a"),bundle,distributionUrl});complete=true;console.log(`Exported ${result.appId} ${result.version}: ${join(result.directory,"Mini.xcodeproj")} (${mode})`);}
+  try{const result=writeInstalledProject({...inputs,directory,library:join(engine.targetDirectory,target,"release/libmini_core_ffi.a"),bundle,distributionUrl,architecture:target.startsWith("aarch64-")?"arm64":"x86_64"});complete=true;console.log(`Exported ${result.appId} ${result.version}: ${join(result.directory,"Mini.xcodeproj")} (${mode})`);}
   finally{if(!complete && existsSync(directory))rmSync(directory,{recursive:true,force:true});}
 }
 main().catch(error=>{console.error(`pjm: ${error.message}`);process.exitCode=1;});

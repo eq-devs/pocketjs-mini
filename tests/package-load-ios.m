@@ -8,6 +8,24 @@
 #include <unistd.h>
 #include <assert.h>
 static NSMutableArray *MiniRuntimeAttackResults;
+static NSDictionary *MiniFloodRecoveryResult;
+static void FloodRecovery(MiniVerifiedPackage *healthy,NSDictionary *item,NSData *key,NSString *root){
+    NSDictionary *entry=item[@"floodRecovery"];NSError *error=nil;
+    MiniVerifiedPackage *flood=[[MiniVerifiedPackage alloc] initWithPayload:[[NSData alloc] initWithBase64EncodedString:entry[@"payload"] options:0] envelope:[NSJSONSerialization dataWithJSONObject:entry[@"manifest"] options:0 error:&error] trustedKey:key error:&error];assert(flood);
+    MiniVerifiedContainer *pool=[[MiniVerifiedContainer alloc] initWithStorageRoot:root];NSData *launch=[@"{}" dataUsingEncoding:NSUTF8StringEncoding];assert([pool activatePackage:healthy launchData:launch error:&error]);uint64_t healthyGeneration=pool.activeGeneration;
+    MpInput input={0};input.size=sizeof(input);MpFrame frame={0};MpDamage damage={0};damage.size=sizeof(damage);NSArray<NSData *> *effects=nil;
+    assert([pool advanceInput:&input frame:&frame damage:&damage effects:&effects error:&error]);assert([pool activatePackage:flood launchData:launch error:&error]);uint64_t floodGeneration=pool.activeGeneration;
+    for(NSUInteger turn=0;turn<65;turn++){
+        damage.size=sizeof(damage);assert([pool advanceInput:&input frame:&frame damage:&damage effects:&effects error:&error]);
+        if(turn<64)assert(effects.count==0);
+        else assert(effects.count==1 && [[[NSString alloc] initWithData:effects.firstObject encoding:NSUTF8StringEncoding] isEqual:@"flood-recovery-pass:64:2048:14336"]);
+    }
+    MiniAppStorage *storage=[[MiniAppStorage alloc] initWithRoot:root appId:flood.metadata[@"appId"] error:&error];assert([[storage dispatch:@"storage.get.v1" arguments:@{@"key":@"flood-live-proof"} error:&error] isEqual:@"63:31"]);
+    assert([pool activatePackage:healthy launchData:launch error:&error] && pool.activeGeneration==healthyGeneration);damage.size=sizeof(damage);assert([pool advanceInput:&input frame:&frame damage:&damage effects:&effects error:&error]);assert([[[NSString alloc] initWithData:effects.firstObject encoding:NSUTF8StringEncoding] containsString:@"verified:1:2"]);
+    assert([pool activatePackage:flood launchData:launch error:&error] && pool.activeGeneration==floodGeneration);damage.size=sizeof(damage);assert([pool advanceInput:&input frame:&frame damage:&damage effects:&effects error:&error]);assert(effects.count==1 && [[[NSString alloc] initWithData:effects.firstObject encoding:NSUTF8StringEncoding] isEqual:@"flood-recovery-retained"]);
+    [pool shutdown];MiniFloodRecoveryResult=@{@"rounds":@64,@"attempts":@16384,@"completedWritesAndReplies":@2048,@"busyDenials":@14336,@"healthyGenerationRetained":@YES,@"floodGenerationRetained":@YES,@"persistedValueVerified":@YES};
+    NSLog(@"SERVICE_FLOOD_RECOVERY passed rounds=64 completed=2048 busy=14336 retained=2");
+}
 static void RuntimeAttacks(MiniVerifiedPackage *healthy,NSDictionary *item,NSData *key,NSString *root){
     for(NSDictionary *entry in item[@"runtimeAttacks"]){
         NSError *error=nil;NSData *payload=[[NSData alloc] initWithBase64EncodedString:entry[@"payload"] options:0];NSData *envelope=[NSJSONSerialization dataWithJSONObject:entry[@"manifest"] options:0 error:&error];
@@ -19,6 +37,8 @@ static void RuntimeAttacks(MiniVerifiedPackage *healthy,NSDictionary *item,NSDat
         assert(![pool advanceInput:&input frame:&frame damage:&damage effects:&effects error:&error] && error);
         NSString *failure=error.localizedDescription;assert([failure.lowercaseString containsString:entry[@"expected"]]);double elapsed=NSProcessInfo.processInfo.systemUptime-started;assert(elapsed<5);
         uint8_t discarded[128];assert(effects.count==0 && mp_pool_svc_take(pool.pool,discarded,sizeof(discarded))<0);
+        MiniAppStorage *storage=[[MiniAppStorage alloc] initWithRoot:root appId:attack.metadata[@"appId"] error:&error];assert(storage);
+        assert([storage dispatch:@"storage.get.v1" arguments:@{@"key":@"attack-must-not-dispatch"} error:&error]==NSNull.null);
         error=nil;damage.size=sizeof(damage);assert(![pool advanceInput:&input frame:&frame damage:&damage effects:&effects error:&error] && error);
         error=nil;assert([pool activatePackage:healthy launchData:launch error:&error] && pool.activeGeneration==generation);damage.size=sizeof(damage);
         assert([pool advanceInput:&input frame:&frame damage:&damage effects:&effects error:&error] && frame.width==64 && frame.height==64);
@@ -45,6 +65,7 @@ int main(int argc,char **argv){@autoreleasepool{
             assert([NSFileManager.defaultManager contentsOfDirectoryAtPath:rejectedRoot error:nil].count==0);continue;
         }
         if(item[@"runtimeAttacks"])RuntimeAttacks(package,item,key,[@(argv[1]) stringByDeletingLastPathComponent]);
+        if(item[@"floodRecovery"])FloodRecovery(package,item,key,[@(argv[1]) stringByDeletingLastPathComponent]);
         if([package.metadata[@"appId"] isEqual:@"dev.pjm.fixture"]){
             assert([package authorizeURL:@"https://example.com/path" error:&error]);
             assert([package authorizeURL:@"https://EXAMPLE.com:443/path" error:&error]);

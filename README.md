@@ -92,6 +92,9 @@ Physical Android acceptance and performance budgets remain pending.
 `doctor`, `create`, `check`, `run`, `build`, and `clean` are public commands. `mp` is an alias for
 `pjm`. Run `pjm doctor --device android` or `pjm doctor --device ios` to inspect
 the selected toolchain and connections. Interactive compilation is automatic.
+Android diagnostics check build-tools 36.0.0's `aapt2`, `d8`, `zipalign` and
+`apksigner`, plus the required NDK compiler/archive tool and JDK helpers. A
+partial SDK installation is reported with the package to install.
 Tap the example to increment
 its counter. Save `app/main.tsx` to rebuild/reload. Errors appear over the last
 running application; a valid edit recovers. Ctrl+C stops the session and closes
@@ -118,6 +121,12 @@ First run downloads the pinned upstream, installs its Bun dependencies, adds a
 missing stable Rust simulator target, builds PocketJS, and generates a disposable
 UIKit Xcode project. Subsequent runs reuse native build caches. You never edit
 that generated native project to develop the TSX app.
+
+Native builds resolve the active project's verified engine checkout. Standalone
+exports keep a pinned source cache in the SDK's `.pjm/pocketjs`; native source
+snapshots are cached in the SDK's `.pjm/native-core`. SDK source edits invalidate
+those snapshots automatically. A modified cached snapshot produces a diagnostic
+with the cache directory to remove before retrying.
 
 ## Phone layout
 
@@ -457,6 +466,23 @@ JNI: signed guest execution, retained state/completions, owner checks, isolated
 instances, LRU/pressure eviction, cleanup ordering and callback failure handling.
 Automatic per-app storage dispatch and cleanup writes are covered too.
 
+The native package suites also include a signed service-flood guest: 256 storage
+requests hit the 32-record mailbox cap, and a deliberately failed turn must
+discard all queued writes while preserving a retained healthy guest. Run
+`PJM_MINIMUM_PACKAGE_MATRIX=1 bun tests/minimum-os-owned-android.ts 26` for the
+Android suite in a new isolated emulator, or
+`bun tests/package-matrix-owned-ios.ts` for an owned iOS simulator. The three
+runtime attacks (loop, heap limit and service flood) complement the 26-case
+package matrix; this is bounded runtime evidence rather than sustained or
+physical-device flood acceptance.
+
+The same suites include 64 rounds in a signed guest that catches `BUSY` and
+keeps running. Each round recovers all 32 mailbox slots and receives the previous
+round's native storage replies. They verify 2,048 completions, 14,336 denials,
+the persisted final value, and both guests' retained state after switching.
+These are explicit CPU/container turns, not display-cadence or long-duration
+performance measurements.
+
 `bash tests/package-surface-android.sh <android-serial>` builds a temporary
 signed-only Activity with bundled authenticated bytes, then checks GLES color
 presentation, touch delivery, retained background/resume and a fresh launch
@@ -549,6 +575,33 @@ contains exactly `{appId, version, sha256, url}` matching the upload, with a HTT
 release URL. Receipts are limited to 16 KiB. The client rejects mismatched receipts.
 No production distribution service is configured in this repository; production remote
 publishing/download endpoints and a final clean-environment release still need acceptance.
+
+Run `bun tests/release-fresh-cache.ts` for an opt-in release workflow check from
+a newly created project with no compiler cache. It downloads the pinned compiler
+and dependencies, checks and signs both platform packages, validates public CLI
+publication dry runs and wrong-target rejection, and checks source-preserving
+cleanup. It retains logs, public keys and signed packages under
+`build/validation/release-fresh-cache-*`; its temporary project and private signing
+key are removed. This uses the installed toolchain, does not export native hosts,
+does not upload and does not use devices, so it is one part of clean-environment
+release acceptance.
+
+On macOS, set `PJM_RELEASE_WORKFLOW_INPUT` to a passing fresh-cache workflow's
+evidence directory and run `bun tests/release-native-export.ts` to check the
+public native export commands and build their generated projects. This requires
+the documented Rust targets, Xcode, Android SDK/NDK and JDK. It builds an unsigned
+Android APK and an iOS simulator app, checks exact embedded signed resources and
+Android library alignment, and retains projects, outputs and logs under
+`build/validation/release-native-export-*`. It does not launch apps or certify
+physical-device behavior, iOS distribution signing or a clean machine.
+
+With Bun 1.3.11, `bun tests/fresh-native-project-ios.ts` checks public create/run
+in native acceptance mode from a relocated SDK and a fresh `fresh-counter`
+project. It creates its own iOS 26.4 simulator, runs the six shipped input,
+reload, service, storage and lifecycle UI tests, and retains logs/screenshots
+under `build/validation/fresh-native-project-ios-*`. It removes its temporary
+SDK, project and simulator and never selects a physical phone. Installed Xcode
+and Rust tools are prerequisites.
 
 `container/distribution.ts` now provides a host-owned reference HTTPS downloader.
 It bounds streaming and concurrency, rejects redirects, and stages authenticated

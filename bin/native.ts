@@ -3,15 +3,17 @@ import { resolve, join } from "node:path";
 import { tmpdir } from "node:os";
 import { writeNativeProject } from "./native-project.ts";
 import { type Phone } from "./devices.ts";
+import {prepareNativeEngineBuild} from './native-engine-build.ts';
 
 type Child = ReturnType<typeof Bun.spawn>;
 interface Options { root: string; upstream: string; device: Phone; url: string;
   cleanup: (callback: () => Promise<void>) => void;
   stopping: () => boolean; child: (child: Child | undefined) => void; stopped: (status?: number) => void; }
 export async function launchNative(options: Options) {
+  const nativeEnv={...process.env,IPHONEOS_DEPLOYMENT_TARGET:"16.0"};
   async function run(args: string[], capture = false, timeout = 600000) {
     if (options.stopping()) throw new Error("Session stopped");
-    const child = Bun.spawn(args, { stdout: capture ? "pipe" : "inherit", stderr: capture ? "pipe" : "inherit", detached: true, env: { ...process.env, IPHONEOS_DEPLOYMENT_TARGET: "16.0" } });
+    const child = Bun.spawn(args, { stdout: capture ? "pipe" : "inherit", stderr: capture ? "pipe" : "inherit", detached: true, env: nativeEnv });
     options.child(child);
     let timedOut = false;
     const timer = setTimeout(() => { timedOut = true; try { process.kill(-child.pid, "SIGTERM"); } catch { child.kill(); } }, timeout);
@@ -46,12 +48,13 @@ export async function launchNative(options: Options) {
   const target = physical ? "aarch64-apple-ios" : arch === "aarch64" ? "aarch64-apple-ios-sim" : "x86_64-apple-ios";
   const installed = await run(["rustup", "target", "list", "--installed", "--toolchain", "stable"], true);
   if (!installed.split("\n").includes(target)) await run(["rustup", "target", "add", "--toolchain", "stable", target]);
-  await run(["rustup", "run", "stable", "cargo", "build", "--release", "--locked", "--manifest-path", join(options.root, "core-ffi/Cargo.toml"), "--target", target]);
+  const engine=await prepareNativeEngineBuild(options.root,args=>run(args,true),options.upstream);Object.assign(nativeEnv,engine.env);
+  await run(["rustup", "run", "stable", "cargo", "build", "--release", "--locked", "--manifest-path", engine.manifest, "--target", target,"--target-dir",engine.targetDirectory]);
   const directory = resolve(".pjm/native");
   mkdirSync(directory, { recursive: true });
   cpSync(join(options.root, "host/ios"), directory, { recursive: true });
   cpSync(join(options.root, "core-ffi/include/mini_core.h"), join(directory, "mini_core.h"));
-  const library = join(options.root, "core-ffi/target", target, "release/libmini_core_ffi.a");
+  const library = join(engine.targetDirectory, target, "release/libmini_core_ffi.a");
   writeNativeProject(directory, options.upstream, library, options.url, process.env.PJM_NATIVE_TEST === "1", bundle);
   if (!physical) {
     if (device.state !== "Booted") await run(["xcrun", "simctl", "boot", device.udid], true, 30000);

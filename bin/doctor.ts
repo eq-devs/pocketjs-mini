@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { statSync } from "node:fs";
 import { join } from "node:path";
 import { androidSdk, parseAndroidDevices } from "./android.ts";
 
@@ -31,13 +31,16 @@ if (platform === "ios") {
   checks.push(probe("JDK", [join(java, "bin/javac"), "-version"], "Install JDK 17 and set JAVA_HOME"));
   const files: Array<[string, string, string]> = [
     ["Android API 34", "platforms/android-34/android.jar", "platforms;android-34"],
-    ["Android build-tools 35.0.0", "build-tools/35.0.0/aapt2", "build-tools;35.0.0"],
+    ...["aapt2","d8","zipalign","apksigner"].map(name=>["Android build-tools 36.0.0 "+name,"build-tools/36.0.0/"+name,"build-tools;36.0.0"] as [string,string,string]),
     ["Android NDK 28.2", `ndk/28.2.13676358/toolchains/llvm/prebuilt/${process.platform === "darwin" ? "darwin-x86_64" : "linux-x86_64"}/bin/aarch64-linux-android23-clang`, "ndk;28.2.13676358"],
+    ["Android NDK 28.2 llvm-ar", `ndk/28.2.13676358/toolchains/llvm/prebuilt/${process.platform === "darwin" ? "darwin-x86_64" : "linux-x86_64"}/bin/llvm-ar`, "ndk;28.2.13676358"],
   ];
   for (const [name, file, packageName] of files) {
     const path = join(sdk, file);
-    checks.push(Promise.resolve({ name, ok: existsSync(path), detail: path, fix: `Install ${packageName} with Android SDK Manager and set ANDROID_HOME` }));
+    let ok=false;try{ok=statSync(path).isFile();}catch{}
+    checks.push(Promise.resolve({ name, ok, detail: path, fix: `Install ${packageName} with Android SDK Manager and set ANDROID_HOME` }));
   }
+  for(const name of ["jar","keytool"]){const path=join(java,"bin",name);let ok=false;try{ok=statSync(path).isFile();}catch{}checks.push(Promise.resolve({name:"JDK "+name,ok,detail:path,fix:"Install JDK 17 and set JAVA_HOME to its root"}));}
   checks.push(probe("Android devices", [join(sdk, "platform-tools/adb"), "devices", "-l"], "Install platform-tools, enable USB debugging and authorize this computer").then(result => {
     if (result.ok && !parseAndroidDevices(result.detail).some(device => device.state === "device")) return { ...result, ok: false, detail: result.detail || "No connected device" };
     return result;

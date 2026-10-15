@@ -39,7 +39,9 @@ JAVA_HOME="$JAVA" "$SDK/build-tools/35.0.0/d8" --min-api 26 --lib "$SDK/platform
 "$ADB" -s "$SERIAL" shell mkdir "/data/local/tmp/$TOKEN"
 for file in libpocketjs.so check.zip cases.json; do "$ADB" -s "$SERIAL" push "$TEMP/$file" "/data/local/tmp/$TOKEN/$file"; done
 "$ADB" -s "$SERIAL" shell chmod 444 "/data/local/tmp/$TOKEN/check.zip"
-"$ADB" -s "$SERIAL" shell "CLASSPATH=/data/local/tmp/$TOKEN/check.zip" /system/bin/app_process "-Djava.library.path=/data/local/tmp/$TOKEN" /system/bin "$TEST_MAIN" "/data/local/tmp/$TOKEN/cases.json"
+# app_process on API 26 resolves platform crypto through java.library.path.
+# Keep system directories when adding the owned JNI directory.
+"$ADB" -s "$SERIAL" shell "CLASSPATH=/data/local/tmp/$TOKEN/check.zip" /system/bin/app_process "-Djava.library.path=/data/local/tmp/$TOKEN:/system/lib64:/vendor/lib64" /system/bin "$TEST_MAIN" "/data/local/tmp/$TOKEN/cases.json"
 
 if [ -n "${PJM_DOWNLOAD_TLS_URL:-}" ]; then
   [[ "$PJM_DOWNLOAD_TLS_URL" =~ ^https://127\.0\.0\.1:([0-9]{1,5})$ ]] || { echo 'TLS fixture must use an owned loopback port' >&2; exit 1; }
@@ -48,6 +50,6 @@ if [ -n "${PJM_DOWNLOAD_TLS_URL:-}" ]; then
   [ -f "${PJM_DOWNLOAD_TLS_CERT:-}" ] || { echo 'TLS fixture certificate required' >&2; exit 1; }
   "$ADB" -s "$SERIAL" reverse "tcp:$TLS_PORT" "tcp:$TLS_PORT"
   "$ADB" -s "$SERIAL" push "$PJM_DOWNLOAD_TLS_CERT" "/data/local/tmp/$TOKEN/server-cert.pem"
-  "$ADB" -s "$SERIAL" shell "CLASSPATH=/data/local/tmp/$TOKEN/check.zip" /system/bin/app_process "-Djava.library.path=/data/local/tmp/$TOKEN" /system/bin dev.pjm.android.NativePackageDownloadTlsTest "/data/local/tmp/$TOKEN/cases.json" "$PJM_DOWNLOAD_TLS_URL" "/data/local/tmp/$TOKEN/server-cert.pem"
+  "$ADB" -s "$SERIAL" shell "CLASSPATH=/data/local/tmp/$TOKEN/check.zip" /system/bin/app_process "-Djava.library.path=/data/local/tmp/$TOKEN:/system/lib64:/vendor/lib64" /system/bin dev.pjm.android.NativePackageDownloadTlsTest "/data/local/tmp/$TOKEN/cases.json" "$PJM_DOWNLOAD_TLS_URL" "/data/local/tmp/$TOKEN/server-cert.pem"
   "$ADB" -s "$SERIAL" reverse --remove "tcp:$TLS_PORT"
 fi

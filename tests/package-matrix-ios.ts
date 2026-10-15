@@ -26,7 +26,7 @@ try{
  await run(['xcrun','xcresulttool','export','attachments','--path',join(evidence,'Tests.xcresult'),'--output-path',join(evidence,'attachments')]);
  writeFileSync(join(evidence,'summary.json'),await run(['xcrun','xcresulttool','get','test-results','summary','--path',join(evidence,'Tests.xcresult')]));
  for(const name of ['main.pocket','manifest.json','publisher.key'])cpSync(join(temp,name),join(evidence,name));
- writeFileSync(join(evidence,'result.json'),JSON.stringify({platform:'ios',nativeRuntime:'UIKit simulator',cases:cases.length,accepted:1,rejected:cases.length-1,runtimeAttacksExecuted:2,healthyGenerationRetainedAfterAttacks:true,failedEffectsNotDelivered:true,productionVerifier:true,productionStore:true,retainedContainerExecuted:true,nativePackageDownloadControlled:true,actualTlsDownload:!!tlsURL,physicalMemoryAcceptance:false},null,2));
+ writeFileSync(join(evidence,'result.json'),JSON.stringify({platform:'ios',nativeRuntime:'UIKit simulator',cases:cases.length,accepted:1,rejected:cases.length-1,runtimeAttacksExecuted:3,failedStorageWritesDenied:true,signedFloodRecoveryRounds:64,signedFloodCompletedReplies:2048,signedFloodBusyDenials:14336,healthyGenerationRetainedAfterAttacks:true,failedEffectsNotDelivered:true,productionVerifier:true,productionStore:true,retainedContainerExecuted:true,nativePackageDownloadControlled:true,actualTlsDownload:!!tlsURL,physicalMemoryAcceptance:false},null,2));
  console.log('Native UIKit signed-package attack matrix and retained-container isolation passed.');
 }finally{
  if(launched){await run(['xcrun','simctl','terminate',serial,bundle]).catch(()=>{});await run(['xcrun','simctl','uninstall',serial,bundle]).catch(()=>{});}

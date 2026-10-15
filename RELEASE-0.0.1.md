@@ -1,6 +1,6 @@
 # v0.0.1 release audit
 
-Audit date: 2026-10-14. This is a readiness checklist, not a completed release.
+Audit date: 2026-10-15. This is a readiness checklist, not a completed release.
 The user's release priority defers additional DevTools work. The full attached
 technical plan remains the broader roadmap; this checklist does not remove its
 requirements.
@@ -10,7 +10,7 @@ requirements.
 | Pinned shared engine and native hosts | Current full gate passes native core tests, iOS source compilation, service contracts and installed host export tests. Earlier mobile runs prove native pixels and input. | Execute final release packages on both platforms after final changes. |
 | Deterministic input and lifecycle | Existing mobile capture runs include touch, hide/show and native service completion; fresh native replays match. | Physical touch-to-present measurements and complex gesture/cancellation acceptance. |
 | TSX SDK, routing and frame timers | SDK tests and installed SDK bundle execution pass. Page-stack queries and subscriptions are bounded. A real two-page TSX demo passes navigation/state/background/cold-reset checks in both development hosts; Android system Back and root exit also pass. The signed TSX example also passes both installed hosts, with Android system Back/root exit. | Physical-device route/Back acceptance. |
-| Essential native services | Signed hosts implement device info, storage, HTTP/resource responses, clipboard, location, network path status/events and media. Both platforms pass real media consent/denial/chooser cancellation and system image selection → JPEG → SDK resource read/release, including cold reopening. Android backend isolation/quota checks and iOS quotas/generation retirement pass. Production resource registries also pass process-cap stress with controlled producers on both platforms. Development hosts implement device info/storage, clipboard writes and native network snapshot/change events, with fresh subscriptions after hot reload. Both development hosts pass clipboard declaration denial, native deny/allow, exact SDK readback and persisted cold/hot reopening. Both development hosts pass real HTTPS SDK resource read/release and domain denial across initial, cold reopen and hot reload; Android also passes native controlled-transport HTTP/cancel tests. Android development location declaration/native denial passes SDK initial/cold/hot checks; approved fused-provider SDK coordinates also pass after a fresh request following native app/OS approval, including cold/hot reopening. Controlled wrapper approval/ownership/cancellation tests pass. iOS development location shares the bounded Core Location service and passes real SDK declaration/native consent denial and native app/system approval with actual Core Location coordinates across initial/cold/hot execution, plus controlled ownership/cancellation/activation checks. iOS development media now shares native picker/worker and HTTP resource accounting; controlled JPEG/resource/quota/retirement tests and real SDK declaration/native consent denial pass initial/cold/hot execution. Actual iOS development library selection also passes SDK JPEG header read/release, cold reopening and live reload in one UIKit test. Android development media shares the bounded native worker and HTTP resource registry; controlled ownership/cancellation checks, real SDK declaration/native consent denial, and actual system image selection with JPEG read/release pass across initial/cold/hot execution. | Physical camera acceptance, combined live HTTP/media worker stress, iOS camera checks, wider location revocation/stress and extended development HTTP stress, remaining consent UI acceptance and Android first-request location timing/stability. Physical network transitions and iOS connectivity-change acceptance remain unverified. |
+| Essential native services | Signed hosts implement device info, storage, HTTP/resource responses, clipboard, location, network path status/events and media. Both platforms pass real media consent/denial/chooser cancellation and system image selection → JPEG → SDK resource read/release, including cold reopening. Android backend isolation/quota checks and iOS quotas/generation retirement pass. Production resource registries also pass process-cap stress with controlled producers on both platforms. Development hosts implement device info/storage, clipboard writes and native network snapshot/change events, with fresh subscriptions after hot reload. Both development hosts pass clipboard declaration denial, native deny/allow, exact SDK readback and persisted cold/hot reopening. Both development hosts pass real HTTPS SDK resource read/release and domain denial across initial, cold reopen and hot reload; Android also passes native controlled-transport HTTP/cancel tests. Android development location declaration/native denial passes SDK initial/cold/hot checks; approved fused-provider SDK coordinates also pass after a fresh request following native app/OS approval, including cold/hot reopening. Controlled wrapper approval/ownership/cancellation tests pass. iOS development location shares the bounded Core Location service and passes real SDK declaration/native consent denial and native app/system approval with actual Core Location coordinates across initial/cold/hot execution, plus controlled ownership/cancellation/activation checks. iOS development media now shares native picker/worker and HTTP resource accounting; controlled JPEG/resource/quota/retirement tests and real SDK declaration/native consent denial pass initial/cold/hot execution. Actual iOS development library selection also passes SDK JPEG header read/release, cold reopening and live reload in one UIKit test. Android development media shares the bounded native worker and HTTP resource registry; controlled ownership/cancellation checks, real SDK declaration/native consent denial, and actual system image selection with JPEG read/release pass across initial/cold/hot execution. | Physical camera acceptance, current-iOS mixed HTTP/media timing stability, iOS camera checks, wider location revocation/stress and extended development HTTP stress, remaining consent UI acceptance and Android first-request location timing/stability. Physical network transitions and iOS connectivity-change acceptance remain unverified. |
 | Packages and isolation | Gate passes signature/metadata, store, permissions, isolated storage and retained-engine tests. A named 26-case native package matrix passes on Android and in a UIKit simulator app, including retained-state and storage checks. Signed heap-limit and infinite-loop guests are also stopped on both native platforms, with healthy retained state preserved and failed effects denied. Core tests cover interruption and retirement. | Wider malicious workload/service-flood acceptance and physical memory/isolation acceptance across concurrent guests. |
 | Examples and performance | The 1,000-row list/form fixture and benchmark runners exist. | Establish physical cold-start, sustained scroll, frame-latency and memory evidence against the plan's suggested budgets. |
 | CLI and distribution | Create/build/run, signed export and publish validation have automated coverage. The reference HTTPS downloader passes actual local TLS update/rollback, bounded streaming/cancellation and externally configured publisher trust replacement. Android native update discovery/staging is integrated optionally and passes controlled checks plus actual local HTTPS/native verifier/cache update/cold promotion/rollback with a temporary test CA. iOS native discovery/staging is now optionally integrated and passes native Foundation/UIKit controlled checks and actual UIKit HTTPS/native cache updates using a temporary test trust anchor. Installed UIKit TSX HTTPS staging, running counter retention, new cold screen and cold rollback pixels also pass. Android installed TSX staging, counter retention, cold update and rollback pixels pass traced and untraced emulator runs. | Sustained deadline/lifecycle stability, production endpoints and final clean-environment release workflow. |
@@ -34,13 +34,17 @@ both owned simulators were deleted. This covers these package/update paths; it
 does not establish every native service on iOS 16. Evidence:
 `build/ios-validation/installed-update-ios16-20261014` and
 `build/ios-validation/package-matrix-ios16-20261014`.
-The prepared physical benchmark awaits the user's selection of the connected
-phone as the test target. No physical benchmark acceptance is claimed.
+The updated physical benchmark APK is prepared. The user has instructed us to
+leave the Pixel untouched until they explicitly say it is free. No physical
+benchmark acceptance is claimed.
 
 ## Executed checks
 
-The current full `tests/check.sh` run completed successfully. Its retained log is
-`build/validation/key-trust-record-20261014/full-check.log` (exit receipt: `build/validation/key-trust-record-20261014/result.json`, fullRegressionExitCode=0). It includes the 74-test Rust library
+The latest full `tests/check.sh` run passed on documented Bun 1.3.11. Its log is
+`build/validation/native-engine-regression-bun1311-20261015/full-check.log` (exit receipt:
+`build/validation/native-engine-regression-bun1311-20261015/result.json`, exitCode=0).
+The iOS export architecture fix also passed both actual native builds and
+five focused export tests (155 assertions). The full run includes the 74-test Rust library
 suite, optimized native core/replay execution, compiler/server integration,
 SDK/package/store/storage/permissions checks and installed host export checks.
 This command does not run all mobile UI/device acceptance scripts.
@@ -2887,3 +2891,522 @@ whereas the physical GLES screenshot occludes them. This narrows investigation
 to the GPU path but does not prove a root cause or identical-frame pixel parity.
 Evidence: `build/validation/scroll-clip-diagnostic-20261014` and
 `build/validation/physical-benchmark-corrected-20261014/native-input.log`.
+
+## Reproducible GLES/CPU clipping comparisons (2026-10-14)
+
+The existing physical scroll screenshot remains a real unresolved visual issue;
+no renderer change is made from speculation. The shared GPU snapshot after six
+swipes reports the expected list clip [0,64,390,736], while header/footer commands
+retain the full [0,0,390,844] clip. CPU pixels preserve the header/footer.
+The pinned upstream revision is fe971ebb8e14724d2a98d4df6b34c065caf11132 and
+its tracked tree is clean. Rebuilt the normal Android Rust library offline and
+linked a fresh JNI bridge; the prior JNI binary and fresh JNI hashes differ,
+but that alone does not prove the previous archive was stale or caused this bug.
+The native build succeeds; existing unused-import/toolchain warnings are retained.
+
+Added `tests/benchmark-gles-parity-android.c` and its bounded staging/cleanup shell
+driver, selected through the isolated minimum-OS wrapper with PJM_GLES_BENCHMARK.
+The same native guest turn feeds GLES readback and the CPU renderer. Full-frame
+raw pixels are retained; assertions target flat stationary header/footer regions,
+away from text/rounded-edge filtering differences. The initial API 26 run passes
+84,240 border samples after six gestures. A phone-window profile (1008x2077,
+fitted viewport x=24,width=960) with 120 settling frames passes 34,560 samples.
+The final run also probes three stationary border points in every frame: 487
+frames, 1,461 probes, zero transient mismatches and zero final border mismatches.
+All three isolated API 26 emulators were removed. These are border comparisons,
+not full-frame equality, physical presentation or latency acceptance. Evidence:
+`build/android-validation/gles-scroll-parity-api26-before-fix-20261014`,
+`build/android-validation/gles-scroll-parity-api26-phone-window-20261014`, and
+`build/android-validation/gles-scroll-parity-api26-per-frame-20261014`.
+
+A fresh-native repeat of the approved phone benchmark stopped at its focus guard;
+the benchmark had lost foreground focus before any capture/input sequence could
+complete. The temporary app was removed and a separate package query confirmed
+absence. No other foreground app was interacted with. The phone's availability
+for another short run was requested; that answer is pending. Evidence:
+`build/android-validation/physical-benchmark-pixel8pro-20261014-current-native`.
+The physical clipping cause remains unproven and the issue stays open; next
+physical diagnostics must reproduce the rendered mismatch with the current
+native binary and, if needed, retain the exact benchmark input sequence for
+same-state CPU/GLES comparison. The full goal remains active and additional
+DevTools stays deferred beyond v0.0.1.
+
+## Full-frame CPU/GPU scroll and submitted-form comparison (2026-10-14)
+
+Added a Metal benchmark parity runner and extended the GLES runner beyond flat
+border samples. Both renderers consume the same guest turn before CPU readback;
+raw frames are retained. The iOS benchmark exporter now accepts a validated
+PJM_BENCHMARK_DENSITY (1 through 4, default 1), enabling a true 3x iOS fixture.
+An isolated archive of the exact pinned compiler generated it without writing
+its shared checkout; that owned compiler copy was removed afterward. The first
+compile attempted the read-only shared generated-style file, then encountered
+an obsolete temporary compiler path; both setup failures remain retained. The
+initial sandbox Metal attempt could not create a GPU device; authorized local
+GPU execution succeeded. The runner now reports device unavailability cleanly.
+
+On the local Mac's actual Metal device, the final scrolled frames match CPU
+byte-for-byte at 1x (329,160 pixels) and 3x (2,962,440 pixels). Each 487-frame
+sequence also passes 1,461 stationary border probes. A further 3x run taps Form,
+selects Pro, enables the newsletter and submits; retained-tree assertions prove
+Saved/Pro/enabled state. Its 499-frame sequence passes 1,497 border probes and
+its final 2,962,440 pixels also match CPU exactly. The rendered form was visually
+reviewed. These are offscreen Mac Metal results, not physical iPhone acceptance.
+Evidence: `build/validation/metal-scroll-parity-20261014`.
+
+The Android API 26 GLES scroll run now enforces full-frame comparison at native
+3x dimensions: 1,333 pixels differ by one channel level, none exceed one, and
+all border probes pass. Its emulator was deleted. Evidence:
+`build/android-validation/gles-scroll-full-parity-api26-20261014`.
+The submitted-form sequence executes correctly on GLES too, but its strict
+one-channel-level comparison FAILS: 25 of 2,962,440 pixels differ by two levels
+(809 pixels differ at all); borders remain correct. Exact differing coordinates
+and colors are retained in pixels-over-one.json. The separately compiled iOS
+and Android CPU form images are byte-identical (11,849,760 bytes each), so this
+is a reproducible GLES discrepancy, not different application state.
+
+Three separate experiments tested higher shader precision, Metal's normalization
+operation order, and RGBA uploads for filtered coverage textures. None changed
+the failing pixels or counts. Every experiment was reverted; the normal native
+library was rebuilt from the restored source. Patches, native build logs,
+failed comparisons and owned-emulator cleanup receipts remain retained. The
+comparison threshold was not relaxed and the GLES form gate stays open. No
+production renderer change is claimed. Evidence is under
+`build/android-validation/gles-form-full-parity-api26-20261014` and its separately
+named highp/ndc-order/linear-rgba attempts; the aggregate receipt is
+`build/validation/metal-scroll-parity-20261014/result.json`.
+
+The original physical phone header occlusion is a separate unresolved issue;
+these local comparisons do not establish its cause. Phone availability is still
+pending after the focus guard stopped the last attempt and removed the app.
+Physical performance/isolation, default deadline stability, production release
+workflow and the missing original-proposal audit also remain open. Additional
+DevTools remains deferred beyond v0.0.1 and the full goal stays active.
+
+## Real HTTPS process contention (2026-10-15)
+
+Android API 23 and API 26 both pass 32 real default-trust HTTPS responses in two
+waves across four authenticated signed identities. Passive production-client
+events observed 16 concurrent calls on 16 pjm-http worker threads and 32 TLS
+handshakes. Four probes reject a seventeenth resource specifically at the shared
+process cap. Foreign reads/releases leave owner bytes intact; retirement and
+release deny stale handles and restore capacity. Both owned emulators were
+removed. Evidence: build/android-validation/live-http-process-api23-20261014
+and build/android-validation/live-http-process-api26-20261014. API 23 is a direct
+HTTP service/selector result, not full installed-host minimum-OS acceptance.
+Mixed HTTP/media, in-flight retirement and physical memory remain unproven.
+
+The Pixel must remain untouched until the user explicitly says it is free.
+Simulator work continues; additional DevTools remains deferred beyond v0.0.1.
+
+The equivalent iOS 16.0 (20A360) installed-controller test passes: 32 real HTTPS
+200 responses, 18,464 bytes, four authenticated identities, 16 resumed production
+URLSession tasks, four global cap denials and four actual native generation
+retirements/reopens. Responses drain through the native verified mailbox;
+foreign reads/releases and stale handles are denied, and the second wave
+recovers all capacity before releasing its 16 resources. No transport or TLS
+trust override is installed. This reports running task state, not worker-thread
+or TLS-handshake concurrency. XCTest: 1 passed, 0 failed, 0 skipped. The receipt
+and screenshot are retained at
+build/ios-validation/live-http-process-ios16-20261015-typed-package; the owned
+simulator cleanup is confirmed. The first test-only package type compile failure
+and its cleanup evidence remain at live-http-process-ios16-20261015.
+
+These results do not close in-flight revocation, mixed HTTP/media, concurrent
+rendered guest-loop, physical performance/memory, GLES form parity, physical
+clipping, default deadline stability, production release or original-proposal
+audit gates. The full goal remains active.
+
+## In-flight Android HTTPS retirement (2026-10-15)
+
+API 23 and API 26 both pass cancellation of 16 real HTTPS calls after receiving
+200 headers. A test-only event observer holds the production workers during
+service generation retirement: all calls are cancelled, handles denied, pending
+tasks removed, and buffer capacity remains occupied until producers exit. A
+seventeenth resource is correctly denied during that interval. After releasing
+the observer, all buffers are cleared, no retired reply is delivered, and the
+next full wave succeeds. Each run observes 48 real TLS handshakes plus 32 normal
+completed responses across the surrounding waves. Scheduling is controlled;
+transport and TLS trust are unchanged. Both owned emulators were removed.
+Evidence: build/android-validation/live-http-retirement-api23-20261015 and
+build/android-validation/live-http-retirement-api26-20261015. Android native
+guest-container retirement, mixed media and physical acceptance remain open.
+
+The iOS 16.0 check now passes real in-flight native-container retirement too.
+Sixteen genuine HTTPS 200 response headers are observed through the original
+production delegate, with test-controlled response-disposition timing. All
+sixteen unfinished tasks are cancelled by four native container closes/reopens,
+generations advance, stale handles are denied, and weak observation proves all
+cancelled resource objects are deallocated before a full new wave succeeds.
+No transport/trust/response substitution is used. Total: 32 normal responses,
+16 in-flight cancellations and eight native generation retirements/reopens.
+XCTest: 1 passed, 0 failed, 0 skipped; native receipt assertions and owned
+simulator cleanup confirmed. Evidence:
+build/ios-validation/live-http-retirement-ios16-20261015. Retained Xcode logs
+include a framework-copy diagnostic reporting exit code 0 and debugger-version
+metadata warnings; the executed test's summary and receipt confirm success.
+Mixed media, Android guest-container retirement and physical/release gates
+remain open. The Pixel stays untouched until the user says it is free.
+
+## Native guest HTTP delivery and retirement (2026-10-15)
+
+Android API 26 now passes the HTTP test through four real native containers:
+eight generation closes/reopens trigger HTTP/registry retirement from native
+callbacks, eight guest unload cleanup records persist their storage effect,
+and sixteen stale completion posts are denied. All 32 successful HTTPS replies
+are consumed by real guest frames and echoed with exact JSON. The existing
+sixteen-call in-flight cancellation, retained-buffer and capacity-recovery
+checks remain intact (48 TLS handshakes total). Evidence:
+build/android-validation/live-http-native-container-api26-20261015-compile-fixed.
+The first Java test naming conflict and its emulator cleanup are retained in
+live-http-native-container-api26-20261015. Both emulators were removed.
+
+On iOS 16, all 32 real replies are also consumed/echoed by four native guests;
+32 stale container post attempts are denied across the eight generation
+retirements/reopens. XCTest: 1 passed, 0 failed, 0 skipped; receipt assertions
+and owned-simulator cleanup confirmed. Evidence:
+build/ios-validation/live-http-native-guest-ios16-20261015.
+These are native CPU guest/frame and container checks, not simultaneous GPU
+presentation, SDK-issued HTTP or Android Activity teardown. Mixed media and
+physical/release acceptance remain open. The Pixel stays untouched.
+
+API 23 now passes the same native-container/HTTP/guest frame check: eight native
+retirements and persisted guest cleanup records, 32 guest-consumed replies,
+sixteen stale post denials and sixteen in-flight cancellations. It observed
+48 request-header events and 47 TLS handshakes (no one-handshake-per-request
+assumption). Owned emulator cleanup confirmed. Evidence:
+build/android-validation/live-http-native-container-api23-20261015.
+This establishes that native CPU container/service path on API 23; full
+installed-Activity minimum-OS and physical/release gates remain open.
+
+## Mixed Android HTTP and image workers (2026-10-15)
+
+API 23 and API 26 both pass a real mixed-worker test across four authenticated
+native app owners: twelve shipping HTTP workers and four shipping image workers
+occupy all sixteen shared resource slots. Three stages cover completion,
+in-flight native retirement and full recovery. The normal/recovery stages
+produce 24 real HTTPS responses and eight real resized 64x32 JPEGs; bounded reads
+validate bodies, JPEG pixels/dimensions, distinct handles, foreign-access denial
+and byte preservation. Six probes enforce the global cap.
+
+Native retirement cancels twelve real HTTP calls and four media workers while
+held by test scheduling gates. Buffers remain counted until those workers exit;
+late replies are suppressed and the next full mixed stage succeeds. Image input
+comes from a synthetic test picker callback; bounded decoding, resizing and JPEG
+encoding use production code. Real picker UI, physical quality, GPU presentation
+and SDK-issued traffic are not established by this test.
+
+Evidence: build/android-validation/mixed-http-media-api23-20261015 and
+build/android-validation/mixed-http-media-api26-20261015. Both owned emulators
+and apps were removed. The full extended suite records 84 HTTP header events,
+83/84 TLS handshakes respectively, twelve native retirements and guest cleanup
+records, plus the earlier 32 replies consumed by native guest frames.
+
+The iOS mixed test remains open and must preserve its one-active-media-operation
+process policy. Physical/release and other previously listed gates remain open;
+additional DevTools stays deferred and the Pixel stays untouched.
+
+## Mixed iOS HTTP and image provider test (2026-10-15)
+
+Actual iOS 16.0 passes the mixed test while preserving the one-active-media
+process policy: fifteen real HTTPS requests plus one production image-provider
+operation occupy all sixteen resource slots. Normal/recovery stages produce
+thirty HTTPS responses and two real normalized 64x32 JPEGs. Body/pixel checks,
+foreign-access denial, byte preservation and 32 exact native guest-consumed
+replies pass.
+
+Four native generation retirements cancel fifteen unfinished HTTP tasks and
+one provider progress. The held cancelled provider retains its buffer and media
+permit: fifteen new real HTTP requests fill the other slots, a seventeenth
+resource is denied and another media operation stays BUSY. Once its callback
+exits, full mixed capacity recovers. Six resource-cap probes and sixteen stale
+container-post denials pass. Synthetic picker input/host consent and offscreen
+foreground handling are explicitly test-only; codecs, provider streaming,
+permission admission, resource accounting and native retirement are production.
+Real picker UI, physical quality, GPU loops and SDK-issued requests are unproven.
+
+XCTest: 1 passed, 0 failed, 0 skipped; native receipt asserted and owned simulator
+removed. Evidence:
+build/ios-validation/mixed-http-media-ios16-20261015-owner-timing.
+The first admission failure and cleanup remain at mixed-http-media-ios16-20261015;
+test startup/provider timing was corrected without changing production policy.
+Physical/release and other previously listed acceptance gates remain open.
+
+The current iOS 26.4 (23E244) diagnostic run also passes all mixed checks:
+30 real HTTPS responses, two JPEGs, 32 guest-consumed replies, six cap denials,
+four native retirements and the cancelled-provider capacity/media-permit checks.
+XCTest: 1 passed, 0 failed, 0 skipped; native receipt and owned-simulator cleanup
+confirmed. Evidence:
+build/ios-validation/mixed-http-media-ios26-20261015-diagnostic.
+
+Its preceding run timed out at the synthetic provider's 30-second gate. The
+failure summary and cleanup remain at mixed-http-media-ios26-20261015. Failure
+reporting now includes phase/resource counters and early HTTP errors; no time
+bound, workload, quota or acceptance assertion was loosened. The later pass
+does not establish the earlier timeout's cause or prove a production fix.
+Current-runtime mixed timing stability remains open. All four owned simulators
+from this iOS mixed unit were removed. The full goal remains active and the
+Pixel remains untouched.
+
+## Mixed-test timeout diagnostics (2026-10-15)
+
+Added bounded state-change tracing and automatic retrieval before uninstall,
+including failed XCTest result export. A fresh iOS 26.4 run passes all original
+mixed checks and retains a 30-event trace ending at 2,463 ms. Cancelled HTTP
+resources are gone at the first retirement sample; the media token remains
+counted while fifteen new real HTTP resources fill the remaining slots, then
+is gone at the next sample after its callback is released. Owned simulator
+cleanup and native receipt assertions pass. Evidence:
+build/ios-validation/mixed-http-media-ios26-20261015-phase-trace.
+Objective-C syntax compilation, Bun bundling and whitespace checks pass.
+
+The earlier provider timeout remains unexplained and mixed timing stability
+stays open. This is test-phase wall timing, not device startup/frame acceptance;
+no production policy or acceptance assertion was relaxed. Physical/release gates
+remain open, the goal stays active, and the Pixel stays untouched.
+
+## GLES dither diagnosis and test-runner correction (2026-10-15)
+
+Corrected a new diagnostic-runner false success: an empty Bash argument array
+aborted before native execution while cleanup obscured the error. The invalid
+baseline metadata is preserved and explicitly invalidated at
+gles-form-dither-baseline-api26-20261015. Success now requires fresh, parsed
+native GLES proof and all comparison assertions; invalid-mode/missing-compiler
+fault probes fail with cleanup and no adb calls.
+
+The corrected API 26 baseline and diagnostic with dithering disabled both fail
+identically: 25 pixels exceed one level, maximum delta 2. Dithering is therefore
+ruled out for this reproduction. Both owned emulators were removed. Evidence:
+build/android-validation/gles-form-dither-baseline-api26-20261015-runner-fixed
+and build/android-validation/gles-form-no-dither-api26-20261015.
+
+A new sample diagnostic reproduces the exact Android CPU frame and finds exact
+texel-center samples at six failing coordinates. It narrows the next step to
+actual GLES interpolation/sampling/blending; it does not prove the cause or fix
+parity. Evidence: build/validation/gles-sample-diagnostic-20261015.
+Production renderer/shaders remain unchanged. The form gate and other physical,
+stability/release gates stay open. The Pixel remains untouched.
+
+## GLES form parity correction (2026-10-15)
+
+Retained a production GLES fix after real fragment probes showed that six
+coverage samples were wrong before blending despite correct vertex colors.
+Quantizing linear-image coordinates to an eight-bit subtexel grid restored all
+nine sampled text triangles. High-precision fragment hardware uses this path;
+nearest textures and the original low-precision fallback are preserved. Texture
+grid metadata is bounded and removed with cache entries. FFI/input/clip/viewport,
+blending and the strict comparison threshold remain unchanged.
+
+The full 2,962,440-pixel form now passes on API 23 and API 26: zero pixels exceed
+one level (previously 25), with only 59 one-level differences. Form state and
+border probes pass. The full API 26 scrolled frame passes too (999 one-level
+differences, zero beyond one). Native GLES context/pool loss, recreation,
+retirement and teardown pass on both APIs. All owned emulators were removed;
+74 core tests and the Android release build pass. Aggregate evidence:
+build/validation/gles-coordinate-quantization-20261015/result.json. Raw runs:
+build/android-validation/gles-form-quantized-api23-20261015,
+build/android-validation/gles-form-quantized-api26-20261015 and
+build/android-validation/gles-scroll-quantized-api26-20261015.
+
+This resolves the measured emulator form parity gate, not physical header
+occlusion or performance. The old prepared phone APK predates the fix and needs
+rebuilding before later use. Low-precision hardware has not been measured here.
+Other previously listed stability/physical/release gates remain open. The Pixel
+stays untouched and the full goal remains active.
+
+## Updated benchmark APK ready for later phone test (2026-10-15)
+
+Built and verified the updated temporary benchmark APK with fresh JNI containing
+the GLES fix. Exact payload/JNI embedding, APK signature, alignment and minSdk 26
+checks pass; the temporary APK signing key was removed. Artifact:
+build/validation/physical-benchmark-gles-quantized-20261015/Benchmark-quantized.apk.
+APK SHA256: f5d0b32c492383889a523a77a4ad656149f11cf86dc199cef42f0bff2389f014.
+
+The exact APK passes an installed API 26 emulator smoke: six real swipes move
+Item 1 to Item 55, Form opens, and the whole header/footer regions remain
+byte-identical while the list changes. App removal and owned-emulator cleanup
+are confirmed. Evidence:
+build/android-validation/installed-benchmark-quantized-api26-20261015-input-fixed.
+
+The first smoke revealed API 26's generic-view accessibility class and swallowed
+coordinate/input errors; it is not accepted as a gesture run. The helper now
+requires a unique authenticated ready surface, validates numeric coordinates,
+propagates failures and rejects input usage/error output. Regression tests pass
+(2 tests, 11 assertions). Failed evidence and emulator cleanup are retained at
+installed-benchmark-quantized-api26-20261015.
+
+The Pixel remains untouched until the user says it is free. The APK is prepared,
+not physically validated; clipping, performance and other stability/release/audit
+gates remain open. The full goal stays active and extra DevTools stays deferred.
+
+The full standard local regression suite also passes after these changes
+(exit 0, 54.586 seconds). It used an isolated checkout of the pinned compiler,
+preserved the shared compiler's tracked state and removed its temporary checkout.
+Evidence: build/validation/release-regression-20261015/result.json and
+full-check.log. No physical device was used; the pending acceptance gates above
+remain open.
+
+## Empty-project-cache release CLI check (2026-10-15)
+
+The opt-in tests/release-fresh-cache.ts run passes all eleven public CLI steps:
+create, fresh pinned compiler/dependency setup, checks and signed builds for both
+targets, verified publication dry runs, wrong-target publication rejection, pin
+verification and source-preserving clean. Retained evidence and public signed
+outputs: build/validation/release-fresh-cache-20261015/result.json and adjacent
+logs/packages. The temporary project and private key were removed; there was no
+upload or device access. This used Bun 1.4.2 and installed tools. Doctor's Bun
+1.3.11, clean-machine/native-export execution and production endpoint acceptance
+remain unverified by this run. The full goal remains active.
+
+## Documented Bun 1.3.11 checks (2026-10-15)
+
+The fresh-cache workflow was subsequently rerun with official Bun 1.3.11: all
+eleven steps pass for the two signed targets. Evidence:
+build/validation/release-fresh-cache-bun1311-20261015/result.json. The complete
+standard regression suite also passes with this runtime (exit 0, 64.924 seconds):
+build/validation/release-regression-bun1311-20261015/result.json and full-check.log.
+Owned temporary projects/compiler/runtime and private signing key were removed;
+the shared compiler tracked state was preserved. No upload or device access.
+
+The earlier documented-runtime verification gap is closed for these checks.
+Compared with 1.4.2, this template has identical manifest, identity, plan and
+asset sections but different emitted JavaScript; cross-runtime byte equality or
+general behavioral equivalence is not claimed. Keep the documented 1.3.11 build
+runtime. Native-export/clean-machine, production endpoint, physical, stability
+and original-proposal audit gates remain open; the full goal stays active.
+
+## Public native export/build check (2026-10-15)
+
+The new opt-in tests/release-native-export.ts exposed a public iOS simulator
+export bug: generic Xcode builds requested x86_64 as well as arm64, despite the
+single-architecture Rust archive. The exporter now sets generated ARCHS to the
+architecture of its chosen Rust target. The initial failed build is retained at
+build/validation/release-native-export-20261015.
+
+The corrected public exports build an iOS Release simulator app and Android
+unsigned APK, with exact signed/trust resource embedding, exact Android JNI
+embedding and passing 16 KiB zip alignment. Evidence:
+build/validation/release-native-export-20261015-architecture-fixed/result.json.
+Five focused export tests pass (155 assertions); Bun 1.3.11 and actual installed
+toolchains were used. No app was installed/launched, no simulator was booted and
+no upload or physical-device access occurred. Temporary tool executables were
+removed. This proves the measured arm64 native export/build path; clean-machine,
+Intel, iOS distribution signing, runtime, production endpoint and remaining
+physical/stability/audit acceptance are still open. The full goal stays active.
+
+## Three current-iOS mixed-worker repetitions (2026-10-15)
+
+Three iOS 26.4 owned-simulator runs pass the same mixed HTTP/image, native
+retirement, isolation and recovery assertions, with no relaxed timeouts/quotas.
+All report one passed XCTest and zero failures/skips; all owned simulators were
+removed. Totals: 90 successful default-trust HTTPS replies, six validated JPEGs
+and 96 exact guest replies. Evidence:
+build/ios-validation/mixed-http-media-ios26-repeat-20261015/aggregate.json and
+repeat-result.json, with separate per-run traces/receipts/summaries.
+
+An outer trace-filename collection error after the first native pass was fixed;
+the first successful native result and cleanup were verified and reused, not
+rerun. Its original collector failure remains in result.json. Phase wall times
+vary from 1,808 to 16,584 ms and are not device performance measurements. The
+earlier provider timeout did not reproduce; its cause and broader timing
+stability remain unresolved. Synthetic picker input/consent and offscreen
+foreground overrides remain explicit. No physical-device access occurred;
+other physical/release/audit gates and the full goal remain open.
+
+## Signed service-flood native isolation (2026-10-15)
+
+Both native package matrices now execute three signed runtime attacks. The new
+guest attempts 256 storage requests, verifies exactly 32 mailbox admissions and
+224 BUSY denials, then deliberately throws. The failed turn dispatches no stored
+write; the attack becomes terminal and a healthy guest resumes with its original
+generation/state. Actual iOS 26.4 UIKit and API 26 Android app_process runs pass
+this scenario, the existing loop/heap attacks and the 26 package cases. All owned
+devices were removed. Aggregate evidence:
+build/validation/signed-service-flood-20261015/result.json.
+
+Initial API 26 attempts failed in the test launcher: its java.library.path hid
+the system crypto library. Scoped diagnostics identify javacrypto loading during
+cleanup, and restoring the system/vendor paths allows the unchanged attacks to
+pass. Both failed runs and cleanup receipts are retained; successful Android
+evidence is package-flood-api26-20261015-system-libraries under android-validation.
+iOS evidence is package-flood-ios26-20261015 under ios-validation. No production
+quota/time budget changed and no physical device was accessed. Sustained flood,
+wider malicious workloads, physical memory/isolation and prior stability/
+release/audit acceptance remain open. The full goal stays active.
+
+## Signed repeated queue recovery (2026-10-15)
+
+Both native suites now also pass 64 rounds with a signed guest that handles BUSY
+and remains live: 16,384 attempted storage requests, 2,048 verified successful
+native replies and 14,336 denials per platform. The final persisted value and
+both guests' generation/state after switching are verified. Actual UIKit iOS
+26.4 and API 26 Android native runs pass, alongside the three failure attacks
+and all 26 package cases; all owned devices were removed. Evidence:
+build/validation/signed-flood-recovery-20261015/result.json and its raw-run links.
+
+This uses real native storage and explicit CPU/container turns, with unchanged
+production limits. It does not measure display cadence, physical performance or
+long-duration stability. The Pixel remains untouched and the wider physical,
+timing, release and original-proposal audit gates remain open.
+
+## Doctor and complete local regression (2026-10-15)
+
+Android doctor now checks the same build-tools 36.0.0 used by run/export,
+including all four packaging executables, plus missing JDK/NDK helpers. A public
+CLI test with temporary tool fixtures verifies incomplete installations and
+rejects directories as required files (19 assertions); discovery is mocked and
+does not query a physical device. It is part of the standard gate.
+
+The complete tests/check.sh suite passes on documented Bun 1.3.11 after this fix
+and the latest native fixture changes (exit 0, 73.171 seconds). Evidence:
+build/validation/doctor-regression-bun1311-20261015/result.json and full-check.log.
+Owned compiler/runtime cleanup and preserved shared compiler state are confirmed.
+No physical device was used. Clean-machine, physical, stability, release and
+original-proposal audit gates remain open; the full goal stays active.
+
+## Fresh SDK native dependency bootstrap (2026-10-15)
+
+Fixed public run/export's reliance on the SDK example's engine cache. Native
+builds now use generated source snapshots and Cargo manifests bound to a verified
+checkout: the active project's checkout for interactive hosts, and an SDK-local
+pinned cache for standalone export. SDK source files are preserved; pin/dirty
+checks remain enforced, source edits invalidate snapshots and modified cached
+bytes are rejected. All four public native build paths use this preparation.
+
+An actual relocated SDK with no examples or native/source caches now bootstraps
+the pinned engine and passes both public exports, library builds, generated
+simulator-app/APK builds, resource embedding and Android alignment. Its original
+source manifest reproduced the missing-example dependency before the generated
+manifest was used. Evidence:
+build/validation/native-engine-fresh-sdk-20261015-complete-inputs/result.json and
+exports/result.json. An initial incomplete SDK-copy harness failed before native
+bootstrap and is retained at native-engine-fresh-sdk-20261015.
+
+Preparation tests pass 15 assertions and export contract tests pass 155. The
+complete standard suite subsequently passes on Bun 1.3.11 (exit 0, 75.526 seconds):
+build/validation/native-engine-regression-bun1311-20261015/result.json. Owned SDK,
+tools and compiler were removed; shared tracked engine source was unchanged.
+Fresh-project interactive native UI, bare-OS setup, physical/runtime acceptance
+and the previous timing/production endpoint/audit gates remain open. The Pixel
+was untouched and the full goal remains active.
+
+## Fresh-project public iOS native run (2026-10-15)
+
+Public create/run in native acceptance mode now passes from a relocated SDK and
+empty fresh-counter project on an owned iOS 26.4 simulator with Bun 1.3.11.
+There were no SDK examples, engine source caches, native targets or preseeded
+project dependencies. The public CLI bootstraps the project and native engine;
+generated manifest metadata binds all engine crates to the active project's
+verified checkout. SDK source manifest preservation and cache selection pass.
+
+All six shipped input/layout/rotation, reload/error recovery, service/storage
+and lifecycle UI tests pass, with zero failures/skips and CLI exit zero.
+Portrait/landscape/services screenshots were reviewed. Evidence:
+build/validation/fresh-native-project-ios-20261015/run/result.json and adjacent
+summary, manifest/source-resolution files, logs and screenshots. App uninstall,
+owned simulator deletion and temporary SDK/project/tool cleanup are confirmed.
+An already terminated app returned exit 3 on the optional terminate attempt.
+
+This closes the measured fresh iOS test-mode workflow, not normal interactive
+attachment, fresh Android launch, bare-OS setup or physical performance. Those
+and the prior timing/production endpoint/original-proposal audit gates remain
+open. The Pixel was untouched and the full goal stays active.

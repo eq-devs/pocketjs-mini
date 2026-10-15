@@ -20,8 +20,16 @@ final class MiniTests: XCTestCase {
         let verdicts = receipt?["verdicts"] as? [[String: String]]
         XCTAssertEqual(Set(verdicts?.compactMap { $0["name"] } ?? []), Set(pjmPackageCaseNames))
         let attacks = receipt?["runtimeAttacks"] as? [[String: Any]]
-        XCTAssertEqual(Set(attacks?.compactMap { $0["name"] as? String } ?? []), Set(["infinite-frame-loop", "heap-limit"]))
-        XCTAssertEqual(attacks?.count, 2)
+        let flood = receipt?["floodRecovery"] as? [String: Any]
+        XCTAssertEqual(flood?["rounds"] as? Int, 64)
+        XCTAssertEqual(flood?["attempts"] as? Int, 16384)
+        XCTAssertEqual(flood?["completedWritesAndReplies"] as? Int, 2048)
+        XCTAssertEqual(flood?["busyDenials"] as? Int, 14336)
+        XCTAssertEqual(flood?["healthyGenerationRetained"] as? Bool, true)
+        XCTAssertEqual(flood?["floodGenerationRetained"] as? Bool, true)
+        XCTAssertEqual(flood?["persistedValueVerified"] as? Bool, true)
+        XCTAssertEqual(Set(attacks?.compactMap { $0["name"] as? String } ?? []), Set(["infinite-frame-loop", "heap-limit", "service-mailbox-flood"]))
+        XCTAssertEqual(attacks?.count, 3)
         for attack in attacks ?? [] {
             XCTAssertEqual(attack["healthyGenerationRetained"] as? Bool, true)
             XCTAssertLessThan(attack["elapsedMs"] as? Double ?? .infinity, 5000)
