@@ -29,6 +29,10 @@ test("generated SDK preserves user config and refuses external dependency/file p
     assert.equal(JSON.parse(readFileSync(join(sdk,"package.json"),"utf8")).version,"0.0.1");
     assert.ok(readFileSync(join(sdk,"index.ts"),"utf8").includes("connectMiniApp"));installSdk(root);
     assert.ok(readFileSync(join(sdk,"http.ts"),"utf8").includes("checkedHttpResponse"));
+    installSdk(root,"app/main.tsx");
+    assert.equal(readFileSync(join(sdk,"build-entry.ts"),"utf8"),'import "./overlays.tsx";\nimport "../../app/main.tsx";\n');
+    assert.equal(JSON.parse(readFileSync(join(sdk,"package.json"),"utf8")).exports["./overlays"],"./overlays.tsx");
+    assert.ok(readFileSync(join(sdk,"overlays.tsx"),"utf8").includes("../pocketjs/framework/src/virtual-list.ts"));
     rmSync(join(sdk,"runtime.ts"));writeFileSync(join(outside,"sentinel"),"keep");symlinkSync(join(outside,"sentinel"),join(sdk,"runtime.ts"));
     assert.throws(()=>installSdk(root),/Invalid generated SDK file/);assert.equal(readFileSync(join(outside,"sentinel"),"utf8"),"keep");
     rmSync(link);mkdirSync(link);writeFileSync(join(link,"user"),"keep");

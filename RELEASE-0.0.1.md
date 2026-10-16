@@ -9,7 +9,7 @@ requirements.
 | --- | --- | --- |
 | Pinned shared engine and native hosts | Current full gate passes native core tests, iOS source compilation, service contracts and installed host export tests. Earlier mobile runs prove native pixels and input. Public native exports also build from a relocated SDK with no example cache, and both development hosts launch from empty project caches. | Execute final release packages on both platforms after final changes. |
 | Deterministic input and lifecycle | Existing mobile capture runs include touch, hide/show and native service completion; fresh native replays match. | Physical touch-to-present measurements and complex gesture/cancellation acceptance. |
-| TSX SDK, routing and frame timers | SDK tests and installed SDK bundle execution pass. Page-stack queries and subscriptions are bounded. A real two-page TSX demo passes navigation/state/background/cold-reset checks in both development hosts; Android system Back and root exit also pass. The signed TSX example also passes both installed hosts, with Android system Back/root exit. | Add the first-batch SDK Toast/dialog/action-sheet interface and guest app-exit API; current SDK exports do not provide these proposal requirements. Physical-device route/Back acceptance also remains open. |
+| TSX SDK, routing and frame timers | SDK tests and installed SDK bundle execution pass. Page-stack queries and subscriptions are bounded. A real two-page TSX demo passes navigation/state/background/cold-reset checks in both development hosts; Android system Back and root exit also pass. The signed TSX example also passes both installed hosts, with Android system Back/root exit. The SDK now exposes mini.app.exit(); real signed iOS/Android guests pass terminal exit, argument rejection and unload storage checks. | Toast/dialog/action-sheet SDK operations and a shared Modal/Portal renderer are implemented, with real compiled QuickJS interaction checks for both target packages. Development-host exit also passes on iOS 26.4/Android API 26. Mobile GPU UI acceptance, long text/compact viewport presentation, minimum-iOS exit and physical-device route/Back acceptance remain open. |
 | Essential native services | Signed hosts implement device info, storage, HTTP/resource responses, clipboard, location, network path status/events and media. Both platforms pass real media consent/denial/chooser cancellation and system image selection → JPEG → SDK resource read/release, including cold reopening. Android backend isolation/quota checks and iOS quotas/generation retirement pass. Production resource registries also pass process-cap stress with controlled producers on both platforms. Development hosts implement device info/storage, clipboard writes and native network snapshot/change events, with fresh subscriptions after hot reload. Both development hosts pass clipboard declaration denial, native deny/allow, exact SDK readback and persisted cold/hot reopening. Both development hosts pass real HTTPS SDK resource read/release and domain denial across initial, cold reopen and hot reload; Android also passes native controlled-transport HTTP/cancel tests. Android development location declaration/native denial passes SDK initial/cold/hot checks; approved fused-provider SDK coordinates also pass after a fresh request following native app/OS approval, including cold/hot reopening. Controlled wrapper approval/ownership/cancellation tests pass. iOS development location shares the bounded Core Location service and passes real SDK declaration/native consent denial and native app/system approval with actual Core Location coordinates across initial/cold/hot execution, plus controlled ownership/cancellation/activation checks. iOS development media now shares native picker/worker and HTTP resource accounting; controlled JPEG/resource/quota/retirement tests and real SDK declaration/native consent denial pass initial/cold/hot execution. Actual iOS development library selection also passes SDK JPEG header read/release, cold reopening and live reload in one UIKit test. Android development media shares the bounded native worker and HTTP resource registry; controlled ownership/cancellation checks, real SDK declaration/native consent denial, and actual system image selection with JPEG read/release pass across initial/cold/hot execution. iOS 26 signed-host camera denial, approval/cancellation and library recovery now pass initial/cold UI execution; controlled production camera-worker dimensions/JPEG/resource checks cover four orientations on iOS 26 and iOS 16. Controlled signed/development location revocation and fresh recovery pass on both runtimes; coordinate delivery now rechecks current permissions. Android already enforces that delivery check; its API 26 native suite now explicitly covers development app/OS revocation, recovery and duplicate callbacks alongside the signed regression. | Physical camera acceptance, actual iOS photo capture, minimum-iOS camera permission/picker UI acceptance, current-iOS mixed HTTP/media timing stability, real OS location-revocation UI, wider location stress and extended development HTTP stress, remaining consent UI acceptance and Android first-request location timing/stability. Physical network transitions and iOS connectivity-change acceptance remain unverified. |
 | Packages and isolation | Gate passes signature/metadata, store, permissions, isolated storage and retained-engine tests. A named 26-case native package matrix passes on Android and in a UIKit simulator app, including retained-state and storage checks. Signed heap-limit and infinite-loop guests are also stopped on both native platforms, with healthy retained state preserved and failed effects denied. Signed mailbox-flood failure and 64-round continuing-flood recovery also pass on both platforms; the expanded suite passes on iOS 16.0. The continuing guest completes 2,048 native writes/replies and receives 14,336 BUSY denials while preserving both generations. Core tests cover interruption and retirement. | Longer malicious-workload/service-flood stress and physical memory/isolation acceptance across concurrent guests. |
 | Examples and performance | The 1,000-row list/form fixture and benchmark runners exist. Saved Pixel frames show stationary bars after scrolling; the earlier clipping claim was withdrawn. Offscreen Metal/GLES parity checks are separate evidence. | Implement/verify unchanged-frame present suppression in the mobile GPU paths. Establish physical cold-start, sustained scroll, frame-latency and memory evidence against the plan's suggested budgets. |
@@ -35,7 +35,7 @@ remain partial. The release has no configured production distribution endpoint.
 
 Recent authoritative evidence:
 
-- Current production full gate: [Bun 1.4.2 regression](build/validation/location-revocation-regression-bun142-20261016/result.json).
+- Current production full gate: [Bun 1.4.2 regression](build/validation/ui-overlays-full-regression-bun142-20261016-localhost/result.json).
 - Camera activation/cancellation: [native and signed UI checks](build/validation/camera-activation-20261016/result.json); [controlled image worker](build/validation/camera-image-worker-20261016/result.json).
 - Minimum-iOS attacks and flood recovery: [iOS 16 native receipt](build/ios-validation/package-flood-recovery-ios16-20261015/verified-result.json).
 - Fresh native workflows: [normal iOS](build/validation/fresh-native-project-ios-normal-20261015/run/result.json), [Android](build/validation/fresh-native-project-android-20261015-owned-network-control/run/fresh-sdk-result.json).
@@ -81,10 +81,15 @@ Recent authoritative evidence:
    is not assumed to be an upstream svc limit. Physical throughput remains
    distinct from bounded admission.
 
-The first API batch also exposes concrete unfinished work: SDK UI convenience
-operations (Toast/dialog/action-sheet, preferably self-drawn as the proposal
-suggests) and app exit. Their absence is visible in sdk/index.ts/native.ts.
-They are current implementation gaps, not device-only acceptance blockers.
+The first API batch now implements SDK Toast/dialog/action-sheet operations
+through a shared self-drawn Modal/Portal renderer. Guest app exit is
+now implemented as mini.app.exit(), with signed native acceptance on both
+platforms. Development-host exit now also passes on iOS 26.4 and Android API 26,
+including unload storage and remaining closed across a compiled source edit. Evidence:
+`build/validation/guest-exit-20261016/result.json` and
+`build/validation/development-guest-exit-20261016/result.json`. SDK UI behavior
+passes real compiled QuickJS/native software rendering for both target packages.
+Mobile GPU UI acceptance and long-text/compact-viewport presentation remain open.
 The proposal's performance values are suggested initial targets requiring P0
 measurement/calibration; current partial measurements do not calibrate them or
 establish acceptance.
@@ -119,9 +124,9 @@ benchmark acceptance is claimed.
 
 ## Executed checks
 
-The latest full `tests/check.sh` run passes after the camera activation and location revocation fixes on
-Bun 1.4.2: `build/validation/location-revocation-regression-bun142-20261016/full-check.log`
-and its adjacent result.json (exitCode=0, 52.426 seconds, 74 Rust tests). The
+The latest full `tests/check.sh` run passes after the SDK UI implementation and compiler input fix on
+Bun 1.4.2: `build/validation/ui-overlays-full-regression-bun142-20261016-localhost/full-check.log`
+and its adjacent result.json (exitCode=0, 47.675 seconds, 74 Rust tests). The
 isolated compiler checkout was removed and shared tracked upstream state stayed
 unchanged. The earlier documented-Bun-1.3.11 gate remains retained at
 `build/validation/native-engine-regression-bun1311-20261015/full-check.log` with
@@ -3755,3 +3760,93 @@ and implementation take priority over repeating already passing service cases.
 Recovery evidence: build/validation/proposal-recovery-20261016/result.json.
 No production code or physical device changed. Existing user edits are retained,
 additional DevTools remain deferred, and the full goal stays active.
+
+## Guest-requested app exit implemented; signed acceptance (2026-10-16)
+
+Added mini.app.exit(): void as a bounded terminal app.exit.v1 command. It uses
+the shared monotonic request sequence and message limit but allocates no pending
+Promise that would outlive guest teardown. Immediate transport errors propagate;
+failed sends can retry, and repeated accepted SDK calls are idempotent. Other
+pending work can complete normal unload/storage handling.
+
+Both installed and development native handlers validate empty arguments and
+bind closure to the active guest. Android finishes the mini-app Activity through
+its normal lifecycle; iOS stops the guest and shows a closed state, with an
+optional installed-host onExit callback after cleanup. No process-exit function
+is called. Pending iOS exits use an identity/generation token so a retired
+request cannot suppress a replacement guest's exit; Android tracks the pending
+generation/revision. Closed iOS sessions do not resume frame/network work or
+restart development polling when their host view appears again.
+
+Real signed TSX tests pass on iOS 26.4 and Android API 26: malformed arguments
+return PROTOCOL before the valid exit, duplicate SDK calls close normally,
+unload storage persists, and existing navigation/lifecycle remain correct.
+iOS remains in the foreground closed state. Android returns to the launcher and
+cold reopening resets state while exposing the saved unload value. A separate
+iOS native probe retires a guest between queued exits and verifies exactly one
+replacement teardown without retiring another owner. Its checks execute
+unconditionally and its result is required by the Swift XCTest receipt.
+
+Evidence: build/validation/guest-exit-20261016/result.json links signed receipts,
+UI artifacts, source hashes and final full gate. The full gate passes on Bun
+1.4.2 in 47.675 seconds, including 74 Rust tests and the terminal SDK tests; the
+isolated compiler checkout is removed and shared tracked upstream is unchanged.
+Android installed/development Java and iOS source checks also pass. A first
+generation-probe compile failed because its fixture looked up a package on the
+surface rather than container; the failed record and simulator cleanup remain
+retained. All owned test devices were removed. No phone access occurred.
+
+Dedicated development-host exit runtime acceptance, minimum-iOS exit runtime,
+physical acceptance, SDK UI operations, idle-present suppression and other
+release gates remain open. This does not claim the full goal complete; the
+Pixel stays untouched and additional DevTools work remains deferred.
+
+
+## Development-host guest exit accepted (2026-10-16)
+
+Actual SDK mini.app.exit() now passes in both development hosts on an owned
+iOS 26.4 simulator and Android API 26 emulator. The fixture rejects malformed
+arguments before duplicate valid exits. Unload storage is read back from each
+app's own storage file. A source edit compiles after closure; both hosts remain
+closed over a three-second observation. iOS stays closed across Home/resume
+while the host remains in the foreground. Explicit Android reopening runs the
+edited source with a zero counter. Baseline native TSX navigation also passes.
+
+Evidence: build/validation/development-guest-exit-20261016/result.json records
+source hashes and links both native receipts. Both disposable devices were
+removed; no physical phone was accessed. This unit adds acceptance fixtures only,
+so the prior full production regression remains applicable. Minimum-iOS exit,
+physical acceptance, SDK UI operations, idle-present suppression and other open
+release gates remain. DevTools additions remain deferred beyond v0.0.1.
+
+
+## SDK Toast, dialog and action sheet implemented (2026-10-16)
+
+Added mini.ui.toast/dialog/actionSheet with one modal slot, one toast slot,
+bounded UTF-8 text/options, cancellable Promises and shared frame-owned timers.
+Modal Back takes priority over navigation. Hide/renderer removal cancels work;
+unload/disposal closes it. A mounted renderer is required, and retired button
+snapshots cannot answer replacement overlays. These operations emit no native
+service records. MiniOverlays uses PocketJS Modal/Portal and Solid ownership;
+examples/ui-overlays demonstrates the mount/connect order and handled results.
+
+The pinned compiler bundles bare SDK imports but does not scan them for classes
+and glyphs. The first rendered test exposed a collapsed, unstyled dialog. The
+Mini compiler now validates the original manifest, installs an atomic generated
+relative build entry, resolves its own build plan and typechecks the original
+application. This puts SDK overlay sources into the compiler scan without
+changing application source, tsconfig or pinned upstream files. Native QuickJS
+software checks pass for both target packages at 360x512: rendered confirmation,
+action selection/cancel, blocked background taps, toast expiry and hide cleanup.
+Screenshots were reviewed. Initial geometry lookup failures and the unstyled
+render remain retained; the harness now uses the visible text ancestor.
+
+Evidence: build/validation/ui-overlays-full-regression-bun142-20261016-localhost/ui-result.json
+records source hashes, cases, limits and screenshots. The full gate passes on
+Bun 1.4.2 in 51.060 seconds, including 74 Rust tests, SDK tests, public builds,
+signed exports and distribution tests. The first gate could not bind its local
+TLS server; rerunning with localhost access passes. The isolated compiler was
+removed and tracked upstream state is unchanged. No phone was accessed. Mobile
+GPU UI acceptance and long text/compact viewport presentation remain open, as
+do idle-present suppression and the other release gates. DevTools additions
+remain deferred; the full goal is active.

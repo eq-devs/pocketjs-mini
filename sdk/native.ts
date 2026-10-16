@@ -1,4 +1,5 @@
 import { FrameRuntime, ServiceError, utf8Bytes, type Limits } from "./runtime.ts";
+import { MiniUI } from "./ui.ts";
 import { Navigation, checkedPageQuery } from "./navigation.ts";
 import {strictJsonEncode,strictJsonText} from './json.ts';
 import {checkedLocationOptions,checkedLocationPosition,type LocationOptions} from './location.ts';
@@ -76,9 +77,10 @@ export function connectMiniApp(options: { host?: FrameHost; pages?: readonly str
     ops.svcSend(line);
   } }, { maxMessageBytes: 4096, maxPending: 32, maxQueued: 32, ...options.limits }, () => sequence.next++);
   if (runtime.limits.maxMessageBytes > 4096 || runtime.limits.maxPending > 32 || runtime.limits.maxQueued > 32 || runtime.limits.maxTimers>256 || runtime.limits.maxListeners>256) throw new ServiceError("PROTOCOL", "SDK limits exceed the native mailbox contract");
+  const ui = new MiniUI(runtime);
   let closed = false;
   const previousBack = host.__miniBack;
-  const back = () => !closed && navigation.back();
+  const back = () => !closed && (ui.back() || navigation.back());
   host.__miniBack = back;
   const lifecycleListeners = new Map<LifecycleEvent, Set<(data: LaunchOptions | undefined) => void>>();
   let launchOptions: LaunchOptions | undefined=state.launch;
@@ -101,6 +103,8 @@ export function connectMiniApp(options: { host?: FrameHost; pages?: readonly str
       state.launch=snapshot;
       navigation.reset(path,{...snapshot.query});
     }
+    if(event==="hide")ui.clear();
+    if(event==="unload")ui.dispose();
     previousLifecycle?.call(host,event,data);
     for(const listener of [...(lifecycleListeners.get(event) ?? [])]){if(closed)break;listener(event==="launch"?launchOptions:undefined);}
   };
@@ -122,7 +126,7 @@ export function connectMiniApp(options: { host?: FrameHost; pages?: readonly str
   owners.add(host);anchor.pump=pump;anchors.set(host,anchor);host.frame=anchor.frame;
   guestStates.set(host,state);
   return {
-    runtime, navigation,
+    runtime, navigation, ui,
     app: { exit: () => runtime.exit() },
     http: (options: HttpRequest) => {const args=checkedHttpRequest(options),request=runtime.request<unknown>("request.v1",args);return {promise:request.promise.then(value=>checkedHttpResponse(value,args.responseMode)),cancel:request.cancel};},
     resources: {
@@ -164,7 +168,7 @@ export function connectMiniApp(options: { host?: FrameHost; pages?: readonly str
     },
     dispose() {
       if (closed) return;
-      closed = true;runtime.dispose();owners.delete(host);
+      closed = true;ui.dispose();runtime.dispose();owners.delete(host);
       lifecycleListeners.clear();if(host.__miniLifecycle===lifecycle)host.__miniLifecycle=previousLifecycle;
       if(host.__miniBack===back)host.__miniBack=previousBack;
       if(anchor.pump===pump)anchor.pump=undefined;

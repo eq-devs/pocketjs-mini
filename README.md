@@ -178,6 +178,51 @@ mini.after(60, () => console.log("60 guest frames elapsed"));
 mini.navigation.push("/detail", { id: "example" });
 ```
 
+`mini.app.exit()` requests closure of the active mini-app session. It is a
+terminal one-way command returning `void`: transport errors are synchronous,
+and it creates no pending Promise that would outlive teardown. Repeated accepted
+calls are ignored. Native handlers require empty arguments and bind exit to the
+current guest. Normal unload, storage cleanup and resource retirement still run.
+Android finishes the mini-app Activity. iOS closes the guest and shows a closed
+state; an embedding installed host can set `MiniInstalledController.onExit` to
+return to its own screen after teardown. This never calls process termination.
+
+Signed TSX acceptance on iOS 26.4 and Android API 26 checks malformed exit
+arguments, duplicate SDK calls, unload storage and normal navigation/lifecycle;
+Android also verifies cold reopening after exit. Reproduce with
+`bun tests/guest-exit-owned-ios.ts` or
+`PJM_APP_EXIT_TEST=1 bun tests/minimum-os-owned-android.ts 26`.
+Development-host acceptance also passes on iOS 26.4 and Android API 26: unload
+storage persists and compiling a source edit leaves the app closed. iOS stays
+closed across Home/resume; explicitly reopening Android starts fresh state with
+the edited source. Reproduce with `PJM_DEVELOPMENT_EXIT=1 bun tests/guest-exit-owned-ios.ts`
+or `PJM_DEVELOPMENT_EXIT=1 bun tests/minimum-os-owned-android.ts 26`. These runners
+create and remove their own disposable test devices.
+
+`mini.ui.toast({text, durationFrames?})`, `mini.ui.dialog({title, message?,
+confirmLabel?, cancelLabel?, showCancel?})`, and
+`mini.ui.actionSheet({title?, items, cancelLabel?})` draw guest-local overlays.
+Mount `MiniOverlays` from `@pocketjs/mini/overlays` once after connecting the SDK;
+[the UI example](examples/ui-overlays/app/main.tsx) shows the mount/connect order.
+Each operation returns `{promise, cancel}`. Dialog results contain `confirmed`;
+action-sheet results contain a zero-based `index`. Toasts finish after their
+frame duration (default 120, maximum 3600). One modal and one toast may coexist;
+an occupied slot rejects new work with `BUSY`. Missing renderers report
+`UNSUPPORTED`. Back dismisses a modal before navigating; dismissal, hide, or
+renderer removal rejects work with `CANCELLED`; unload/dispose uses `CLOSED`.
+Handle these rejections in the application. UI calls do not use native services.
+
+Text limits are UTF-8 bytes: toast 512, title 128, dialog message 2048,
+button labels 64, and 1–8 action-sheet items of at most 128 bytes each.
+The default renderer uses the guest's baked fonts, measures soft wrapping,
+and scrolls modal content and actions inside the available safe area. Long
+toasts show at most four lines (fewer in short windows), with `...` when shortened.
+Native software checks cover maximum dialog text and eight long actions in
+240×280 and 320×180 windows, including asymmetric safe areas. Mobile GPU
+presentation and additional font/viewport coverage remain separate gates.
+The generated SDK build entry includes its relative overlay source in the
+pinned compiler's style/glyph scan. Application source and tsconfig stay intact.
+
 Navigation query objects allow up to 32 string fields, with keys up to 128
 characters and values up to 1024 characters. Each encoded path/query is limited
 to 4 KiB and must contain valid Unicode. Rejected queries preserve the existing

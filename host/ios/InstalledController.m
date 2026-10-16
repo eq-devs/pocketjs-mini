@@ -143,7 +143,7 @@ static NSDictionary *MiniResourceService(NSString *kind,id arguments,NSString *i
 - (void)cancel {[_timer invalidate];_timer=nil;[_alert dismissViewControllerAnimated:NO completion:nil];_alert=nil;}
 @end
 @interface MiniInstalledController ()
-@property BOOL exitRequested;
+@property NSDictionary *exitRequest;
 @property(nonatomic) MiniPackageStore *store;
 @property(nonatomic) MiniPackageDownload *download;
 @property(nonatomic,readwrite) PocketSurfaceView *surface;
@@ -184,10 +184,10 @@ static NSDictionary *MiniResourceService(NSString *kind,id arguments,NSString *i
 - (void)layoutSurface {CGRect bounds=UIEdgeInsetsInsetRect(self.view.bounds,self.view.safeAreaInsets);_surface.frame=bounds;_message.frame=CGRectInset(bounds,16,16);}
 - (void)viewDidLayoutSubviews {[super viewDidLayoutSubviews];[self layoutSurface];}
 - (void)viewSafeAreaInsetsDidChange {[super viewSafeAreaInsetsDidChange];[self layoutSurface];}
-- (void)viewDidAppear:(BOOL)animated {[super viewDidAppear:animated];[self layoutSurface];[_network resume];[_location resume];[_media resume];[_surface resumeForHost];[_surface start];}
+- (void)viewDidAppear:(BOOL)animated {[super viewDidAppear:animated];if(_exitRequest&&!_surface.verifiedActiveIdentity)return;[self layoutSurface];[_network resume];[_location resume];[_media resume];[_surface resumeForHost];[_surface start];}
 - (void)viewDidDisappear:(BOOL)animated {[super viewDidDisappear:animated];[_surface stop];[_surface suspendForHost];[_media suspendForHost];[_location suspend];[_network suspend];}
 - (BOOL)openIdentity:(NSString *)identity launchData:(NSData *)launch error:(NSError **)error {
-    BOOL opened=[_surface activateInstalledIdentity:identity store:_store launchData:launch error:error];if(opened)_message.hidden=YES;return opened;
+    BOOL opened=[_surface activateInstalledIdentity:identity store:_store launchData:launch error:error];if(opened){_exitRequest=nil;_message.hidden=YES;}return opened;
 }
 - (void)cancelGeneration:(uint64_t)generation {
     [_networkWatches removeObjectForKey:@(generation)];
@@ -222,10 +222,10 @@ static NSDictionary *MiniResourceService(NSString *kind,id arguments,NSString *i
     return MiniStartHTTP(arguments,identifier,package,generation,_requests,^BOOL(NSString *address){return [package authorizeURL:address error:nil];},^BOOL{return [self admitHTTPRateForIdentity:package.metadata[@"appId"] time:NSProcessInfo.processInfo.systemUptime];},^MiniResource *{return [self reserveResourceForIdentity:package.metadata[@"appId"] generation:generation];},[self httpConfiguration]);
 }
 - (void)exitPackage:(MiniVerifiedPackage *)package generation:(uint64_t)generation {
-    if(_exitRequested)return;_exitRequested=YES;
-    NSString *identity=[package.metadata[@"appId"] copy];__weak MiniInstalledController *weak=self;
-    dispatch_async(dispatch_get_main_queue(),^{MiniInstalledController *owner=weak;if(!owner)return;
-        if(owner.surface.verifiedActiveGeneration!=generation||![owner.surface.verifiedActiveIdentity isEqual:identity]){owner.exitRequested=NO;return;}
+    NSString *identity=[package.metadata[@"appId"] copy];NSDictionary *token=@{@"identity":identity,@"generation":@(generation)};
+    if([_exitRequest isEqual:token])return;_exitRequest=token;__weak MiniInstalledController *weak=self;
+    dispatch_async(dispatch_get_main_queue(),^{MiniInstalledController *owner=weak;if(!owner||owner.exitRequest!=token)return;
+        if(owner.surface.verifiedActiveGeneration!=generation||![owner.surface.verifiedActiveIdentity isEqual:identity]){owner.exitRequest=nil;return;}
         [owner shutdown];[owner.network suspend];owner.surface.hidden=YES;
         owner.message.text=@"Mini app closed.";owner.message.accessibilityIdentifier=@"pjm-app-closed";owner.message.hidden=NO;[owner.view bringSubviewToFront:owner.message];
         if(owner.onExit)owner.onExit();

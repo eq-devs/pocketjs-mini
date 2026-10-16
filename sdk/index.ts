@@ -8,3 +8,5 @@ export type { HttpRequest, HttpResponse, ResourceHandle, ResourceRead, ResourceC
 export type {LocationOptions,LocationPosition} from './location.ts';
 export type {NetworkState} from './network.ts';
 export type {MediaOptions,MediaImage} from './media.ts';
+export { MiniUI } from "./ui.ts";
+export type { ToastOptions, DialogOptions, ActionSheetOptions, UIWork, UISnapshot, ModalState } from "./ui.ts";

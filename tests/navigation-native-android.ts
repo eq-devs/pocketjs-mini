@@ -1,3 +1,4 @@
+import {developmentExitSource} from './development-exit-fixture.ts';
 import {developmentMediaSource} from './development-media-fixture.ts';
 import {developmentLocationSource} from './development-location-fixture.ts';
 import {developmentHttpMediaSource} from './development-http-media-fixture.ts';
@@ -25,6 +26,7 @@ const mixedMode=process.env.PJM_DEVELOPMENT_HTTP_MEDIA==='1';
 const mediaMode=process.env.PJM_DEVELOPMENT_MEDIA;assert.ok(!mediaMode||['undeclared','deny','library','cancel','camera-cancel','camera'].includes(mediaMode));assert.ok(!mediaMode||(!readMode&&!locationMode&&(!httpMode||mixedMode)&&process.env.PJM_DEVELOPMENT_NETWORK==='1'));
 assert.ok(!mixedMode||(httpMode&&mediaMode==='camera'));
 const networkMode=process.env.PJM_DEVELOPMENT_NETWORK==='1';
+const exitMode=process.env.PJM_DEVELOPMENT_EXIT==='1';assert.ok(!exitMode||(!networkMode&&!readMode&&!locationMode&&!mediaMode&&!httpMode&&!mixedMode),'Choose exit or service acceptance');
 const adb=(...args:string[])=>[join(androidSdk(),'platform-tools/adb'),'-s',serial,...args];
 let host:ReturnType<typeof Bun.spawn>|undefined;
 let logging:Promise<unknown>|undefined;
@@ -217,6 +219,20 @@ try{
   await wait(snapshot,value=>value.revision>before&&developmentNetworkProof(text(value))?.fixture==='reloaded');
   await networkProof('network-hot-reload',proof=>proof.fixture==='reloaded'&&!['unknown','none'].includes(proof.type)&&proof.events===0);await page('Home page',0);await screenshot('hot-reload.png');if(readMode){const proof=await wait(snapshot,value=>text(value).includes('Clipboard read: '+expectedRead));writeFileSync(join(evidence,'clipboard-read-hot-reload.json'),JSON.stringify(proof));}if(httpMode){await httpProof('http-hot-reload');await screenshot('http-hot-reload.png');}if(mediaMode){await mediaProof('media-hot-reload');await screenshot('media-hot-reload.png');}if(locationMode){await locationProof('location-hot-reload');await screenshot('location-hot-reload.png');}if(mixedMode)await mixedProof('mixed-hot-reload');
  }
+ if(exitMode){
+  const state=async()=>{const response=await fetch(session.url+'state');assert.ok(response.ok);return response.json() as Promise<any>;};
+  const before=await state();writeFileSync(join(project,'app/main.tsx'),developmentExitSource(navigationSource));
+  const ready=await wait(state,value=>value.revision>before.revision&&!value.error);
+  const closed=await wait(()=>hierarchy(xmlPath),value=>!value.includes('package="dev.pjm.android"'));writeFileSync(join(evidence,'guest-exit.xml'),closed);
+  const stored=JSON.parse(await run(adb('shell','run-as','dev.pjm.android','cat','files/mini-data/dev.pjm.navigation/storage.json')));assert.equal(stored['dev-exit-proof'],'saved');
+  writeFileSync(join(evidence,'exit-storage-proof.json'),JSON.stringify({unloadSaved:true}));
+  writeFileSync(join(project,'app/main.tsx'),navigationSource.replace('Home page','Home after closed edit'));
+  const changed=await wait(state,value=>value.revision>ready.revision&&!value.error);writeFileSync(join(evidence,'exit-post-close-edit.json'),JSON.stringify(changed));
+  const until=Date.now()+3000;let samples=0;
+  while(Date.now()<until){const value=await hierarchy(xmlPath);assert.ok(!value.includes('package="dev.pjm.android"'),'Source edit reopened closed guest');samples++;await Bun.sleep(250);}
+  await screenshot('guest-exit-still-closed.png');await open();await wait(receipt,value=>value.session===session.url&&value.frames>=30);await page('Home after closed edit',0);await screenshot('guest-exit-explicit-cold.png');
+  writeFileSync(join(evidence,'exit-proof.json'),JSON.stringify({closedAfterEdit:true,observationMs:3000,samples,explicitColdReopen:true,unloadSaved:true}));await run(adb('shell','rm','-f',xmlPath));
+ }
  writeFileSync(join(evidence,'navigation.pocket'),readFileSync(join(project,'build/navigation.pocket')));
  if(freshNativeSdk){
   assert.ok(!existsSync(join(root,'examples'))&&!existsSync(join(root,'.pjm/pocketjs')));
@@ -225,7 +241,7 @@ try{
   const source=JSON.parse(readFileSync(join(cache,names[0],'source.json'),'utf8'));assert.equal(source.upstream,realpathSync(join(project,'.pjm/pocketjs')));
   writeFileSync(join(evidence,'source-resolution.json'),JSON.stringify(source,null,2)+'\n');writeFileSync(join(evidence,'generated-Cargo.toml'),readFileSync(join(cache,names[0],'Cargo.toml')));
  }
- writeFileSync(join(evidence,'result.json'),JSON.stringify({platform:'android',freshSdkPublicNativeWorkflow:!!freshNativeSdk,developmentMediaMode:mediaMode??null,mediaColdHotDenial:mediaMode==='deny'||mediaMode==='undeclared',mediaLibraryReadRelease:mediaMode==='library',mediaChooserCancelled:mediaMode==='cancel',mediaCameraCancelled:mediaMode==='camera-cancel',mediaCameraPrivateFileCleaned:mediaMode==='camera-cancel'||mediaMode==='camera',mediaCameraJpegReadRelease:mediaMode==='camera',developmentLocationMode:locationMode??null,firstPermissionRequestTimedOut,locationColdHotDenial:!!locationMode&&locationMode!=='allow',realLocationProvider:locationMode==='allow',nativeLocationOsApproval:locationMode==='allow',locationColdHotApproval:locationMode==='allow',mixedHttpMediaQuota:mixedMode,liveHttpsSdk:httpMode,httpDomainDenied:httpMode,httpResourceReadRelease:httpMode,httpColdHotReload:httpMode,developmentClipboardReadMode:readMode??null,clipboardReadVerdict:readMode?expectedRead:null,realTsx:true,buttonNavigation:true,queryRetained:true,counterRetained:true,backgroundResume:true,systemBack:true,rootExit:true,coldReset:true,nativeClipboardWrite:networkMode,clipboardInvalidArgumentsRejected:networkMode,clipboardColdReopen:networkMode,clipboardHotReload:networkMode,nativeNetworkSnapshot:networkMode,networkTransitions:networkMode,networkInvalidArgumentsRejected:networkMode,networkHotReloadReset:networkMode,physicalDevicePerformanceMeasured:false},null,2));
+ writeFileSync(join(evidence,'result.json'),JSON.stringify({platform:'android',developmentGuestExit:exitMode,exitUnloadStorage:exitMode,closedAfterSourceEdit:exitMode,exitExplicitColdReopen:exitMode,freshSdkPublicNativeWorkflow:!!freshNativeSdk,developmentMediaMode:mediaMode??null,mediaColdHotDenial:mediaMode==='deny'||mediaMode==='undeclared',mediaLibraryReadRelease:mediaMode==='library',mediaChooserCancelled:mediaMode==='cancel',mediaCameraCancelled:mediaMode==='camera-cancel',mediaCameraPrivateFileCleaned:mediaMode==='camera-cancel'||mediaMode==='camera',mediaCameraJpegReadRelease:mediaMode==='camera',developmentLocationMode:locationMode??null,firstPermissionRequestTimedOut,locationColdHotDenial:!!locationMode&&locationMode!=='allow',realLocationProvider:locationMode==='allow',nativeLocationOsApproval:locationMode==='allow',locationColdHotApproval:locationMode==='allow',mixedHttpMediaQuota:mixedMode,liveHttpsSdk:httpMode,httpDomainDenied:httpMode,httpResourceReadRelease:httpMode,httpColdHotReload:httpMode,developmentClipboardReadMode:readMode??null,clipboardReadVerdict:readMode?expectedRead:null,realTsx:true,buttonNavigation:true,queryRetained:true,counterRetained:true,backgroundResume:true,systemBack:true,rootExit:true,coldReset:true,nativeClipboardWrite:networkMode,clipboardInvalidArgumentsRejected:networkMode,clipboardColdReopen:networkMode,clipboardHotReload:networkMode,nativeNetworkSnapshot:networkMode,networkTransitions:networkMode,networkInvalidArgumentsRejected:networkMode,networkHotReloadReset:networkMode,physicalDevicePerformanceMeasured:false},null,2));
  console.log('Actual Android TSX navigation passed: button routes, query/counter retention, Home/resume, system Back, root exit and cold reset.');
 }finally{
  try{if(restoreConnectivity)await restoreConnectivity();}

@@ -140,7 +140,7 @@ public class MiniActivity extends Activity {
   private int pixelWidth,pixelHeight;
   private boolean testMode;
   private boolean backPending;
-  private volatile boolean exitRequested;
+  private volatile int exitRevision;
   @Override public void onBackPressed(){
     if(backPending)return;
     if(surface==null || paused || closed || loading || revision<1){testRecord("back.txt","unavailable paused="+paused+" closed="+closed+" loading="+loading+" revision="+revision);finish();return;}
@@ -324,7 +324,7 @@ public class MiniActivity extends Activity {
         } else if(kind.equals("app.exit.v1")) {
           Object args=request.opt("args");
           if(!(args instanceof JSONObject)||((JSONObject)args).length()!=0)reply.put("ok",false).put("error",new JSONObject().put("code","PROTOCOL").put("message","App exit takes no arguments"));
-          else if(!paused&&!closed&&revision>0){if(!exitRequested){exitRequested=true;final int expected=revision;runOnUiThread(()->{if(!closed&&revision==expected)finish();else exitRequested=false;});}continue;}
+          else if(!paused&&!closed&&revision>0){final int expected=revision;if(exitRevision!=expected){exitRevision=expected;runOnUiThread(()->{if(!closed&&revision==expected)finish();});}continue;}
           else reply.put("ok",false).put("error",new JSONObject().put("code","BUSY").put("message","App is not active"));
         } else if(kind.equals("device.info.v1")) {
           JSONObject data=new JSONObject();data.put("platform","android");data.put("model",android.os.Build.MODEL);

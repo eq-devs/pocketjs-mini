@@ -67,7 +67,7 @@
   __weak MiniController *weak = self;
   self.poll = [NSTimer scheduledTimerWithTimeInterval:0.3 repeats:YES block:^(NSTimer *timer) { [weak reload]; }];
 }
-- (void)viewWillAppear:(BOOL)animated {[super viewWillAppear:animated];[self.networkStatus resume];[self.location resume];[self.media resume];}
+- (void)viewWillAppear:(BOOL)animated {[super viewWillAppear:animated];if(self.exitRequested)return;[self.networkStatus resume];[self.location resume];[self.media resume];}
 - (void)viewDidDisappear:(BOOL)animated {[super viewDidDisappear:animated];[self.networkStatus suspend];[self.location suspend];[self.media suspendForHost];}
 - (void)dealloc { [self.media close];[self.location close];[self.http close]; for(MiniDevelopmentClipboardRead *work in self.clipboardReads.allValues)[work cancel]; [self.poll invalidate]; [self.networkStatus suspend]; [self.surface stop]; }
 - (void)drainNetwork:(PocketSurfaceView *)surface {
@@ -251,7 +251,7 @@
   [self.view bringSubviewToFront:self.message];
 }
 - (void)reportWindow {
-  if (self.reporting || !self.metrics) return;
+  if (self.exitRequested || self.reporting || !self.metrics) return;
   self.reporting = YES;
   NSDictionary *snapshot = self.metrics;
   NSData *body = [NSJSONSerialization dataWithJSONObject:snapshot options:0 error:nil];

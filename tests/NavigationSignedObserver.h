@@ -1,3 +1,4 @@
+#import "VerifiedContainer.h"
 #import "InstalledController.h"
 #import "AppStorage.h"
 #import "VerifiedMedia.h"
@@ -45,6 +46,13 @@
 
 // Test-only subclass: observes normal SDK storage; does not replace services,
 // authentication, rendering, input, retention or lifecycle implementation.
+static BOOL MiniExitOwnershipVerified;
+#ifdef PJM_APP_EXIT_TEST
+static void MiniExitFixtureRequire(BOOL condition,NSString *message){if(!condition)[NSException raise:@"GuestExitRegression" format:@"%@",message];}
+@interface MiniInstalledController (ExitFixture)
+- (void)exitPackage:(MiniVerifiedPackage *)package generation:(uint64_t)generation;
+@end
+#endif
 @interface NavigationProofController : MiniInstalledController
 @property(nonatomic,strong) MiniAppStorage *proofStorage;
 @property(nonatomic,strong) NSTimer *proofTimer;
@@ -66,8 +74,17 @@
   __weak NavigationProofController *weakSelf=self;
   self.onExit=^{NavigationProofController *owner=weakSelf;if(!owner)return;[owner.proofTimer invalidate];owner.proofTimer=nil;
     id saved=[owner.proofStorage dispatch:@"storage.get.v1" arguments:@{@"key":@"exit-unload-proof"} error:nil];
-    UILabel *label=[owner valueForKey:@"message"];label.accessibilityValue=[saved isEqual:@"saved"]?@"unload=saved":@"unload=missing";
+    UILabel *label=[owner valueForKey:@"message"];label.accessibilityValue=[NSString stringWithFormat:@"unload=%@ ownership=%@",[saved isEqual:@"saved"]?@"saved":@"missing",MiniExitOwnershipVerified?@"passed":@"missing"];
   };
+#ifdef PJM_APP_EXIT_TEST
+  MiniInstalledController *probe=[[MiniInstalledController alloc] initWithIdentity:identity store:store launchData:launch error:error];MiniExitFixtureRequire(probe,@"Exit ownership probe did not open");
+  MiniVerifiedContainer *pool=[probe.surface valueForKey:@"container"];uint64_t old=pool.activeGeneration;
+  MiniVerifiedPackage *bound=[pool packageForIdentity:identity generation:old];__block NSUInteger exits=0;probe.onExit=^{exits++;};
+  [probe exitPackage:bound generation:old];MiniExitFixtureRequire([pool closeIdentity:identity error:error],@"Probe retirement failed");
+  MiniExitFixtureRequire([probe.surface activateInstalledIdentity:identity store:store launchData:launch error:error],@"Probe replacement failed");uint64_t fresh=probe.surface.verifiedActiveGeneration;MiniExitFixtureRequire(fresh>old,@"Probe generation did not advance");
+  [probe exitPackage:[pool packageForIdentity:identity generation:fresh] generation:fresh];
+  dispatch_async(dispatch_get_main_queue(),^{MiniExitFixtureRequire(exits==1&&probe.surface.verifiedActiveGeneration==0,@"Queued exit lost the replacement request");MiniExitFixtureRequire(weakSelf.surface.verifiedActiveGeneration>0,@"Probe exit retired another owner");[weakSelf.proofStorage dispatch:@"storage.remove.v1" arguments:@{@"key":@"exit-unload-proof"} error:nil];MiniExitOwnershipVerified=YES;NSLog(@"PJM_GUEST_EXIT_OWNERSHIP_PASS retired-request replacement-request one-teardown");});
+#endif
   return _proofStorage?self:nil;
 }
 - (void)viewDidAppear:(BOOL)animated {

@@ -229,3 +229,10 @@ test("app exit is one-way, idempotent and shares native request identity without
   // writes can finish; disposal must not produce an unhandled exit rejection.
   for(let i=0;i<700;i++)host.frame!();app.dispose();assert.throws(()=>app.app.exit(),{code:"CLOSED"});
 });
+
+test("terminal exit preserves message bounds and retries failed transport with a fresh identifier",()=>{
+  let sends=0;const limited=connectMiniApp({host:{frame(){},ui:{svcOpen:()=>true,svcSend:()=>{sends++;},svcPoll:()=>""}},limits:{maxMessageBytes:1}});
+  assert.throws(()=>limited.app.exit(),{code:"PROTOCOL"});assert.equal(sends,0);limited.dispose();
+  const sent:any[]=[];let blocked=true;const app=connectMiniApp({host:{frame(){},ui:{svcOpen:()=>true,svcPoll:()=>"",svcSend:line=>{const value=JSON.parse(line);sent.push(value);if(blocked)throw Object.assign(new Error("Full"),{code:"BUSY"});}}}});
+  assert.throws(()=>app.app.exit(),{code:"BUSY"});blocked=false;app.app.exit();app.app.exit();assert.equal(sent.length,2);assert.ok(sent[1].id>sent[0].id);app.dispose();
+});

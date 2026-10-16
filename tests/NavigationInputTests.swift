@@ -151,4 +151,41 @@ final class MiniTests: XCTestCase {
             network("network-hot-reload", app)
         }
     }
+    func exitServer(_ path: String, body: [String: Any]? = nil) -> [String: Any]? {
+        var request = URLRequest(url: URL(string: pjmTestURL + path)!)
+        request.timeoutInterval = 5
+        if let body = body { request.httpMethod = "POST"; request.httpBody = try! JSONSerialization.data(withJSONObject: body) }
+        let done = DispatchSemaphore(value: 0)
+        var result: [String: Any]?
+        URLSession.shared.dataTask(with: request) { data, response, _ in
+            if (response as? HTTPURLResponse)?.statusCode == 200 { result = data.flatMap { (try? JSONSerialization.jsonObject(with: $0)) as? [String: Any] } ?? [:] }
+            done.signal()
+        }.resume()
+        _ = done.wait(timeout: .now() + 6)
+        return result
+    }
+    func testDevelopmentGuestExit() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["--pjm-url", pjmTestURL, "--pjm-inspect"]
+        app.terminate(); app.launch()
+        let closed = app.staticTexts["pjm-app-closed"]
+        XCTAssertTrue(closed.waitForExistence(timeout: 60))
+        XCTAssertEqual(app.state, .runningForeground)
+        XCTAssertFalse(app.otherElements["pocket-surface"].exists)
+        guard let revision = exitServer("state")?["revision"] as? Int else { XCTFail("No exit revision"); return }
+        XCTAssertNotNil(exitServer("device-event", body: ["revision": revision, "platform": "ios", "kind": "log", "level": "info", "message": "test:development-exit-closed"]))
+        var changed = revision
+        wait { changed = self.exitServer("state")?["revision"] as? Int ?? revision; return changed > revision }
+        let reopened = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in app.otherElements["pocket-surface"].exists }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [reopened], timeout: 3), .timedOut)
+        XCTAssertTrue(closed.exists)
+        XCUIDevice.shared.press(.home); app.activate()
+        XCTAssertTrue(closed.waitForExistence(timeout: 15))
+        XCTAssertFalse(app.otherElements["pocket-surface"].exists)
+        let proof = XCTAttachment(string: "closedRevision=\(revision) compiledAfterExit=\(changed) noReopenAfter3Seconds=true hideShowClosed=true hostForeground=true")
+        proof.name = "development-exit-proof"; proof.lifetime = .keepAlways; add(proof)
+        let shot = XCTAttachment(screenshot: app.screenshot()); shot.name = "development-exit-closed"; shot.lifetime = .keepAlways; add(shot)
+    }
+
 }

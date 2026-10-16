@@ -6733,3 +6733,93 @@ and implementation take priority over repeating already passing service cases.
 Recovery evidence: build/validation/proposal-recovery-20261016/result.json.
 No production code or physical device changed. Existing user edits are retained,
 additional DevTools remain deferred, and the full goal stays active.
+
+## Guest-requested app exit implemented; signed acceptance (2026-10-16)
+
+Added mini.app.exit(): void as a bounded terminal app.exit.v1 command. It uses
+the shared monotonic request sequence and message limit but allocates no pending
+Promise that would outlive guest teardown. Immediate transport errors propagate;
+failed sends can retry, and repeated accepted SDK calls are idempotent. Other
+pending work can complete normal unload/storage handling.
+
+Both installed and development native handlers validate empty arguments and
+bind closure to the active guest. Android finishes the mini-app Activity through
+its normal lifecycle; iOS stops the guest and shows a closed state, with an
+optional installed-host onExit callback after cleanup. No process-exit function
+is called. Pending iOS exits use an identity/generation token so a retired
+request cannot suppress a replacement guest's exit; Android tracks the pending
+generation/revision. Closed iOS sessions do not resume frame/network work or
+restart development polling when their host view appears again.
+
+Real signed TSX tests pass on iOS 26.4 and Android API 26: malformed arguments
+return PROTOCOL before the valid exit, duplicate SDK calls close normally,
+unload storage persists, and existing navigation/lifecycle remain correct.
+iOS remains in the foreground closed state. Android returns to the launcher and
+cold reopening resets state while exposing the saved unload value. A separate
+iOS native probe retires a guest between queued exits and verifies exactly one
+replacement teardown without retiring another owner. Its checks execute
+unconditionally and its result is required by the Swift XCTest receipt.
+
+Evidence: build/validation/guest-exit-20261016/result.json links signed receipts,
+UI artifacts, source hashes and final full gate. The full gate passes on Bun
+1.4.2 in 47.675 seconds, including 74 Rust tests and the terminal SDK tests; the
+isolated compiler checkout is removed and shared tracked upstream is unchanged.
+Android installed/development Java and iOS source checks also pass. A first
+generation-probe compile failed because its fixture looked up a package on the
+surface rather than container; the failed record and simulator cleanup remain
+retained. All owned test devices were removed. No phone access occurred.
+
+Dedicated development-host exit runtime acceptance, minimum-iOS exit runtime,
+physical acceptance, SDK UI operations, idle-present suppression and other
+release gates remain open. This does not claim the full goal complete; the
+Pixel stays untouched and additional DevTools work remains deferred.
+
+
+## Development-host guest exit accepted (2026-10-16)
+
+Actual SDK mini.app.exit() now passes in both development hosts on an owned
+iOS 26.4 simulator and Android API 26 emulator. The fixture rejects malformed
+arguments before duplicate valid exits. Unload storage is read back from each
+app's own storage file. A source edit compiles after closure; both hosts remain
+closed over a three-second observation. iOS stays closed across Home/resume
+while the host remains in the foreground. Explicit Android reopening runs the
+edited source with a zero counter. Baseline native TSX navigation also passes.
+
+Evidence: build/validation/development-guest-exit-20261016/result.json records
+source hashes and links both native receipts. Both disposable devices were
+removed; no physical phone was accessed. This unit adds acceptance fixtures only,
+so the prior full production regression remains applicable. Minimum-iOS exit,
+physical acceptance, SDK UI operations, idle-present suppression and other open
+release gates remain. DevTools additions remain deferred beyond v0.0.1.
+
+
+## SDK Toast, dialog and action sheet implemented (2026-10-16)
+
+Added mini.ui.toast/dialog/actionSheet with one modal slot, one toast slot,
+bounded UTF-8 text/options, cancellable Promises and shared frame-owned timers.
+Modal Back takes priority over navigation. Hide/renderer removal cancels work;
+unload/disposal closes it. A mounted renderer is required, and retired button
+snapshots cannot answer replacement overlays. These operations emit no native
+service records. MiniOverlays uses PocketJS Modal/Portal and Solid ownership;
+examples/ui-overlays demonstrates the mount/connect order and handled results.
+
+The pinned compiler bundles bare SDK imports but does not scan them for classes
+and glyphs. The first rendered test exposed a collapsed, unstyled dialog. The
+Mini compiler now validates the original manifest, installs an atomic generated
+relative build entry, resolves its own build plan and typechecks the original
+application. This puts SDK overlay sources into the compiler scan without
+changing application source, tsconfig or pinned upstream files. Native QuickJS
+software checks pass for both target packages at 360x512: rendered confirmation,
+action selection/cancel, blocked background taps, toast expiry and hide cleanup.
+Screenshots were reviewed. Initial geometry lookup failures and the unstyled
+render remain retained; the harness now uses the visible text ancestor.
+
+Evidence: build/validation/ui-overlays-full-regression-bun142-20261016-localhost/ui-result.json
+records source hashes, cases, limits and screenshots. The full gate passes on
+Bun 1.4.2 in 51.060 seconds, including 74 Rust tests, SDK tests, public builds,
+signed exports and distribution tests. The first gate could not bind its local
+TLS server; rerunning with localhost access passes. The isolated compiler was
+removed and tracked upstream state is unchanged. No phone was accessed. Mobile
+GPU UI acceptance and long text/compact viewport presentation remain open, as
+do idle-present suppression and the other release gates. DevTools additions
+remain deferred; the full goal is active.

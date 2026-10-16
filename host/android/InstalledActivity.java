@@ -26,7 +26,7 @@ public class InstalledActivity extends Activity {
   private final FramePacer pacer=new FramePacer();
   private final ArrayList<TouchContact> contacts=new ArrayList<>();
   private boolean backPending;
-  private volatile boolean exitRequested;
+  private volatile long exitGeneration;
   @Override public void onBackPressed(){
     if(backPending)return;
     if(surface==null || paused || closed || failed){finish();return;}
@@ -137,7 +137,7 @@ public class InstalledActivity extends Activity {
     else if(kind.equals("app.exit.v1")){
       Object args=request.opt("args");
       if(!(args instanceof JSONObject)||((JSONObject)args).length()!=0)reply.put("ok",false).put("error",new JSONObject().put("code","PROTOCOL").put("message","App exit takes no arguments"));
-      else if(!paused&&!closed&&!failed&&container!=null){if(!exitRequested){exitRequested=true;final long expected=generation;runOnUiThread(()->{if(!closed&&generation==expected)finish();else exitRequested=false;});}continue;}
+      else if(!paused&&!closed&&!failed&&container!=null){final long expected=generation;if(exitGeneration!=expected){exitGeneration=expected;runOnUiThread(()->{if(!closed&&generation==expected)finish();});}continue;}
       else reply.put("ok",false).put("error",new JSONObject().put("code","BUSY").put("message","App is not active"));
     }
     else if(kind.equals("device.info.v1"))reply.put("ok",true).put("data",new JSONObject().put("platform","android").put("model",android.os.Build.MODEL).put("width",admitted.width).put("height",admitted.height).put("density",admitted.density).put("safeTop",0).put("safeBottom",0).put("safeLeft",0).put("safeRight",0));

@@ -15,7 +15,6 @@ export interface CompileOptions {
 }
 export async function resolveApplication(options: CompileOptions, deferTypeCheck = false) {
   const { project, upstream, window, platform } = options;
-  installSdk(project);
   const load = (path: string) => import(resolve(upstream, path));
   const [{ checkAppTypes }, platforms, { validateAndResolveBuildPlan }] = await Promise.all([
     load("framework/compiler/app-check.ts"), load("contracts/spec/platforms.ts"), load("framework/src/manifest/resolve.ts"),
@@ -33,7 +32,11 @@ export async function resolveApplication(options: CompileOptions, deferTypeCheck
         viewport: { fixed: { logical: [window.width, window.height], presentation: "native" } } },
     };
   })();
-  const resolved = validateAndResolveBuildPlan(manifest, { target: `pjm-${platform}` }, miniContracts(platforms, window, platform));
+  const original = validateAndResolveBuildPlan(manifest, { target: `pjm-${platform}` }, miniContracts(platforms, window, platform));
+  if (!original.ok) throw new Error(JSON.stringify(original.diagnostics));
+  installSdk(project,original.plan.app.entry);
+  const compiledManifest={...manifest,app:{...manifest.app,entry:".pjm/mini-sdk/build-entry.ts"}};
+  const resolved=validateAndResolveBuildPlan(compiledManifest,{target:`pjm-${platform}`},miniContracts(platforms,window,platform));
   if (!resolved.ok) throw new Error(JSON.stringify(resolved.diagnostics));
   const plan = resolved.plan;
   const configPath = existsSync(join(project,"container.json")) ? join(project,"container.json") : join(project,"mini.json");
@@ -44,7 +47,7 @@ export async function resolveApplication(options: CompileOptions, deferTypeCheck
     pages:config.pages??["/"],permissions:config.permissions??[],domains:config.domains??[],targets:[plan.target.id]};
   validatePackageMetadata(metadata);
   const checkTypes=()=>{
-  const checked = checkAppTypes({ entry: resolve(project, plan.app.entry),
+  const checked = checkAppTypes({ entry: resolve(project, original.plan.app.entry),
     tsconfigPath: join(project, "tsconfig.json"), declarationFiles: [join(upstream, "framework/src/jsx.d.ts")] });
   if (!checked.ok) throw new Error(checked.diagnostics.filter((d: any) => d.category === "error")
     .map((d: any) => `${d.file ?? "TypeScript"}:${d.line ?? 0} TS${d.code}: ${d.message}`).join("\n"));

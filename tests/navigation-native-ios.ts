@@ -1,3 +1,4 @@
+import {developmentExitSource} from './development-exit-fixture.ts';
 import {developmentMediaSource} from './development-media-fixture.ts';
 import {developmentLocationSource} from './development-location-fixture.ts';
 import {developmentHttpSource} from './development-http-fixture.ts';
@@ -20,6 +21,7 @@ const mediaUi=mediaMode==='library'||mediaMode==='cancel';
 const expectedRead=readMode==='allow'?'SUCCESS':'DENIED';
 const httpMode=process.env.PJM_DEVELOPMENT_HTTP==='1';
 const networkMode=process.env.PJM_DEVELOPMENT_NETWORK==='1';
+const exitMode=process.env.PJM_DEVELOPMENT_EXIT==='1';assert.ok(!exitMode||(!networkMode&&!readMode&&!locationMode&&!mediaMode&&!httpMode),'Choose exit or service acceptance');
 const evidence=resolve(process.env.PJM_NAVIGATION_EVIDENCE??join(root,'build/ios-validation/navigation-'+Date.now()));mkdirSync(evidence,{recursive:true});
 let server:ReturnType<typeof Bun.spawn>|undefined,logging:Promise<unknown>|undefined,launched=false,locationInput=false;
 const log=Bun.file(join(evidence,'server.log')).writer();
@@ -75,8 +77,26 @@ try{
    cpSync(join(evidence,'attachments',shot.exportedFileName),join(evidence,'network-hot-reload.png'));
   }else await run(['xcrun','simctl','io',serial,'screenshot',join(evidence,'network-hot-reload.png')]);
  }
+ if(exitMode){
+  const state=async()=>fetch(session.url+'state').then(response=>response.json()) as Promise<any>;
+  const before=await state();writeFileSync(join(project,'app/main.tsx'),developmentExitSource(navigationSource));
+  const ready=await wait(state,value=>value.revision>before.revision&&!value.error);
+  let editError:unknown;
+  const edit=(async()=>{
+   const closed=await wait(state,value=>value.deviceEvents?.some((event:any)=>event.kind==='log'&&event.message==='test:development-exit-closed'&&event.revision===value.revision));
+   writeFileSync(join(project,'app/main.tsx'),navigationSource.replace('Home page','Home after closed edit'));
+   const changed=await wait(state,value=>value.revision>closed.revision&&!value.error);writeFileSync(join(evidence,'exit-post-close-edit.json'),JSON.stringify(changed));
+  })().catch(error=>{editError=error;writeFileSync(join(evidence,'exit-edit-error.json'),JSON.stringify({error:String(error)}));});
+  writeFileSync(join(evidence,'exit-xcode.log'),await run(['xcodebuild','-quiet','-project',join(native,'Mini.xcodeproj'),'-scheme','Mini','-configuration','Debug','-destination','platform=iOS Simulator,id='+serial,'-derivedDataPath',join(native,'DerivedData'),'-parallel-testing-enabled','NO','-only-testing:MiniTests/MiniTests/testDevelopmentGuestExit','-resultBundlePath',join(evidence,'ExitTests.xcresult'),'CODE_SIGNING_ALLOWED=NO','test']));
+  await edit;if(editError)throw editError;
+  writeFileSync(join(evidence,'exit-summary.json'),await run(['xcrun','xcresulttool','get','test-results','summary','--path',join(evidence,'ExitTests.xcresult')]));
+  await run(['xcrun','xcresulttool','export','attachments','--path',join(evidence,'ExitTests.xcresult'),'--output-path',join(evidence,'exit-attachments')]);
+  const data=(await run(['xcrun','simctl','get_app_container',serial,bundle,'data'])).trim();assert.ok(data.includes(serial),'Storage must belong to the owned simulator');
+  assert.equal(ready.metadata.appId,'dev.pjm.navigation');const stored=JSON.parse(readFileSync(join(data,'Library/MiniData/dev.pjm.navigation/storage.json'),'utf8'));assert.equal(stored['dev-exit-proof'],'saved');
+  writeFileSync(join(evidence,'exit-storage-proof.json'),JSON.stringify({unloadSaved:true,appId:ready.metadata.appId}));
+ }
  writeFileSync(join(evidence,'navigation.pocket'),readFileSync(join(project,'build/navigation.pocket')));
- writeFileSync(join(evidence,'result.json'),JSON.stringify({platform:'ios',developmentMediaMode:mediaMode??null,mediaColdHotDenial:mediaMode==='deny'||mediaMode==='undeclared',nativeMediaChooserCancelled:mediaMode==='cancel',mediaColdHotCancellation:mediaMode==='cancel',nativeMediaLibrarySelection:mediaMode==='library',nativeMediaJpegReadRelease:mediaMode==='library',mediaColdHotSelection:mediaMode==='library',developmentLocationMode:locationMode??null,locationColdHotDenial:!!locationMode&&locationMode!=='allow',locationColdHotApproval:locationMode==='allow',nativeLocationOsApproval:locationMode==='allow',simulatedLocationInput:locationMode==='allow',liveHttpsSdk:httpMode,httpDomainDenied:httpMode,httpResourceReadRelease:httpMode,httpColdHotReload:httpMode,developmentClipboardReadMode:readMode??null,clipboardReadVerdict:readMode?expectedRead:null,realTsx:true,buttonNavigation:true,queryRetained:true,counterRetained:true,backgroundResume:true,coldReset:true,nativeClipboardWrite:networkMode,clipboardInvalidArgumentsRejected:networkMode,clipboardColdReopen:networkMode,clipboardHotReload:networkMode,nativeNetworkSnapshot:networkMode,networkInvalidArgumentsRejected:networkMode,networkHotReloadReset:networkMode,networkTransitions:false,physicalDevicePerformanceMeasured:false},null,2));
+ writeFileSync(join(evidence,'result.json'),JSON.stringify({platform:'ios',developmentGuestExit:exitMode,exitUnloadStorage:exitMode,closedAfterSourceEdit:exitMode,developmentMediaMode:mediaMode??null,mediaColdHotDenial:mediaMode==='deny'||mediaMode==='undeclared',nativeMediaChooserCancelled:mediaMode==='cancel',mediaColdHotCancellation:mediaMode==='cancel',nativeMediaLibrarySelection:mediaMode==='library',nativeMediaJpegReadRelease:mediaMode==='library',mediaColdHotSelection:mediaMode==='library',developmentLocationMode:locationMode??null,locationColdHotDenial:!!locationMode&&locationMode!=='allow',locationColdHotApproval:locationMode==='allow',nativeLocationOsApproval:locationMode==='allow',simulatedLocationInput:locationMode==='allow',liveHttpsSdk:httpMode,httpDomainDenied:httpMode,httpResourceReadRelease:httpMode,httpColdHotReload:httpMode,developmentClipboardReadMode:readMode??null,clipboardReadVerdict:readMode?expectedRead:null,realTsx:true,buttonNavigation:true,queryRetained:true,counterRetained:true,backgroundResume:true,coldReset:true,nativeClipboardWrite:networkMode,clipboardInvalidArgumentsRejected:networkMode,clipboardColdReopen:networkMode,clipboardHotReload:networkMode,nativeNetworkSnapshot:networkMode,networkInvalidArgumentsRejected:networkMode,networkHotReloadReset:networkMode,networkTransitions:false,physicalDevicePerformanceMeasured:false},null,2));
  console.log('Actual UIKit TSX navigation passed: button routes, query/counter retention, Home/resume and cold reset.');
 }finally{
  if(launched){await run(['xcrun','simctl','terminate',serial,bundle]).catch(()=>{});await run(['xcrun','simctl','uninstall',serial,bundle]).catch(()=>{});}

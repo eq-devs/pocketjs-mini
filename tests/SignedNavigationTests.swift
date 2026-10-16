@@ -100,7 +100,7 @@ final class MiniTests: XCTestCase {
             tap(3, surface)
             let closed = app.staticTexts["pjm-app-closed"]
             XCTAssertTrue(closed.waitForExistence(timeout: 20))
-            XCTAssertEqual(closed.value as? String, "unload=saved")
+            XCTAssertEqual(closed.value as? String, "unload=saved ownership=passed")
             XCTAssertEqual(app.state, .runningForeground)
             keep("guest-exit-closed", app)
         }
