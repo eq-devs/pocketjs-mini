@@ -123,6 +123,7 @@ export function connectMiniApp(options: { host?: FrameHost; pages?: readonly str
   guestStates.set(host,state);
   return {
     runtime, navigation,
+    app: { exit: () => runtime.exit() },
     http: (options: HttpRequest) => {const args=checkedHttpRequest(options),request=runtime.request<unknown>("request.v1",args);return {promise:request.promise.then(value=>checkedHttpResponse(value,args.responseMode)),cancel:request.cancel};},
     resources: {
       read: (options: ResourceRead) => {const args=checkedResourceRead(options),request=runtime.request<unknown>("resource.read.v1",args);return {promise:request.promise.then(value=>checkedResourceChunk(value,args)),cancel:request.cancel};},

@@ -2,7 +2,7 @@ import { createSignal, Show } from "solid-js";
 import { Text, View } from "@pocketjs/framework/components";
 import { VirtualList } from "@pocketjs/framework/virtual-list";
 import { fetchJson } from "./net.ts";
-import { ago, DEG, describe, DOT, notify, prefs, sdk, updatePrefs, type City } from "./state.ts";
+import { ago, DEG, describe, notify, prefs, sdk, updatePrefs, type City } from "./state.ts";
 import { Button, contentWidth, ErrorCard, GAP, Header, HEADER, pageHeight, Skeleton, SmallButton, Stat } from "./ui.tsx";
 
 // Open-Meteo forecast: no API key. The latest result is saved for offline launches.
@@ -228,7 +228,7 @@ export function WeatherTab() {
   const subtitle = () => {
     const data = weather();
     if (loading()) return "Updating...";
-    return data ? `${prefs().city.country}${DOT}updated ${ago(data.at)}` : prefs().city.country;
+    return data ? `Updated ${ago(data.at)}` : prefs().city.country;
   };
   return <View class="w-full flex-col gap-3">
     <Header title={prefs().city.name} subtitle={subtitle()} right={<>

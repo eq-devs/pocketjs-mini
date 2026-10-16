@@ -15,7 +15,7 @@ export const pageHeight = () => viewport.height - PAD * 2 - (route() === "/" ? T
 
 export function Header(props: { title: string; subtitle?: string; back?: boolean; right?: JSX.Element }) {
   return <View class="w-full flex-row items-center justify-between gap-2" style={{ height: HEADER }}>
-    <View class="flex-row items-center gap-3">
+    <View class="flex-1 flex-row items-center gap-3 overflow-hidden">
       <Show when={props.back}>
         <View focusable onPress={() => sdk().navigation.back()} class="bg-slate-800 rounded-lg px-3 py-2 active:bg-slate-700">
           <Text class="text-cyan-400 text-sm">Back</Text>
@@ -26,7 +26,7 @@ export function Header(props: { title: string; subtitle?: string; back?: boolean
         <Show when={props.subtitle}><Text class="text-slate-400 text-xs">{props.subtitle}</Text></Show>
       </View>
     </View>
-    <View class="flex-row items-center gap-2">{props.right}</View>
+    <View class="shrink-0 flex-row items-center gap-2">{props.right}</View>
   </View>;
 }
 

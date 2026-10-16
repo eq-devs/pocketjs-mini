@@ -8,6 +8,8 @@ import {androidSdk} from '../bin/android.ts';
 // rewrite a user's saved emulator to establish minimum-version acceptance.
 const api=Number(Bun.argv[2]);assert.ok(api===23||api===26,'Pass API 23 or API 26');
 const resourceProcess=process.env.PJM_RESOURCE_PROCESS==='1';
+const freshNativeSdk=process.env.PJM_FRESH_NATIVE_SDK;assert.ok(!freshNativeSdk||(api===26&&existsSync(join(freshNativeSdk,'bin/pjm'))),'Fresh native SDK workflow requires API 26 and a relocated SDK');
+const appExit=process.env.PJM_APP_EXIT_TEST==='1';assert.ok(!appExit||api===26,'Signed app exit uses API 26');
 const packageMatrix=process.env.PJM_MINIMUM_PACKAGE_MATRIX==='1';assert.ok(!packageMatrix||api===26,'This package matrix runner requires API 26');
 const benchmarkProject=process.env.PJM_INSTALLED_BENCHMARK_PROJECT;assert.ok(!benchmarkProject||(api===26&&existsSync(join(benchmarkProject,'AndroidManifest.xml'))&&!!process.env.PJM_BENCHMARK_APK&&existsSync(process.env.PJM_BENCHMARK_APK)),'Installed benchmark requires an exported project, prepared APK and API 26');
 const httpProcess=process.env.PJM_HTTP_PROCESS==='1';
@@ -16,7 +18,7 @@ const fragmentSamples=process.env.PJM_GLES_FRAGMENT_SAMPLES==='1';assert.ok(!fra
 const clipboardMatrix=process.env.PJM_MINIMUM_CLIPBOARD_MATRIX==='1';assert.ok(!clipboardMatrix||api===23,'Clipboard matrix requires the API 23 development host');
 const locationMatrix=process.env.PJM_MINIMUM_LOCATION_MATRIX==='1';assert.ok(!locationMatrix||api===23,'Location matrix requires the API 23 development host');
 const mediaCases=process.env.PJM_MINIMUM_MEDIA_CASES?.split(',');assert.ok(!mediaCases||(api===23&&mediaCases.length>0&&mediaCases.length<=5&&new Set(mediaCases).size===mediaCases.length&&mediaCases.every(mode=>['undeclared','deny','cancel','camera-cancel','camera'].includes(mode))),'Invalid API 23 media cases');
-assert.ok(Number(clipboardMatrix)+Number(locationMatrix)+Number(!!mediaCases)+Number(resourceProcess)+Number(!!glesBenchmark)+Number(httpProcess)+Number(!!benchmarkProject)+Number(packageMatrix)<=1,'Choose one test suite per run');
+assert.ok(Number(clipboardMatrix)+Number(locationMatrix)+Number(!!mediaCases)+Number(resourceProcess)+Number(!!glesBenchmark)+Number(httpProcess)+Number(!!benchmarkProject)+Number(packageMatrix)+Number(!!freshNativeSdk)+Number(appExit)<=1,'Choose one test suite per run');
 const root=resolve(import.meta.dir,'..'),sdk=androidSdk();
 const image=join(sdk,'system-images','android-'+api,'google_apis','arm64-v8a');
 assert.ok(existsSync(join(image,'package.xml')),'Install the official ARM64 Google APIs image first');
@@ -62,6 +64,7 @@ try{
   for(const name of ['infinite-frame-loop','heap-limit','service-mailbox-flood'])assert.ok(attacks.some(line=>line.startsWith('RUNTIME_ATTACK '+name+' blocked healthy-retained ')),'Missing runtime attack: '+name);
   assert.ok(native.includes('flood-bounded accepted=32 denied=224'),'Missing exact mailbox flood limit proof');
   assert.ok(native.includes('SERVICE_FLOOD_RECOVERY passed rounds=64 completed=2048 busy=14336 retained=2'),'Missing signed flood recovery proof');
+  assert.ok(native.includes('ANDROID_DEVELOPMENT_LOCATION_REVOCATION passed cases=3 app-denied os-denied recovered late-callbacks-blocked'),'Missing development location revocation proof');
   writeFileSync(join(evidence,'package-matrix-result.json'),JSON.stringify({api,cases:cases.length,runtimeAttacksExecuted:3,serviceFloodAttempts:256,mailboxAccepted:32,mailboxBusyDenials:224,failedStorageWritesDenied:true,signedFloodRecoveryRounds:64,signedFloodCompletedReplies:2048,signedFloodBusyDenials:14336,healthyGenerationRetained:true,physicalAcceptance:false},null,2)+'\n');
  }else if(benchmarkProject){
   const capture=join(evidence,'benchmark');await run(['bash',join(root,'tests/benchmark-surface-android.sh'),serial,resolve(benchmarkProject),capture],300000);
@@ -88,6 +91,13 @@ try{
 
   }
 
+ }else if(freshNativeSdk){
+  // API 26's shell UID cannot toggle Wi-Fi. This AVD is newly created above;
+  // root only its adbd for system network controls, never the tested app.
+  await run(adb('root'));await run(adb('wait-for-device'),60000);assert.equal(await run(adb('shell','id','-u')),'0');
+  await run([process.execPath,join(root,'tests/navigation-native-android.ts'),serial],900000,undefined,{PJM_DEVELOPMENT_NETWORK:'1'});
+  const packageInfo=await run(adb('shell','dumpsys','package','dev.pjm.android')),uid=/\buserId=(\d+)/.exec(packageInfo);assert.ok(uid&&Number(uid[1])>=10000,'Test app must retain an ordinary app UID');
+  writeFileSync(join(evidence,'owned-network-control.json'),JSON.stringify({ownedEmulatorOnly:true,adbdRoot:true,appUid:Number(uid[1]),physicalDeviceUsed:false},null,2)+'\n');
  }else if(resourceProcess||httpProcess){
   await run([process.execPath,join(root,'tests/native-media-image-android.ts'),serial],900000,undefined,{PJM_MEDIA_SERVICE:'0',PJM_MEDIA_EVIDENCE:evidence});
  }else if(mediaCases){
@@ -100,9 +110,10 @@ try{
    if(index>0)await run(adb('shell','pm','clear','dev.pjm.android'));
    await run([process.execPath,join(root,'tests/navigation-native-android.ts'),serial],900000,undefined,{PJM_DEVELOPMENT_NETWORK:'1',...(clipboardMatrix?{PJM_DEVELOPMENT_CLIPBOARD_READ:mode}:{PJM_DEVELOPMENT_LOCATION:mode}),PJM_NAVIGATION_EVIDENCE:join(evidence,mode)});
   }
- }else await run([process.execPath,join(root,api===26?'tests/package-update-ui-android.ts':'tests/navigation-native-android.ts'),serial],900000);
+ }else if(appExit)await run([process.execPath,join(root,'tests/navigation-signed-android.ts'),serial],900000);
+ else await run([process.execPath,join(root,api===26?'tests/package-update-ui-android.ts':'tests/navigation-native-android.ts'),serial],900000);
  assert.equal(feedFailure,undefined,'Location feeder failed');
- writeFileSync(join(evidence,'minimum-os-result.json'),JSON.stringify({actualApi:api,installedSignedTsxHttpsUpdateAndRollbackPassed:api===26&&!resourceProcess&&!glesBenchmark&&!httpProcess&&!benchmarkProject&&!packageMatrix,developmentTsxNavigationPassed:api===23&&!resourceProcess&&!glesBenchmark&&!httpProcess&&!benchmarkProject&&!packageMatrix,installedBenchmarkRendered:!!benchmarkProject,authenticatedPackageMatrixPassed:packageMatrix,authenticatedResourceProcessStressPassed:resourceProcess,realHttpsProcessStressPassed:httpProcess,glesBenchmarkBorderParityPassed:!!glesBenchmark&&!fragmentSamples,glesFragmentSamplesCollected:fragmentSamples,developmentClipboardMatrixPassed:clipboardMatrix,developmentLocationMatrixPassed:locationMatrix,developmentMediaCases:mediaCases??null,physicalAcceptance:false},null,2));
+ writeFileSync(join(evidence,'minimum-os-result.json'),JSON.stringify({actualApi:api,installedSignedTsxHttpsUpdateAndRollbackPassed:api===26&&!resourceProcess&&!glesBenchmark&&!httpProcess&&!benchmarkProject&&!packageMatrix&&!freshNativeSdk&&!appExit,developmentTsxNavigationPassed:api===23&&!resourceProcess&&!glesBenchmark&&!httpProcess&&!benchmarkProject&&!packageMatrix&&!freshNativeSdk&&!appExit,installedBenchmarkRendered:!!benchmarkProject,installedGuestExitPassed:appExit,authenticatedPackageMatrixPassed:packageMatrix,developmentLocationRevocationPassed:packageMatrix,freshSdkPublicNativeWorkflowPassed:!!freshNativeSdk,authenticatedResourceProcessStressPassed:resourceProcess,realHttpsProcessStressPassed:httpProcess,glesBenchmarkBorderParityPassed:!!glesBenchmark&&!fragmentSamples,glesFragmentSamplesCollected:fragmentSamples,developmentClipboardMatrixPassed:clipboardMatrix,developmentLocationMatrixPassed:locationMatrix,developmentMediaCases:mediaCases??null,physicalAcceptance:false},null,2));
 }catch(error){
  if(emulator){const diagnostic=await run(adb('logcat','-d','-v','brief','lmkd:I','lowmemorykiller:I','ActivityManager:I','AndroidRuntime:E','*:S')).catch(()=>'');writeFileSync(join(evidence,'failure-runtime.log'),diagnostic);}
  throw error;

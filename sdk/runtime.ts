@@ -37,6 +37,7 @@ export class FrameRuntime {
   private idSource?: () => number;
   private nextTimer = 1;
   private disposed = false;
+  private exitSent = false;
   private ticking = false;
   private transport: Transport;
   private cancelNative(id: number): void {
@@ -51,6 +52,18 @@ export class FrameRuntime {
     this.idSource = idSource;
     this.limits = Object.freeze({ ...defaults, ...limits });
     for (const value of Object.values(this.limits)) if (!Number.isSafeInteger(value) || value < 1) throw new RangeError("SDK limits must be positive integers");
+  }
+  /** Terminal one-way command. No completion can be promised after guest teardown. */
+  exit(): void {
+    if(this.disposed)throw new ServiceError("CLOSED","Runtime destroyed");
+    if(this.exitSent)return;
+    const id=this.idSource?this.idSource():this.nextId++;
+    if(!Number.isSafeInteger(id)||id<=this.lastId)throw new ServiceError("BUSY","Request identifiers exhausted or reused");
+    this.lastId=id;
+    const line=JSON.stringify({v:1,id,kind:"app.exit.v1",args:{}});
+    if(utf8Bytes(line)>this.limits.maxMessageBytes)throw new ServiceError("PROTOCOL","Native message exceeds byte limit");
+    this.transport.send(line+"\n");
+    this.exitSent=true;
   }
   request<T>(kind: string, args: unknown = {}, timeoutFrames = this.limits.timeoutFrames): { promise: Promise<T>; cancel(): void } {
     if (this.disposed) throw new ServiceError("CLOSED", "Runtime destroyed");

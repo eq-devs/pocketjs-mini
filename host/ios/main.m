@@ -31,7 +31,7 @@
 @property NSTimer *poll;
 @property NSDictionary *metrics;
 @property NSUInteger revision, failedRevision;
-@property BOOL fetching, reporting;
+@property BOOL fetching, reporting, exitRequested;
 @property NSUInteger touches, pendingLogs;
 @property NSUInteger queuedServiceReplies, sdkReceipt;
 @property BOOL inspectionPending;
@@ -86,6 +86,7 @@
   dispatch_async(dispatch_get_main_queue(), ^{
     MiniController *self = weak; if (!self) return;
     self.queuedServiceReplies--;
+    if(self.exitRequested)return;
     PocketSurfaceView *surface = weakSurface;
     if (!surface || surface != self.surface) return;
     [self processService:line surface:surface metrics:metrics storage:storage];
@@ -177,6 +178,14 @@
     if (![version isKindOfClass:NSNumber.class] || CFGetTypeID((__bridge CFTypeRef)version) == CFBooleanGetTypeID() || [version doubleValue] != 1
       || ![kind isKindOfClass:NSString.class] || [kind length] > 64 || [pattern numberOfMatchesInString:kind options:0 range:NSMakeRange(0,[kind length])] != 1 || !request[@"args"]) {
       errorCode=@"PROTOCOL";errorMessage=@"Invalid service request";
+    } else if ([kind isEqual:@"app.exit.v1"]) {
+      if(![request[@"args"] isKindOfClass:NSDictionary.class]||[request[@"args"] count]!=0){errorCode=@"PROTOCOL";errorMessage=@"App exit takes no arguments";}
+      else {
+        if(self.exitRequested)return;self.exitRequested=YES;[self.poll invalidate];self.poll=nil;
+        [self.surface shutdown];[self.surface removeFromSuperview];self.surface=nil;
+        [self.media close];[self.location close];[self.http close];[self.networkStatus suspend];[self cancelDevelopmentClipboardReads];
+        self.message.text=@"Mini app closed.";self.message.accessibilityIdentifier=@"pjm-app-closed";self.message.hidden=NO;[self.view bringSubviewToFront:self.message];return;
+      }
     } else if ([kind isEqual:@"device.info.v1"]) {
       NSMutableDictionary *data=[metrics mutableCopy];data[@"platform"]=@"ios";data[@"model"]=UIDevice.currentDevice.model;reply[@"data"]=data;
     } else if ([kind isEqual:@"device.network.v1"]) {
@@ -249,6 +258,7 @@
   __weak MiniController *weak = self;
   [self request:@"window" body:body completion:^(NSData *data, NSError *error) {
     MiniController *self = weak; if (!self) return;
+    if(self.exitRequested){self.fetching=NO;return;}
     self.reporting = NO;
     if (error) { [self showError:error.localizedDescription]; return; }
     if (![snapshot isEqual:self.metrics]) { [self reportWindow]; return; }
@@ -256,12 +266,13 @@
   }];
 }
 - (void)reload {
-  if (self.fetching || self.reporting || !self.metrics) return;
+  if (self.exitRequested || self.fetching || self.reporting || !self.metrics) return;
   self.fetching = YES;
   NSDictionary *metrics = self.metrics;
   __weak MiniController *weak = self;
   [self request:@"state" body:nil completion:^(NSData *data, NSError *error) {
     MiniController *self = weak; if (!self) return;
+    if(self.exitRequested){self.fetching=NO;return;}
     if (error) { self.fetching = NO; [self showError:error.localizedDescription]; [self reportWindow]; return; }
     NSDictionary *state = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
     if(![state isKindOfClass:NSDictionary.class]){self.fetching=NO;[self showError:@"Invalid development state"];return;}
@@ -278,9 +289,10 @@
     MiniAppStorage *storage=[[MiniAppStorage alloc] initWithAppId:[metadata isKindOfClass:NSDictionary.class]?metadata[@"appId"]:nil error:&identityError];
     if(!storage){self.fetching=NO;self.failedRevision=next;[self showError:identityError.localizedDescription ?: @"Invalid host identity"];return;}
     [self request:[NSString stringWithFormat:@"%lu/app.js", (unsigned long)next] body:nil completion:^(NSData *js, NSError *jsError) {
+      if(self.exitRequested){self.fetching=NO;return;}
       if (jsError) { self.fetching = NO; [self showError:jsError.localizedDescription]; return; }
       [self request:[NSString stringWithFormat:@"%lu/app.pak", (unsigned long)next] body:nil completion:^(NSData *pak, NSError *pakError) {
-        self.fetching = NO;
+        self.fetching = NO;if(self.exitRequested)return;
         if (![metrics isEqual:self.metrics]) return;
         if (pakError) { [self showError:pakError.localizedDescription]; return; }
         PocketSurfaceView *replacement = [PocketSurfaceView surfaceWithLogicalWidth:[metrics[@"width"] intValue]
@@ -316,6 +328,7 @@
         __block BOOL sentRecording=NO;
         replacement.onFrame = ^(uint64_t frame, NSUInteger touchCount) {
           MiniController *self = weak; if (!self) return;
+          if(self.exitRequested){self.fetching=NO;return;}
           if(!reportedFrame){reportedFrame=YES;NSData *event=[NSJSONSerialization dataWithJSONObject:@{@"revision":@(next),@"platform":@"ios",@"kind":@"frame-ready"} options:0 error:nil];[self request:@"device-event" body:event completion:^(NSData *data,NSError *error){(void)data;(void)error;}];}
           if (touchCount) self.touches++;
           PocketSurfaceView *replacement = weakSurface; if (!replacement) return;

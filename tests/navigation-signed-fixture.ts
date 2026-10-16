@@ -15,7 +15,8 @@ export async function signedNavigationFixture(directory:string,platform:'ios'|'a
  symlinkSync(join(root,'examples/hello/.pjm/pocketjs'),join(project,'.pjm/pocketjs'));
  for(const name of ['mini.json','tsconfig.json'])writeFileSync(join(project,name),readFileSync(join(root,'examples/navigation',name)));
  const mediaUi=process.env.PJM_MEDIA_UI_CASE;
- if(mediaUi){assert.ok(['deny','cancel','provider','overflow','late','quota','retire','library'].includes(mediaUi));assert.ok(!['provider','overflow','late','quota','retire'].includes(mediaUi)||platform==='ios','Selected media fixture requires iOS');const config=JSON.parse(readFileSync(join(project,'mini.json'),'utf8'));config.permissions=['media'];writeFileSync(join(project,'mini.json'),JSON.stringify(config));}
+ const appExit=process.env.PJM_APP_EXIT_TEST==='1';assert.ok(!appExit||!mediaUi,'Choose exit or media acceptance');
+ if(mediaUi){assert.ok(['deny','cancel','provider','overflow','late','quota','retire','library','camera-deny','camera-cancel'].includes(mediaUi));assert.ok(!['provider','overflow','late','quota','retire','camera-deny','camera-cancel'].includes(mediaUi)||platform==='ios','Selected media fixture requires iOS');const config=JSON.parse(readFileSync(join(project,'mini.json'),'utf8'));config.permissions=['media'];writeFileSync(join(project,'mini.json'),JSON.stringify(config));}
  const observer=`\nimport {createEffect} from "solid-js";
  createEffect(()=>{route();mini.storage.set("navigation-proof",{path:mini.navigation.current.path,item:mini.navigation.current.query.item??null,count:count()}).promise.catch(error=>{throw Error("Navigation proof storage: "+error.code);});});
  let networkEvents=0;
@@ -46,10 +47,31 @@ const retireProof=(code:string)=>mini.storage.set("media-proof",{code}).promise;
 const fillRetire=():Promise<void>=>mini.media.select().promise.then(image=>{retireImages.push(image);return retireImages.length===4?Promise.resolve():fillRetire();});
 mini.storage.get<string[]>("media-retired-handles").promise.then(old=>{if(!old)return fillRetire().then(()=>mini.storage.set("media-retired-handles",retireImages.map(image=>image.resource.handle)).promise).then(()=>retireProof("RETIRE_READY"));if(old.length!==4)throw Error("Invalid old handle receipt");return Promise.all(old.map(handle=>mini.resources.read({handle,offset:0,count:3}).promise.then(()=>{throw Error("Retired handle remained readable");},error=>{if(error.code!=="DENIED")throw error;}))).then(()=>fillRetire()).then(()=>{if(retireImages.some(image=>old.includes(image.resource.handle)))throw Error("New generation reused old handle");return Promise.all(retireImages.map(image=>mini.resources.read({handle:image.resource.handle,offset:0,count:3}).promise.then(chunk=>{if(chunk.bodyBase64!=="/9j/")throw Error("Bad new generation JPEG");return mini.resources.release(image.resource.handle).promise;})));}).then(()=>mini.storage.remove("media-retired-handles").promise).then(()=>retireProof("RETIRED"));}).catch(error=>retireProof(error.code??"FAILED"));
 `;
- const mediaObserver=mediaUi==='retire'?retirementObserver:mediaUi==='quota'?quotaObserver:mediaUi==='overflow'?overflowObserver:mediaUi==='late'?lateObserver:['provider','library'].includes(mediaUi??'')?`
+ const cameraRecoveryObserver=`
+mini.media.select({source:"camera",maxDimension:64,quality:75}).promise.then(()=>{throw Error("UNEXPECTED_CAMERA_SUCCESS");},error=>{
+ if(error.code!==${JSON.stringify(mediaUi==='camera-cancel'?'CANCELLED':'DENIED')})throw {code:"CAMERA_"+(error.code??"FAILED")};
+ // The OS permission sheet can still own foreground focus when its denial
+ // completes. Retry only BUSY, with a bounded delay; preserve all other errors.
+ let retries=0;
+ const library=():Promise<import("@pocketjs/mini").MediaImage>=>mini.media.select({source:"library",maxDimension:64,quality:75}).promise.catch(error=>{
+  if(error.code!=="BUSY"||++retries>8)throw error;
+  return new Promise<void>(resolve=>mini.after(15,()=>resolve())).then(library);
+ });
+ return library();
+}).then(image=>{
+ if(!image||image.mime!=="image/jpeg"||image.width!==64||image.height!==32)throw Error("Wrong recovered library image");
+ return mini.resources.read({handle:image.resource.handle,offset:0,count:3}).promise.then(chunk=>{
+  if(chunk.bodyBase64!=="/9j/"||chunk.size!==image.resource.size)throw Error("Wrong recovered JPEG resource");
+  return mini.resources.release(image.resource.handle).promise;
+ }).then(()=>mini.resources.read({handle:image.resource.handle,offset:0,count:1}).promise.then(()=>{throw Error("Released resource readable");},error=>{if(error.code!=="DENIED")throw error;}));
+}).then(()=>mini.storage.set("media-proof",{code:${JSON.stringify(mediaUi==='camera-cancel'?'CAMERA_CANCELLED_RECOVERED':'CAMERA_DENIED_RECOVERED')}}).promise,error=>mini.storage.set("media-proof",{code:error.code??"FAILED"}).promise);
+`;
+ const mediaObserver=['camera-deny','camera-cancel'].includes(mediaUi??'')?cameraRecoveryObserver:mediaUi==='retire'?retirementObserver:mediaUi==='quota'?quotaObserver:mediaUi==='overflow'?overflowObserver:mediaUi==='late'?lateObserver:['provider','library'].includes(mediaUi??'')?`
 mini.media.select().promise.then(image=>{if(image.mime!=="image/jpeg"||image.width!==64||image.height!==32)throw Error("Wrong native image");return mini.resources.read({handle:image.resource.handle,offset:0,count:3}).promise.then(chunk=>{if(chunk.bodyBase64!=="/9j/"||chunk.size!==image.resource.size)throw Error("Wrong native JPEG resource");return mini.resources.release(image.resource.handle).promise;});}).then(()=>mini.storage.set("media-proof",{code:"SUCCESS"}).promise,error=>mini.storage.set("media-proof",{code:error.code??"FAILED"}).promise);
 `:mediaUi?'\nmini.media.select().promise.then(()=>{throw Error("Unexpected picker image in cancellation test");},error=>mini.storage.set("media-proof",{code:error.code}).promise);\n':'';
- writeFileSync(join(project,'app/main.tsx'),readFileSync(join(root,'examples/navigation/app/main.tsx'),'utf8')+observer+mediaObserver);
+ let source=readFileSync(join(root,'examples/navigation/app/main.tsx'),'utf8');
+ if(appExit){source=source.replace('        <Text class="text-slate-400 text-sm">The counter stays when you return.</Text>','        <View focusable onPress={() => {mini.request("app.exit.v1",{unexpected:true}).promise.then(()=>{throw Error("INVALID_EXIT_ACCEPTED");},error=>{if(error.code!=="PROTOCOL")throw error;mini.app.exit();mini.app.exit();});}} class="w-full bg-blue-600 rounded-xl p-4 items-center"><Text class="text-white text-base">Exit mini app</Text></View>');}
+ writeFileSync(join(project,'app/main.tsx'),source+observer+mediaObserver+(appExit?'\nmini.onLifecycle("unload",()=>{mini.storage.set("exit-unload-proof","saved").promise.catch(()=>{});});\n':''));
  const window={width,height,density,top:0,bottom:0,left:0,right:0};
  const compiled=await compileApplication({project,upstream:join(project,'.pjm/pocketjs'),directory:join(project,'build'),platform,window});
  const keys=generateKeyPairSync('ed25519');
@@ -63,13 +85,13 @@ mini.media.select().promise.then(image=>{if(image.mime!=="image/jpeg"||image.wid
   engine.frame([],[],[]);
   const tree=()=>decodeInspectorTree(engine.inspectTree!());
   const point=(label:string)=>{const nodes=tree().nodes,marker=nodes.find(node=>node.text===label);assert.ok(marker,'Missing '+label);const bounds=nodes.find(node=>node.id===marker.parent)?.bounds;assert.ok(bounds,'Missing bounds '+label);return [Math.round(bounds[0]+bounds[2]/2),Math.round(bounds[1]+bounds[3]/2)];};
-  const increment=point('Increment counter'),detail=point('Open detail');
+  const increment=point('Increment counter'),detail=point('Open detail'),exit=appExit?point('Exit mini app'):null;
   let id=0;
   const tap=(point:number[])=>{const [x,y]=point,hit=engine.hitTest!(x,y);assert.ok(hit);id++;const packed=x>511||y>511?(0x80000000|(id<<20)|(y<<10)|x)>>>0:((id<<18)|(y<<9)|x)>>>0;engine.frame([packed],[hit],[]);engine.frame([],[],[]);};
   tap(increment);tap(detail);
   const text=tree().nodes.map(node=>node.text).join('');assert.match(text,/Detail page/);assert.match(text,/Selected item: 42/);assert.match(text,/Saved counter: 1/);
   const back=point('Back to home');
-  writeFileSync(join(directory,'input-points.json'),JSON.stringify({increment,detail,back,width,height,density},null,2));
-  return {payload:payloadPath,envelope:envelopePath,publicKey:publicKeyPath,metadata:compiled.metadata,points:{increment,detail,back,width,height,density}};
+  writeFileSync(join(directory,'input-points.json'),JSON.stringify({increment,detail,back,exit,width,height,density},null,2));
+  return {payload:payloadPath,envelope:envelopePath,publicKey:publicKeyPath,metadata:compiled.metadata,points:{increment,detail,back,exit,width,height,density}};
  }finally{engine.close();}
 }

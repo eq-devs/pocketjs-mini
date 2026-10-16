@@ -62,6 +62,12 @@
   _proofStorage=[[MiniAppStorage alloc] initWithAppId:identity error:error];
   // Cold-run receipts must come from this guest, not persisted prior results.
   if(_proofStorage)[_proofStorage dispatch:@"storage.remove.v1" arguments:@{@"key":@"media-proof"} error:nil];
+  if(_proofStorage)[_proofStorage dispatch:@"storage.remove.v1" arguments:@{@"key":@"exit-unload-proof"} error:nil];
+  __weak NavigationProofController *weakSelf=self;
+  self.onExit=^{NavigationProofController *owner=weakSelf;if(!owner)return;[owner.proofTimer invalidate];owner.proofTimer=nil;
+    id saved=[owner.proofStorage dispatch:@"storage.get.v1" arguments:@{@"key":@"exit-unload-proof"} error:nil];
+    UILabel *label=[owner valueForKey:@"message"];label.accessibilityValue=[saved isEqual:@"saved"]?@"unload=saved":@"unload=missing";
+  };
   return _proofStorage?self:nil;
 }
 - (void)viewDidAppear:(BOOL)animated {

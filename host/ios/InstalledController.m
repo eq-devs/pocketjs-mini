@@ -143,6 +143,7 @@ static NSDictionary *MiniResourceService(NSString *kind,id arguments,NSString *i
 - (void)cancel {[_timer invalidate];_timer=nil;[_alert dismissViewControllerAnimated:NO completion:nil];_alert=nil;}
 @end
 @interface MiniInstalledController ()
+@property BOOL exitRequested;
 @property(nonatomic) MiniPackageStore *store;
 @property(nonatomic) MiniPackageDownload *download;
 @property(nonatomic,readwrite) PocketSurfaceView *surface;
@@ -220,6 +221,16 @@ static NSDictionary *MiniResourceService(NSString *kind,id arguments,NSString *i
 - (NSDictionary *)startHTTP:(id)arguments identifier:(NSNumber *)identifier package:(MiniVerifiedPackage *)package generation:(uint64_t)generation {
     return MiniStartHTTP(arguments,identifier,package,generation,_requests,^BOOL(NSString *address){return [package authorizeURL:address error:nil];},^BOOL{return [self admitHTTPRateForIdentity:package.metadata[@"appId"] time:NSProcessInfo.processInfo.systemUptime];},^MiniResource *{return [self reserveResourceForIdentity:package.metadata[@"appId"] generation:generation];},[self httpConfiguration]);
 }
+- (void)exitPackage:(MiniVerifiedPackage *)package generation:(uint64_t)generation {
+    if(_exitRequested)return;_exitRequested=YES;
+    NSString *identity=[package.metadata[@"appId"] copy];__weak MiniInstalledController *weak=self;
+    dispatch_async(dispatch_get_main_queue(),^{MiniInstalledController *owner=weak;if(!owner)return;
+        if(owner.surface.verifiedActiveGeneration!=generation||![owner.surface.verifiedActiveIdentity isEqual:identity]){owner.exitRequested=NO;return;}
+        [owner shutdown];[owner.network suspend];owner.surface.hidden=YES;
+        owner.message.text=@"Mini app closed.";owner.message.accessibilityIdentifier=@"pjm-app-closed";owner.message.hidden=NO;[owner.view bringSubviewToFront:owner.message];
+        if(owner.onExit)owner.onExit();
+    });
+}
 - (void)dispatchService:(NSString *)line package:(MiniVerifiedPackage *)package generation:(uint64_t)generation {
     NSData *record=[line dataUsingEncoding:NSUTF8StringEncoding];if(record.length>4096)return;
     id parsed=[MiniPackageVerifier parseStrictJSON:record error:nil];if(![parsed isKindOfClass:NSDictionary.class])return;
@@ -228,6 +239,12 @@ static NSDictionary *MiniResourceService(NSString *kind,id arguments,NSString *i
     double number=[identifier doubleValue];if(!isfinite(number) || number<1 || number>9007199254740991.0 || floor(number)!=number)return;
     NSMutableDictionary *reply=[@{@"v":@1,@"id":identifier} mutableCopy];NSString *code=nil,*message=nil;
     if(![version isKindOfClass:NSNumber.class] || CFGetTypeID((__bridge CFTypeRef)version)==CFBooleanGetTypeID() || [version doubleValue]!=1 || ![kind isKindOfClass:NSString.class] || [kind length]>64 || [kind rangeOfString:@"^[a-z][a-zA-Z0-9.]*\\.v[1-9][0-9]*$" options:NSRegularExpressionSearch].length!=[kind length] || ![kind length] || !request[@"args"]){code=@"PROTOCOL";message=@"Invalid service request";}
+    else if([kind isEqual:@"app.exit.v1"]){
+        if(![request[@"args"] isKindOfClass:NSDictionary.class]||[request[@"args"] count]!=0){code=@"PROTOCOL";message=@"App exit takes no arguments";}
+        else if(_surface.verifiedActiveGeneration!=generation||![_surface.verifiedActiveIdentity isEqual:package.metadata[@"appId"]]){code=@"DENIED";message=@"App generation is not active";}
+        else if(UIApplication.sharedApplication.applicationState!=UIApplicationStateActive){code=@"BUSY";message=@"App is not active";}
+        else {[self exitPackage:package generation:generation];return;}
+    }
     else if([kind isEqual:@"device.info.v1"]){MpConfig config=package.config;reply[@"data"]=@{@"platform":@"ios",@"model":UIDevice.currentDevice.model,@"width":@(config.width),@"height":@(config.height),@"density":@(config.density),@"safeTop":@0,@"safeBottom":@0,@"safeLeft":@0,@"safeRight":@0};}
     else if([kind isEqual:@"device.network.v1"]){
         if(![request[@"args"] isKindOfClass:NSDictionary.class] || [request[@"args"] count]){code=@"PROTOCOL";message=@"Network state takes no arguments";}

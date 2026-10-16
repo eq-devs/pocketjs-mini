@@ -216,3 +216,16 @@ test('storage SDK validates keys, values and acknowledgements at frame boundarie
  const get=app.storage.get('key'),failure=assert.rejects(get.promise,{code:'PROTOCOL'});reply=JSON.stringify({v:1,id:sent.at(-1).id,ok:true,data:'x'.repeat(2047)});host.frame!();await failure;
  const remove=app.storage.remove('key'),badAck=assert.rejects(remove.promise,{code:'PROTOCOL'});reply=JSON.stringify({v:1,id:sent.at(-1).id,ok:true,data:true});host.frame!();await badAck;app.dispose();
 });
+
+test("app exit is one-way, idempotent and shares native request identity without a pending promise",async()=>{
+  const sent:any[]=[];let replies="",available=false;
+  const host:FrameHost={frame(){},ui:{svcOpen:()=>available,svcPoll:()=>{const value=replies;replies="";return value;},svcSend:line=>sent.push(JSON.parse(line))}};
+  const app=connectMiniApp({host,limits:{maxPending:1}});
+  assert.throws(()=>app.app.exit(),{code:"UNSUPPORTED"});assert.equal(sent.length,0);available=true;
+  const save=app.storage.set("unload-proof","saved");assert.equal(sent.length,1);
+  app.app.exit();app.app.exit();assert.equal(sent.length,2);assert.equal(sent[1].kind,"app.exit.v1");assert.deepEqual(sent[1].args,{});assert.ok(sent[1].id>sent[0].id);
+  replies=JSON.stringify({v:1,id:sent[0].id,ok:true,data:null});host.frame!();await save.promise;
+  // A terminal command has no pending reply or frame timeout. Existing unload
+  // writes can finish; disposal must not produce an unhandled exit rejection.
+  for(let i=0;i<700;i++)host.frame!();app.dispose();assert.throws(()=>app.app.exit(),{code:"CLOSED"});
+});

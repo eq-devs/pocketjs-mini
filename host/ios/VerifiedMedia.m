@@ -23,7 +23,7 @@ static BOOL MiniMediaNumber(id value,double low,double high){if(![value isKindOf
 @property NSTimer *timer;
 @property NSString *reply;
 @property(atomic) BOOL cancelled;
-@property BOOL finished,external,permit;
+@property BOOL finished,external,permit,authorizationReady;
 @end
 @interface MiniVerifiedMedia ()
 @property MiniPackageStore *store;
@@ -37,6 +37,7 @@ static BOOL MiniMediaNumber(id value,double low,double high){if(![value isKindOf
 @property BOOL developmentDeclared;
 - (void)finish:(MiniMediaWork *)work image:(nullable MiniMediaImage *)image code:(nullable NSString *)code;
 - (void)launch:(MiniMediaWork *)work;
+- (void)cameraAuthorization:(BOOL)granted work:(MiniMediaWork *)work;
 - (void)load:(NSItemProvider *)provider work:(MiniMediaWork *)work;
 - (void)camera:(UIImage *)image work:(MiniMediaWork *)work;
 @end
@@ -60,6 +61,7 @@ static BOOL MiniMediaNumber(id value,double low,double high){if(![value isKindOf
 - (instancetype)initWithPresenter:(UIViewController *)presenter reserve:(id (^)(NSString *,uint64_t))reserve complete:(NSDictionary *(^)(id,MiniMediaImage *))complete discard:(void (^)(id))discard {
  if((self=[super init])){_presenter=presenter;_reserve=[reserve copy];_complete=[complete copy];_discard=[discard copy];
   [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(suspend) name:UIApplicationDidEnterBackgroundNotification object:nil];
+  [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(resume) name:UIApplicationDidBecomeActiveNotification object:nil];
  }return self;
 }
 - (nullable instancetype)initDevelopmentWithIdentity:(NSString *)identity declared:(BOOL)declared presenter:(UIViewController *)presenter reserve:(id (^)(NSString *,uint64_t))reserve complete:(NSDictionary *(^)(id,MiniMediaImage *))complete discard:(void (^)(id))discard {
@@ -113,7 +115,7 @@ static BOOL MiniMediaNumber(id value,double low,double high){if(![value isKindOf
  if([work.options[@"source"] isEqual:@"library"]){PHPickerConfiguration *config=[PHPickerConfiguration new];config.selectionLimit=1;config.filter=PHPickerFilter.imagesFilter;config.preferredAssetRepresentationMode=PHPickerConfigurationAssetRepresentationModeCurrent;PHPickerViewController *picker=[[PHPickerViewController alloc] initWithConfiguration:config];picker.delegate=work;[self present:picker work:work];return;}
  if(![UIImagePickerController isSourceTypeAvailable:UIImagePickerControllerSourceTypeCamera]){[self finish:work image:nil code:@"UNSUPPORTED"];return;}
  AVAuthorizationStatus status=[AVCaptureDevice authorizationStatusForMediaType:AVMediaTypeVideo];
- if(status==AVAuthorizationStatusNotDetermined){work.external=YES;__weak MiniVerifiedMedia *weakSelf=self;[AVCaptureDevice requestAccessForMediaType:AVMediaTypeVideo completionHandler:^(BOOL granted){dispatch_async(dispatch_get_main_queue(),^{work.external=NO;if(!granted)[weakSelf finish:work image:nil code:@"DENIED"];else [weakSelf launch:work];});}];return;}
+ if(status==AVAuthorizationStatusNotDetermined){work.external=YES;__weak MiniVerifiedMedia *weakSelf=self;[AVCaptureDevice requestAccessForMediaType:AVMediaTypeVideo completionHandler:^(BOOL granted){dispatch_async(dispatch_get_main_queue(),^{[weakSelf cameraAuthorization:granted work:work];});}];return;}
  if(status!=AVAuthorizationStatusAuthorized){[self finish:work image:nil code:@"DENIED"];return;}
  UIImagePickerController *picker=[UIImagePickerController new];picker.sourceType=UIImagePickerControllerSourceTypeCamera;picker.mediaTypes=@[@"public.image"];picker.allowsEditing=NO;picker.delegate=work;[self present:picker work:work];
 }
@@ -149,7 +151,20 @@ static BOOL MiniMediaNumber(id value,double low,double high){if(![value isKindOf
 - (void)retireGeneration:(uint64_t)generation {if(_work.generation==generation)[self cancelWork];}
 - (void)suspend {if(_work&&!_work.finished)[self finish:_work image:nil code:@"BUSY"];}
 - (void)suspendForHost {if(!_work.external)[self suspend];}
-- (void)resume {}
+// Camera permission callbacks can precede UIApplication's active transition.
+// Keep the admitted work and its original timer until focus returns; retirement,
+// backgrounding and timeout still terminate it through the usual owner checks.
+- (void)cameraAuthorization:(BOOL)granted work:(MiniMediaWork *)work {
+ NSAssert(NSThread.isMainThread,@"Camera authorization requires main owner");
+ if(_closed||!work||_work!=work||work.finished||work.cancelled)return;
+ if(!granted){work.external=NO;[self finish:work image:nil code:@"DENIED"];return;}
+ work.authorizationReady=YES;[self resume];
+}
+- (void)resume {
+ NSAssert(NSThread.isMainThread,@"Media resume requires main owner");MiniMediaWork *work=_work;
+ if(_closed||!work||!work.authorizationReady||work.finished||work.cancelled||![self foreground])return;
+ work.authorizationReady=NO;work.external=NO;[self launch:work];
+}
 - (void)close {if(_closed)return;[self cancelWork];_closed=YES;[NSNotificationCenter.defaultCenter removeObserver:self];}
 - (void)dealloc {[NSNotificationCenter.defaultCenter removeObserver:self];}
 @end

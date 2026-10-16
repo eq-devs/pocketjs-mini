@@ -34,7 +34,26 @@ final class MiniTests: XCTestCase {
             keep(cold ? "media-cold-picker" : "media-picker", app)
             cancel.tap()
         }
-        if pjmMediaUiCase == "library" {
+        if ["camera-deny", "camera-cancel"].contains(pjmMediaUiCase) && !cold {
+            let camera = XCUIApplication(bundleIdentifier: "com.apple.springboard").alerts.firstMatch
+            XCTAssertTrue(camera.waitForExistence(timeout: 20))
+            XCTAssertTrue(camera.staticTexts.matching(NSPredicate(format: "label CONTAINS[c] %@", "Camera")).firstMatch.exists)
+            let shot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+            shot.name = "camera-system-permission"; shot.lifetime = .keepAlways; add(shot)
+            if pjmMediaUiCase == "camera-deny" {
+                camera.buttons.matching(NSPredicate(format: "label BEGINSWITH[c] %@", "Don")).firstMatch.tap()
+            } else {
+                camera.buttons["Allow"].tap()
+            }
+        }
+        if pjmMediaUiCase == "camera-cancel" {
+            let cancel = app.buttons.matching(NSPredicate(format: "identifier == %@ OR label == %@", "DismissImagePickerButton", "Cancel")).firstMatch
+            XCTAssertTrue(cancel.waitForExistence(timeout: 20), "Camera cancellation control missing")
+            XCTAssertTrue(app.buttons["PhotoCapture"].exists)
+            keep(cold ? "camera-cold-picker" : "camera-picker", app)
+            cancel.tap()
+        }
+        if ["library", "camera-deny", "camera-cancel"].contains(pjmMediaUiCase) {
             // The disposable library's newest asset is the owned 64×32 fixture.
             // SDK metadata checks reject accidentally selecting a stock image.
             let photo = app.images.matching(identifier: "PXGGridLayout-Info").firstMatch
@@ -46,10 +65,13 @@ final class MiniTests: XCTestCase {
             let add = app.buttons["Add"].firstMatch
             if add.waitForExistence(timeout: 3) { add.tap() }
         }
-        let code = pjmMediaUiCase == "deny" ? "DENIED" : ["provider", "library"].contains(pjmMediaUiCase) ? "SUCCESS" : pjmMediaUiCase == "overflow" ? "OVERFLOW_RECOVERED" : pjmMediaUiCase == "quota" ? "QUOTA_RECOVERED" : pjmMediaUiCase == "retire" ? "RETIRED" : pjmMediaUiCase == "late" ? "RECOVERED" : "CANCELLED"
+        let code = pjmMediaUiCase == "camera-cancel" ? "CAMERA_CANCELLED_RECOVERED" : pjmMediaUiCase == "camera-deny" ? "CAMERA_DENIED_RECOVERED" : pjmMediaUiCase == "deny" ? "DENIED" : ["provider", "library"].contains(pjmMediaUiCase) ? "SUCCESS" : pjmMediaUiCase == "overflow" ? "OVERFLOW_RECOVERED" : pjmMediaUiCase == "quota" ? "QUOTA_RECOVERED" : pjmMediaUiCase == "retire" ? "RETIRED" : pjmMediaUiCase == "late" ? "RECOVERED" : "CANCELLED"
         XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
             surface.exists && (surface.value as? String)?.contains(" media=" + code) == true
         }, object: nil)], timeout: 30), .completed, "Expected media \(code); observed \(String(describing: surface.value))")
+        let receipt = XCTAttachment(string: surface.value as? String ?? "")
+        receipt.name = cold ? "media-cold-sdk-receipt" : "media-sdk-receipt"
+        receipt.lifetime = .keepAlways; add(receipt)
         keep(cold ? "media-cold-result" : "media-result", app)
     }
     func testSignedTsxNavigationIgnoresDevelopmentURL() {
@@ -74,5 +96,13 @@ final class MiniTests: XCTestCase {
         XCTAssertTrue(surface.waitForExistence(timeout: 20))
         waitProof(surface, "/", 0); keep("signed-cold-home", app)
         XCTAssertFalse(app.staticTexts["pjm-status"].exists)
+        if pjmAppExit {
+            tap(3, surface)
+            let closed = app.staticTexts["pjm-app-closed"]
+            XCTAssertTrue(closed.waitForExistence(timeout: 20))
+            XCTAssertEqual(closed.value as? String, "unload=saved")
+            XCTAssertEqual(app.state, .runningForeground)
+            keep("guest-exit-closed", app)
+        }
     }
 }

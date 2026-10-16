@@ -8,6 +8,7 @@ import {ownedMediaPng} from './media-library-fixture.ts';
 // simulator's personal assets and failed attempts can be cleaned completely.
 const root=resolve(import.meta.dir,'..');
 const development=process.env.PJM_MEDIA_DEVELOPMENT==='1';
+const signedCase=process.env.PJM_MEDIA_SIGNED_CASE??'library';assert.ok(['library','camera-deny','camera-cancel'].includes(signedCase));assert.ok(!development||signedCase==='library');
 const developmentCase=process.env.PJM_MEDIA_DEVELOPMENT_CASE??'library';assert.ok(['library','cancel'].includes(developmentCase),'Invalid development media picker case');
 const evidence=resolve(process.env.PJM_MEDIA_LIBRARY_EVIDENCE??join(root,'build/ios-validation/media-library-'+Date.now()));
 mkdirSync(evidence,{recursive:true});
@@ -26,7 +27,7 @@ try{
  assert.match(serial,/^[A-F0-9]{8}(?:-[A-F0-9]{4}){3}-[A-F0-9]{12}$/i);
  await run(['xcrun','simctl','boot',serial]);await run(['xcrun','simctl','bootstatus',serial,'-b']);
  await run(['xcrun','simctl','addmedia',serial,fixture]);
- await run([process.execPath,join(root,development?'tests/navigation-native-ios.ts':'tests/navigation-signed-ios.ts'),serial],600000,{...process.env,PJM_MEDIA_UI_CASE:development?undefined:'library',PJM_DEVELOPMENT_MEDIA:development?developmentCase:undefined,PJM_DEVELOPMENT_NETWORK:development?'1':undefined,PJM_NAVIGATION_EVIDENCE:evidence});
+ await run([process.execPath,join(root,development?'tests/navigation-native-ios.ts':'tests/navigation-signed-ios.ts'),serial],600000,{...process.env,PJM_MEDIA_UI_CASE:development?undefined:signedCase,PJM_DEVELOPMENT_MEDIA:development?developmentCase:undefined,PJM_DEVELOPMENT_NETWORK:development?'1':undefined,PJM_NAVIGATION_EVIDENCE:evidence});
  console.log(development&&developmentCase==='cancel'?'Owned-simulator development UIKit chooser cancellation checks passed.':'Owned-library '+(development?'development':'signed')+' UIKit picker and SDK resource checks passed.');
 }finally{
  if(serial&&/^[A-F0-9-]{36}$/i.test(serial)){await run(['xcrun','simctl','shutdown',serial],30000).catch(()=>{});await run(['xcrun','simctl','delete',serial],30000);cleaned=true;}

@@ -26,6 +26,7 @@ public class InstalledActivity extends Activity {
   private final FramePacer pacer=new FramePacer();
   private final ArrayList<TouchContact> contacts=new ArrayList<>();
   private boolean backPending;
+  private volatile boolean exitRequested;
   @Override public void onBackPressed(){
     if(backPending)return;
     if(surface==null || paused || closed || failed){finish();return;}
@@ -133,6 +134,12 @@ public class InstalledActivity extends Activity {
     JSONObject request=BoundedJson.object(line.getBytes(StandardCharsets.UTF_8),4096);Object id=request.opt("id");double number=id instanceof Number?((Number)id).doubleValue():0;if(number<1 || number>9007199254740991L || number!=Math.floor(number))continue;
     JSONObject reply=new JSONObject().put("v",1).put("id",id);String kind=request.optString("kind","");
     if(!(request.opt("v") instanceof Number) || ((Number)request.get("v")).doubleValue()!=1 || !(request.opt("kind") instanceof String) || !request.has("args"))reply.put("ok",false).put("error",new JSONObject().put("code","PROTOCOL").put("message","Invalid service request"));
+    else if(kind.equals("app.exit.v1")){
+      Object args=request.opt("args");
+      if(!(args instanceof JSONObject)||((JSONObject)args).length()!=0)reply.put("ok",false).put("error",new JSONObject().put("code","PROTOCOL").put("message","App exit takes no arguments"));
+      else if(!paused&&!closed&&!failed&&container!=null){if(!exitRequested){exitRequested=true;final long expected=generation;runOnUiThread(()->{if(!closed&&generation==expected)finish();else exitRequested=false;});}continue;}
+      else reply.put("ok",false).put("error",new JSONObject().put("code","BUSY").put("message","App is not active"));
+    }
     else if(kind.equals("device.info.v1"))reply.put("ok",true).put("data",new JSONObject().put("platform","android").put("model",android.os.Build.MODEL).put("width",admitted.width).put("height",admitted.height).put("density",admitted.density).put("safeTop",0).put("safeBottom",0).put("safeLeft",0).put("safeRight",0));
     else if(kind.equals("device.network.v1")){Object args=request.opt("args");if(!(args instanceof JSONObject)||((JSONObject)args).length()!=0)reply.put("ok",false).put("error",new JSONObject().put("code","PROTOCOL").put("message","Network state takes no arguments"));else{networkWatching=true;networkDelivered=network.state();reply.put("ok",true).put("data",new JSONObject(networkDelivered));}}
     else if(kind.equals("clipboard.write.v1")){JSONObject result=clipboard.start(admitted,generation,(long)number,request.opt("args"));if(result==null)continue;reply=result;}

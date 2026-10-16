@@ -44,13 +44,16 @@
 @end
 @interface MiniVerifiedMedia (MediaTestHooks)
 - (void)launch:(id)work;
+- (void)cameraAuthorization:(BOOL)granted work:(id)work;
+- (void)camera:(UIImage *)image work:(id)work;
 - (void)finish:(id)work image:(MiniMediaImage *)image code:(NSString *)code;
 @end
 @interface SurfaceDevelopmentMedia : MiniVerifiedMedia
 @property id heldWork;
+@property BOOL cameraHidden;
 @end
 @implementation SurfaceDevelopmentMedia
-- (BOOL)foreground {return YES;}
+- (BOOL)foreground {return !_cameraHidden;}
 - (void)launch:(id)work {_heldWork=work;}
 @end
 @interface MiniInstalledController (ServiceTest)
@@ -117,6 +120,29 @@
 - (NSDictionary *)drainDevelopmentMedia:(MiniVerifiedMedia *)service identity:(NSString *)identity generation:(uint64_t)generation {
     __block NSDictionary *result=nil;[service drainDevelopment:^BOOL(NSString *bound,uint64_t owner,NSString *reply){assert([bound isEqual:identity]&&owner==generation);result=[NSJSONSerialization JSONObjectWithData:[reply dataUsingEncoding:NSUTF8StringEncoding] options:0 error:nil];return YES;}];return result;
 }
+- (void)verifyCameraImageWorker {
+    NSString *identity=@"dev.pjm.camera.worker";uint64_t generation=601;
+    id previous=[NSUserDefaults.standardUserDefaults objectForKey:@"pjm-development-media-consent"];
+    [NSUserDefaults.standardUserDefaults setObject:@{identity:@YES} forKey:@"pjm-development-media-consent"];
+    MiniDevelopmentHTTP *resources=[[MiniDevelopmentHTTP alloc] initWithIdentity:identity domains:@[] generation:generation];
+    SurfaceDevelopmentMedia *service=[[SurfaceDevelopmentMedia alloc] initDevelopmentWithIdentity:identity declared:YES presenter:self.controller reserve:^id(NSString *bound,uint64_t gen){return [resources reserveDevelopmentResource:bound generation:gen];} complete:^NSDictionary *(id slot,MiniMediaImage *image){return [resources completeDevelopmentMedia:slot image:image];} discard:^(id slot){[resources discardDevelopmentMedia:slot];}];assert(service);
+    UIGraphicsImageRendererFormat *format=[UIGraphicsImageRendererFormat defaultFormat];format.scale=1;format.opaque=YES;
+    UIGraphicsImageRenderer *renderer=[[UIGraphicsImageRenderer alloc] initWithSize:CGSizeMake(320,160) format:format];
+    UIImage *source=[renderer imageWithActions:^(UIGraphicsImageRendererContext *context){(void)context;[UIColor.redColor setFill];UIRectFill(CGRectMake(0,0,320,160));}];
+    NSArray<NSNumber *> *orientations=@[@(UIImageOrientationUp),@(UIImageOrientationRight),@(UIImageOrientationDown),@(UIImageOrientationLeft)];
+    NSUInteger index=0;for(NSNumber *orientation in orientations){
+        assert((![service startDevelopment:@{@"source":@"camera",@"maxDimension":@64,@"quality":@75} identifier:@(++index) generation:generation]));id work=service.heldWork;assert(work);
+        UIImage *input=[UIImage imageWithCGImage:source.CGImage scale:2 orientation:orientation.integerValue];[service camera:input work:work];
+        NSDictionary *reply=nil;NSDate *deadline=[NSDate dateWithTimeIntervalSinceNow:5];
+        while(!reply && deadline.timeIntervalSinceNow>0){[NSRunLoop.mainRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.005]];reply=[self drainDevelopmentMedia:service identity:identity generation:generation];}
+        assert([reply[@"ok"] boolValue]);BOOL rotated=orientation.integerValue==UIImageOrientationRight||orientation.integerValue==UIImageOrientationLeft;
+        assert([reply[@"data"][@"width"] unsignedIntegerValue]==(rotated?32:64)&&[reply[@"data"][@"height"] unsignedIntegerValue]==(rotated?64:32));
+        NSString *handle=reply[@"data"][@"resource"][@"handle"];NSDictionary *read=[resources resource:@"resource.read.v1" arguments:@{@"handle":handle,@"offset":@0,@"count":@3}];assert([read[@"ok"] boolValue]&&[read[@"data"][@"bodyBase64"] isEqual:@"/9j/"]);
+        assert([[resources resource:@"resource.release.v1" arguments:@{@"handle":handle}][@"ok"] boolValue]);assert(([[resources resource:@"resource.read.v1" arguments:@{@"handle":handle,@"offset":@0,@"count":@1}][@"error"][@"code"] isEqual:@"DENIED"]));service.heldWork=nil;work=nil;
+    }
+    [service close];[resources close];if(previous)[NSUserDefaults.standardUserDefaults setObject:previous forKey:@"pjm-development-media-consent"];else [NSUserDefaults.standardUserDefaults removeObjectForKey:@"pjm-development-media-consent"];
+    NSLog(@"PJM_CAMERA_IMAGE_WORKER_PASS orientations=4 scale=2 bounded=64 jpeg-read-release stale=DENIED");
+}
 - (void)verifyDevelopmentMedia {
     NSString *identity=@"dev.pjm.media.controlled";uint64_t generation=501;NSDictionary *args=@{@"source":@"library",@"maxDimension":@64,@"quality":@75};
     id previous=[NSUserDefaults.standardUserDefaults objectForKey:@"pjm-development-media-consent"];
@@ -136,7 +162,18 @@
     assert([[resources resource:@"resource.release.v1" arguments:@{@"handle":handle}][@"ok"] boolValue]);assert(([[resources resource:@"resource.read.v1" arguments:@{@"handle":handle,@"offset":@0,@"count":@1}][@"error"][@"code"] isEqual:@"DENIED"]));service.heldWork=nil;
     for(id slot in held)[resources discardDevelopmentMedia:slot];[held removeAllObjects];
     assert(![service startDevelopment:args identifier:@5 generation:generation]);id stale=service.heldWork;[service cancelGeneration:generation identifier:@5];assert([[resources valueForKey:@"resources"] count]==0);[service finish:stale image:decoded code:nil];assert(![self drainDevelopmentMedia:service identity:identity generation:generation]);service.heldWork=nil;stale=nil;
-    assert(![service startDevelopment:args identifier:@6 generation:generation]);stale=service.heldWork;[service retireGeneration:generation];[service finish:stale image:decoded code:nil];assert(![self drainDevelopmentMedia:service identity:identity generation:generation]);service.heldWork=nil;stale=nil;[service close];
+    assert(![service startDevelopment:args identifier:@6 generation:generation]);stale=service.heldWork;[service retireGeneration:generation];[service finish:stale image:decoded code:nil];assert(![self drainDevelopmentMedia:service identity:identity generation:generation]);service.heldWork=nil;stale=nil;
+    // An approved camera request waits for activation, launches once, and keeps
+    // cancellation/retirement/timeout authoritative over a late OS callback.
+    assert(![service startDevelopment:args identifier:@7 generation:generation]);stale=service.heldWork;service.heldWork=nil;service.cameraHidden=YES;
+    [service cameraAuthorization:YES work:stale];[service resume];assert(!service.heldWork&&[[stale valueForKey:@"authorizationReady"] boolValue]);
+    service.cameraHidden=NO;[NSNotificationCenter.defaultCenter postNotificationName:UIApplicationDidBecomeActiveNotification object:nil];assert(service.heldWork==stale&&![[stale valueForKey:@"authorizationReady"] boolValue]);
+    service.heldWork=nil;[service resume];assert(!service.heldWork);[service cancelGeneration:generation identifier:@7];stale=nil;
+    assert(![service startDevelopment:args identifier:@8 generation:generation]);stale=service.heldWork;service.heldWork=nil;service.cameraHidden=YES;[service cameraAuthorization:YES work:stale];[service retireGeneration:generation];service.cameraHidden=NO;[service cameraAuthorization:YES work:stale];[service resume];assert(!service.heldWork&&![self drainDevelopmentMedia:service identity:identity generation:generation]);stale=nil;
+    assert(![service startDevelopment:args identifier:@9 generation:generation]);stale=service.heldWork;service.heldWork=nil;service.cameraHidden=YES;[service cameraAuthorization:NO work:stale];assert([[self drainDevelopmentMedia:service identity:identity generation:generation][@"error"][@"code"] isEqual:@"DENIED"]);service.cameraHidden=NO;[service resume];assert(!service.heldWork);stale=nil;
+    assert(![service startDevelopment:args identifier:@10 generation:generation]);stale=service.heldWork;service.heldWork=nil;service.cameraHidden=YES;[service cameraAuthorization:YES work:stale];[service finish:stale image:nil code:@"TIMEOUT"];service.cameraHidden=NO;[service resume];assert(!service.heldWork&&[[self drainDevelopmentMedia:service identity:identity generation:generation][@"error"][@"code"] isEqual:@"TIMEOUT"]);stale=nil;[service close];
+    NSLog(@"PJM_CAMERA_ACTIVATION_PASS pending active-once retired denial timeout");
+    [self verifyCameraImageWorker];
     id old=[resources reserveDevelopmentResource:identity generation:generation];assert(old);[resources close];assert(![resources completeDevelopmentMedia:old image:decoded]);old=nil;
     NSMutableArray *owners=[NSMutableArray new],*tokens=[NSMutableArray new];for(NSUInteger index=0;index<4;index++){NSString *name=[NSString stringWithFormat:@"dev.pjm.media.cap.%lu",(unsigned long)index];MiniDevelopmentHTTP *owner=[[MiniDevelopmentHTTP alloc] initWithIdentity:name domains:@[] generation:1];[owners addObject:owner];for(NSUInteger item=0;item<4;item++){id token=[owner reserveDevelopmentResource:name generation:1];assert(token);[tokens addObject:token];}}
     MiniDevelopmentHTTP *extra=[[MiniDevelopmentHTTP alloc] initWithIdentity:@"dev.pjm.media.extra" domains:@[] generation:1];assert(![extra reserveDevelopmentResource:@"dev.pjm.media.extra" generation:1]);for(MiniDevelopmentHTTP *owner in owners)[owner close];assert(![extra reserveDevelopmentResource:@"dev.pjm.media.extra" generation:1]);[tokens removeAllObjects];assert([extra reserveDevelopmentResource:@"dev.pjm.media.extra" generation:1]);[extra close];

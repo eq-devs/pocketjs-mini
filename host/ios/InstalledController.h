@@ -5,6 +5,8 @@ NS_ASSUME_NONNULL_BEGIN
 /** Installed signed guests only. Owner supplies the trusted package store. */
 @interface MiniInstalledController : UIViewController
 @property(nonatomic,readonly) PocketSurfaceView *surface;
+/** Called after a guest-requested exit has completed normal teardown. */
+@property(nonatomic,copy,nullable) void (^onExit)(void);
 - (nullable instancetype)initWithIdentity:(NSString *)identity store:(MiniPackageStore *)store launchData:(NSData *)launch error:(NSError **)error;
 - (void)startDistribution:(NSData *)configuration identity:(NSString *)identity;
 - (BOOL)openIdentity:(NSString *)identity launchData:(NSData *)launch error:(NSError **)error;

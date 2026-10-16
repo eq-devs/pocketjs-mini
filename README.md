@@ -267,6 +267,14 @@ simulator type installed. It creates its own device, imports an owned PNG, runs
 the actual signed host/picker test, and removes that device and library even when
 the test fails. Existing simulators are left in place. `PJM_MEDIA_LIBRARY_EVIDENCE`
 selects the output directory; `PJM_MEDIA_LIBRARY_RUNTIME` overrides the runtime.
+Use `PJM_MEDIA_SIGNED_CASE=camera-deny bun tests/media-library-ios.ts` on iOS
+26.4 to check system camera denial followed by library JPEG/resource recovery,
+including cold reopening. The fixture retries only transient library BUSY within
+a bounded window. This checks denial/recovery, not physical camera capture.
+Use `PJM_MEDIA_SIGNED_CASE=camera-cancel bun tests/media-library-ios.ts` on
+iOS 26.4 for real camera approval, picker cancellation and library recovery
+through the signed SDK, including cold reopening. This uses the simulator camera
+and does not establish physical capture quality.
 
 `bun tests/media-library-android.ts` uses the installed `Pixel_2` AVD on a
 temporary read-only emulator at port 5580. A test-only activity provisions and
@@ -603,6 +611,18 @@ under `build/validation/fresh-native-project-ios-*`. It removes its temporary
 SDK, project and simulator and never selects a physical phone. Installed Xcode
 and Rust tools are prerequisites.
 
+Set `PJM_FRESH_NATIVE_INTERACTIVE=1` for that iOS check to exercise normal
+build/install/console attachment with native test mode disabled. It edits actual
+files, checks compile-error retention/recovery and verifies graceful app/server/
+session cleanup. It uses existing inspection diagnostics for observations.
+
+`bun tests/fresh-native-project-android.ts` checks fresh-SDK Android create/run,
+TSX navigation, native Back, lifecycle and source reload on an isolated API 26
+Google APIs emulator. It needs the installed Android SDK/NDK, JDK 17 and Rust
+Android target. The owned emulator's adbd runs as root for OS network toggles;
+the test checks that the app retains an ordinary UID. SDK, project and emulator
+cleanup and evidence are retained under `build/validation/fresh-native-project-android-*`.
+
 `container/distribution.ts` now provides a host-owned reference HTTPS downloader.
 It bounds streaming and concurrency, rejects redirects, and stages authenticated
 native packages through `PackageStore.stageNative`; updates remain deferred until
@@ -861,8 +881,22 @@ fresh request following permission approval, including cold/hot reopening;
 its first permission-stage request timed out. iOS shares the bounded Core
 Location service and passes native consent/declaration denial and actual app/OS
 approval with SDK coordinates through initial/cold/hot execution. Authorized
-callbacks received while inactive wait for activation within the original deadline. Development consent is separate from signed-package
-consent. These are emulator/simulator checks, not physical GPS acceptance.
+callbacks received while inactive wait for activation within the original
+deadline. Coordinate delivery rechecks both app approval and
+current OS authorization, and revocation notifications stop pending authorized
+requests. Development consent is separate from signed-package consent. These
+are emulator/simulator checks, not physical GPS acceptance.
+
+Run `bun tests/location-revocation-owned-ios.ts` for signed/development
+revocation-ordering and existing native-service regressions on disposable
+simulators. `PJM_LOCATION_REVOCATION_RUNTIME`,
+`PJM_LOCATION_REVOCATION_DEVICE_TYPE` and `PJM_LOCATION_REVOCATION_EVIDENCE`
+select the runtime, device type and evidence folder. The revocation provider is
+controlled; this does not establish real OS revocation UI behavior. Android also rechecks
+authorization at coordinate delivery. Its native package suite checks signed
+revocation and development app/OS revocation, recovery and duplicate-callback
+suppression with controlled providers on API 26. These checks do not toggle real
+OS settings or prove physical location behavior.
 Run `bun tests/location-development-ios.ts <booted simulator UUID>` for the
 iOS declaration, denial and approval checks (`PJM_LOCATION_CASES=allow` selects
 only approval); current evidence is linked in the v0.0.1 release audit.

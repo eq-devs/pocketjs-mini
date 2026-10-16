@@ -46,8 +46,8 @@ final class NativeLocationTest {
     System.out.println("Android signed location wrapper: protocol, queued cancellation/retirement, consent fencing, frame backpressure, revoke, suspend and close passed with a controlled provider; no sensor/OS dialog/deadline firing executed");
   }
   private static void developmentChecks()throws Exception {
-    UI ui=new UI();ui.authorized=false;VerifiedLocation service=new VerifiedLocation(ui);boolean[] declared={false};
-    VerifiedLocation.Access access=new VerifiedLocation.Access(){public String identity(){return "dev.pjm.development-location";}public void declared(){if(!declared[0])throw new SecurityException("Undeclared");}public boolean authorized(LocationContract.Options options){return ui.authorized;}public Runnable requestApproval(LocationContract.Options options,VerifiedLocation.Decision decision){return ui.requestApproval(null,options,decision);}};
+    UI ui=new UI();ui.authorized=false;VerifiedLocation service=new VerifiedLocation(ui);boolean[] declared={false},appApproved={true},osGranted={true};
+    VerifiedLocation.Access access=new VerifiedLocation.Access(){public String identity(){return "dev.pjm.development-location";}public void declared(){if(!declared[0])throw new SecurityException("Undeclared");}public boolean authorized(LocationContract.Options options){return ui.authorized&&appApproved[0]&&osGranted[0];}public Runnable requestApproval(LocationContract.Options options,VerifiedLocation.Decision decision){return ui.requestApproval(null,options,decision);}};
     JSONObject options=new JSONObject().put("timeoutMs",15000).put("maximumAgeMs",0).put("highAccuracy",false);
     error(service.startDevelopment(access,100,1,options),"DENIED");if(!ui.queue.isEmpty())throw new AssertionError("Undeclared location reached UI");declared[0]=true;
     service.startDevelopment(access,101,2,options);service.cancel(101,2);ui.flush();if(ui.starts!=0)throw new AssertionError("Cancelled development provider started");
@@ -56,6 +56,18 @@ final class NativeLocationTest {
     ui.completion.finish(LocationContract.position(43.238949,76.889709,4,1700000000000L),null);ui.flush();
     service.drain((bound,gen,reply)->{throw new AssertionError("Development location entered signed sink");});int[] retries={0};service.drainDevelopment((identity,gen,reply)->{if(!identity.equals(access.identity())||gen!=103)throw new AssertionError("Wrong development owner");retries[0]++;return false;});
     service.drainDevelopment((identity,gen,bytes)->{try{JSONObject reply=new JSONObject(new String(bytes,"UTF-8"));if(gen!=103||!identity.equals(access.identity())||reply.getLong("id")!=4||!reply.getBoolean("ok")||reply.getJSONObject("data").getDouble("latitude")!=43.238949)throw new AssertionError("Development position invalid");}catch(Exception failure){throw new AssertionError(failure);}return true;});if(retries[0]!=1||ui.providerStops!=1)throw new AssertionError("Development retry cleanup invalid");
+    for(int revoked=0;revoked<2;revoked++){
+      appApproved[0]=true;osGranted[0]=true;long generation=120+revoked,id=20+revoked;
+      if(service.startDevelopment(access,generation,id,options)!=null)throw new AssertionError("Revocation request rejected before start");ui.flush();
+      VerifiedLocation.Completion late=ui.completion;if(revoked==0)appApproved[0]=false;else osGranted[0]=false;
+      late.finish(LocationContract.position(1,2,3,4),null);ui.flush();int[] replies={0};
+      service.drainDevelopment((identity,gen,bytes)->{try{JSONObject reply=new JSONObject(new String(bytes,"UTF-8"));if(!identity.equals(access.identity())||gen!=generation||reply.getLong("id")!=id||reply.has("data"))throw new AssertionError("Revoked position or ownership leaked");error(reply,"DENIED");replies[0]++;}catch(Exception failure){throw new AssertionError(failure);}return true;});
+      if(replies[0]!=1)throw new AssertionError("Revocation reply missing");appApproved[0]=true;osGranted[0]=true;
+      late.finish(LocationContract.position(1,2,3,4),null);ui.flush();service.drainDevelopment((identity,gen,bytes)->{throw new AssertionError("Revoked callback delivered twice");});
+    }
+    if(service.startDevelopment(access,122,22,options)!=null)throw new AssertionError("Recovery request denied");ui.flush();ui.completion.finish(LocationContract.position(43.238949,76.889709,4,1700000000000L),null);ui.flush();int[] recovered={0};
+    service.drainDevelopment((identity,gen,bytes)->{try{JSONObject reply=new JSONObject(new String(bytes,"UTF-8"));if(!identity.equals(access.identity())||gen!=122||reply.getLong("id")!=22||!reply.getBoolean("ok")||reply.getJSONObject("data").getDouble("latitude")!=43.238949)throw new AssertionError("Revocation recovery failed");recovered[0]++;}catch(Exception failure){throw new AssertionError(failure);}return true;});if(recovered[0]!=1)throw new AssertionError("Recovery reply missing");
+    System.out.println("ANDROID_DEVELOPMENT_LOCATION_REVOCATION passed cases=3 app-denied os-denied recovered late-callbacks-blocked");
     service.startDevelopment(access,104,5,options);ui.flush();VerifiedLocation.Completion stopped=ui.completion;service.suspend();ui.flush();stopped.finish(LocationContract.position(1,2,3,4),null);ui.flush();service.drainDevelopment((identity,gen,bytes)->{try{error(new JSONObject(new String(bytes,"UTF-8")),"BUSY");}catch(Exception failure){throw new AssertionError(failure);}return true;});service.close();ui.flush();
     System.out.println("Android development location: declaration, queued cancellation, retired consent, original ownership, sink isolation, retry and suspend passed with controlled provider");
   }

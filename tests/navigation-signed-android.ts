@@ -108,8 +108,13 @@ try{
  await run(adb('shell','input','keyevent','KEYCODE_BACK'));await proof('/',1,'back-home');await screenshot('back-home.png');
  await run(adb('shell','input','keyevent','KEYCODE_BACK'));writeFileSync(join(evidence,'back-exit.xml'),await wait(xml,value=>!value.includes('package="'+bundle+'"')));
  await open();await mediaBeforeNavigation(true);await proof('/',0,'cold-home');await screenshot('cold-home.png');
+ if(process.env.PJM_APP_EXIT_TEST==='1'){
+  assert.ok(fixture.points.exit);await tap(fixture.points.exit);
+  writeFileSync(join(evidence,'guest-exit.xml'),await wait(xml,value=>!value.includes('package="'+bundle+'"')));
+  await open();const restored=await proof('/',0,'guest-exit-cold');assert.ok(restored.includes(' priorExit=saved'),'Guest exit did not persist unload storage');await screenshot('guest-exit-cold.png');
+ }
  for(const name of ['main.pocket','manifest.json','publisher.key','input-points.json'])cpSync(join(temp,name),join(evidence,name));
- writeFileSync(join(evidence,'result.json'),JSON.stringify({signedPackage:true,developmentUrlUsed:false,productionInstalledHost:true,testOnlyStorageObserver:true,testOnlyMediaSource:false,realTsx:true,nativeNetworkSnapshot:true,networkTransitions,mediaUiCase:mediaUi??null,systemLibraryImageSelection:mediaUi==='library',nativeProviderJpegReadRelease:mediaUi==='library',buttonNavigation:true,queryRetained:true,counterRetained:true,backgroundResume:true,systemBack:true,rootExit:true,coldReset:true,physicalAcceptance:false},null,2));
+ writeFileSync(join(evidence,'result.json'),JSON.stringify({signedPackage:true,guestExit:process.env.PJM_APP_EXIT_TEST==='1',unloadStorageAfterExit:process.env.PJM_APP_EXIT_TEST==='1',developmentUrlUsed:false,productionInstalledHost:true,testOnlyStorageObserver:true,testOnlyMediaSource:false,realTsx:true,nativeNetworkSnapshot:true,networkTransitions,mediaUiCase:mediaUi??null,systemLibraryImageSelection:mediaUi==='library',nativeProviderJpegReadRelease:mediaUi==='library',buttonNavigation:true,queryRetained:true,counterRetained:true,backgroundResume:true,systemBack:true,rootExit:true,coldReset:true,physicalAcceptance:false},null,2));
  console.log('Signed Android TSX navigation passed through the installed host: authenticated offline package, route/query/counter state, background/resume, system Back, root exit and cold reset.');
 }finally{
  await run(adb('logcat','-d','-s','PocketJS:E','PocketJSFixture:E','AndroidRuntime:E')).then(value=>writeFileSync(join(evidence,'native-errors.log'),value)).catch(()=>{});

@@ -27,6 +27,7 @@ if [ "${PJM_HTTP_SURFACE_TEST:-}" = live ] || [ "${PJM_HTTP_SURFACE_TEST:-}" = r
 else
   PJM_PACKAGE_TARGET=ios PJM_PACKAGE_HTTP_TEST= PJM_PACKAGE_LOCATION_TEST=1 PJM_PACKAGE_LOCATION_SDK_TEST=1 bun "$ROOT/tests/package-load-fixtures.ts" "$TEMP/cases.json"
 fi
+if [ "${PJM_LOCATION_REVOCATION_TEST:-}" = 1 ]; then cp "$ROOT/tests/LocationRevocationApp.m" "$TEMP/main.m"; fi
 export PJM_SURFACE_TEST_DIR="$TEMP" PJM_SURFACE_TEST_ROOT="$ROOT" PJM_SURFACE_TEST_BUNDLE="$BUNDLE"
 bun -e 'import {writeNativeProject} from "./bin/native-project.ts";writeNativeProject(process.env.PJM_SURFACE_TEST_DIR!,"",process.env.PJM_SURFACE_TEST_ROOT!+"/core-ffi/target/aarch64-apple-ios-sim/release/libmini_core_ffi.a","http://127.0.0.1:1/",true,process.env.PJM_SURFACE_TEST_BUNDLE!)'
 rustup run stable cargo build --offline --locked --release --target aarch64-apple-ios-sim --manifest-path "$ROOT/core-ffi/Cargo.toml" > "$TEMP/core-build.log" 2>&1 || { tail -60 "$TEMP/core-build.log"; exit 1; }
@@ -45,7 +46,7 @@ done
 if kill -0 "$LAUNCH_PID" 2>/dev/null; then kill "$LAUNCH_PID"; fi
 wait "$LAUNCH_PID" || true
 cat "$TEMP/run.log"
-rg -q 'PJM_SIGNED_SURFACE_PASS' "$TEMP/run.log"
+if [ "${PJM_LOCATION_REVOCATION_TEST:-}" = 1 ]; then rg -q 'PJM_LOCATION_REVOCATION_PASS' "$TEMP/run.log"; else rg -q 'PJM_SIGNED_SURFACE_PASS' "$TEMP/run.log"; fi
 mkdir -p "$EVIDENCE"
 cp "$TEMP/run.log" "$TEMP/build.log" "$TEMP/core-build.log" "$EVIDENCE/"
 printf '%s\n' "$SERIAL" > "$EVIDENCE/simulator.txt"

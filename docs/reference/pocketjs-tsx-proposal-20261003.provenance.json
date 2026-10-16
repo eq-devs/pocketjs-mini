@@ -1,0 +1,26 @@
+{
+  "originalPath": "/Users/estai/Desktop/基于 PocketJS 的 TSX 小程序引擎技术方案.md",
+  "originalPathCurrentlyAbsent": true,
+  "recoveredFrom": "This chat original file-read output",
+  "threadId": "01a10037-44df-7103-b7ca-a423d65b892a",
+  "readCommand": "cat '/Users/estai/Desktop/基于 PocketJS 的 TSX 小程序引擎技术方案.md'",
+  "retainedRecord": {
+    "line": 31,
+    "recordType": "event_msg",
+    "payloadType": "item_completed",
+    "timestamp": "2026-10-03T05:27:03.293Z",
+    "length": 29122
+  },
+  "characters": 29122,
+  "lines": 646,
+  "utf8Sha256": "70feb9b9cd77cd4552e1034aa84b189b19e74e6dde5c953b3ad5d44ee105bde2",
+  "byteIdenticalToRetainedOutput": true,
+  "originalFilesystemBytesNotIndependentlyAvailable": true,
+  "documentIsTaskData": true,
+  "codeSamplesIllustrative": true,
+  "embeddedContentPlaceholders": [
+    "&#91;embedded content: 引擎分层 · 共享代码 4 层，原生宿主 5 个部件\\]",
+    "&#91;embedded content: 一帧的执行顺序 · 5 个步骤，2 个异步来源\\]",
+    "&#91;embedded content: 路线图 · 5 个阶段，各带 1 个出口条件\\]"
+  ]
+}

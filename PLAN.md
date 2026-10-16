@@ -396,7 +396,8 @@ physical Android remains pending. The complete command/SDK/package suite passed
 (12 tests, 53 Bun assertions in the command/device group), and strict TypeScript
 checking passed for the new launcher, diagnostics, SDK, verifier and native runner.
 
-Remaining full-scope gates:
+Historical scope captured on 2026-10-03 (checkboxes below are not current
+completion states; use RELEASE-0.0.1.md for the latest evidence and remaining gates):
 
 - [ ] P0: pin/fork integration audit, verify all seven source assumptions,
   iOS/Android physical list/form runs and startup/frame/memory measurements.
@@ -6442,3 +6443,293 @@ This resolves the measured fresh-project iOS native acceptance-mode workflow.
 Fresh Android public launch, normal interactive attachment, bare-OS setup,
 physical behavior/performance and the prior stability/endpoint/proposal-audit
 gates remain open. The full goal stays active and the Pixel stays untouched.
+
+## Fresh-project public Android launch/reload (2026-10-15)
+
+Added tests/fresh-native-project-android.ts and an explicit fresh-SDK mode in
+the existing navigation/isolated API 26 drivers. The relocated SDK has no
+examples, source checkout or native targets; the navigation project starts
+with an empty cache. Only TSX fixture source/metadata are copied. Public
+create/run fetches dependencies and builds native code from the project's
+verified engine checkout. Source-resolution metadata and SDK Cargo source
+preservation are checked.
+
+The first run launched Home but failed at an OS Wi-Fi toggle: Android 8's
+shell lacks CHANGE_WIFI_STATE. Failure and cleanup evidence is retained at
+build/validation/fresh-native-project-android-20261015. The corrected wrapper
+roots only adbd in its owned userdebug emulator for OS network controls, and
+verifies that the app retains ordinary UID 10076. No app policy, deadline,
+quota or acceptance assertion changed. Runner logs now flush during execution.
+
+The corrected public workflow passes actual TSX routing, query 42/counter
+retention, Home/resume, system Back/root exit, cold reset, clipboard writes,
+network snapshots/offline/restored events and source reload with reset watchers.
+Home/Detail/reloaded screenshots were reviewed. Evidence directory:
+build/validation/fresh-native-project-android-20261015-owned-network-control/run
+contains fresh-sdk-result.json, native result.json, source-resolution.json,
+generated-Cargo.toml, network/Back receipts and visual-review.json. Emulator,
+temporary AVD, project, SDK and tools were removed; preexisting AVDs were
+unchanged. Bun 1.3.11 ran the workflow; bundling/whitespace checks pass.
+
+This resolves the measured fresh Android development workflow with existing
+test/inspection diagnostics. Bare-OS setup, physical behavior/performance,
+deadline stability, normal iOS attachment, production endpoints and proposal
+audit remain open. The Pixel was untouched and the full goal stays active.
+
+## Normal iOS attachment and graceful stop (2026-10-15)
+
+Extended the fresh iOS workflow with PJM_FRESH_NATIVE_INTERACTIVE=1. A relocated
+SDK and empty fresh-counter project use actual public create/run, normal native
+build/install/console attachment and existing inspection diagnostics. Native
+test mode is disabled in both runtime and generated Config.h; a POST to the
+test-only restore endpoint is rejected with HTTP 404.
+
+Actual file edits reload the native app from revision 2 to 3. An invalid source
+file reports TypeScript errors while retaining revision 3 and its guest tree.
+Restoring valid source publishes revision 5, clears the error and shows the
+new title. Screenshots visually confirm the error over the retained guest and
+the recovered app. SIGINT exits zero, closes the development server, removes
+session/owned simulator-lock files and stops the app (launchctl and SpringBoard
+screenshot). App uninstall and owned simulator/SDK/project/tool cleanup succeed.
+
+Evidence: build/validation/fresh-native-project-ios-normal-20261015/run contains
+result.json, normal-interactive.json, source resolution/generated manifest,
+inspection/error-state receipts, screenshots and visual-review.json. Bun 1.3.11
+ran the workflow; static bundling and whitespace checks pass. This resolves the
+measured normal iOS attachment/reload/stop path, without test-only edit endpoints
+or substituted host behavior. Bare-OS setup, physical performance/isolation,
+deadline/current-iOS mixed timing, production endpoint and proposal-audit gates
+remain open. No physical device was accessed; the full goal stays active.
+
+## Saved phone clipping assessment corrected (2026-10-15)
+
+Rechecked retained Pixel PNGs without accessing the phone. The earlier preview-
+based header-occlusion claim was incorrect: stationary header/footer interiors
+have zero changed pixels (150,720 and 103,680 pixels respectively), while the
+list body changes 52,040 pixels. Fractional shared boundary pixels are excluded
+explicitly. The form List button is inside the viewport and matches native CPU
+layout bounds [319,16,55,33] after projection. Its apparent preview crop is not
+supported by actual pixels.
+
+The exact older phone APK also keeps both bars stationary in an owned API 26
+scroll/form run, as does the newer APK. Guest payload, signed metadata/public
+key, DEX and Android manifest match between APKs; JNI differs. No renderer or
+fixture change is justified by these captures. Original erroneous phone receipt
+is preserved as result.before-pixel-review.json beside the corrected result.json
+in build/android-validation/physical-benchmark-pixel8pro-20261014-corrected.
+
+Pixel/layout evidence and repeatable review script:
+build/validation/benchmark-layout-diagnosis-20261015/result.json and review.py.
+Additional emulator evidence:
+build/android-validation/benchmark-old-apk-clipping-api26-20261015. Its app and
+owned emulator were removed. This supersedes previous clipping claims for the
+saved states only; general frame stability and physical startup/presentation/
+touch/memory remain unproven. Other timing/release/audit gates remain open.
+No new physical access occurred; the Pixel is untouched and the goal is active.
+
+## Expanded minimum-iOS isolation acceptance (2026-10-15)
+
+The current signed-package suite passes on an owned iPhone 14 Pro simulator
+running iOS 16.0 (20A360), using Bun 1.3.11. The native receipt confirms all
+26 package verdicts (one accepted, 25 rejected), infinite-loop interruption,
+heap-limit rejection and bounded service-mailbox failure with healthy retained
+state. The continuing flood guest also completes 64 rounds: 16,384 attempts,
+2,048 native storage writes/replies and 14,336 BUSY denials. Both generations
+and the final persisted value are preserved. XCTest reports one pass, zero
+failures and zero skips.
+
+Evidence: build/ios-validation/package-flood-recovery-ios16-20261015/verified-result.json,
+with the original native attachment, XCTest summary and cleanup receipts in run/.
+The temporary simulator and downloaded tools were removed; no physical device
+was accessed. This extends the older minimum-iOS two-attack evidence to the
+current three-attack and continuing-flood suite. It does not prove long-duration
+stability, physical memory/isolation, actual TLS in this run, or deadline
+stability under ordinary workloads. Production limits are unchanged and the
+full goal remains active.
+
+## iOS system camera denial and library recovery (2026-10-15)
+
+A real signed TSX app on an owned iOS 26.4 simulator now passes app-level image
+approval followed by system camera denial. The SDK requires DENIED, then uses
+the system library picker to select only the owned red 64×32 image, verifies
+its JPEG resource bytes, releases it and requires DENIED on a later read.
+The same sequence passes after cold reopening with persisted camera denial.
+Route/query/counter retention and Home/resume also pass. XCTest reports one
+pass, zero failures and zero skips; the simulator and temporary tools are gone.
+
+The first fixture incorrectly assumed the simulator camera was unavailable;
+its retained recording instead shows the system camera prompt. The next run
+handled that prompt but received BUSY before library presentation. The passing
+fixture retries only library BUSY, at most eight times with 15-frame delays;
+all other failures remain failures. Foreground restoration is a possible reason
+for that transient response, not a proven production defect. No production media
+code or limits changed. Both failed runs remain beside the successful evidence.
+
+Reproduce with PJM_MEDIA_SIGNED_CASE=camera-deny bun tests/media-library-ios.ts.
+Evidence: build/ios-validation/camera-deny-recovery-ios26-20261015-foreground-retry/
+verified-result.json and run/ contain XCTest, screenshots and cleanup receipts.
+Camera capture/quality, physical sensor behavior and broader release/timing
+gates remain open. No physical device was accessed; the full goal stays active.
+
+## iOS camera approval activation fixed (2026-10-16)
+
+A signed TSX camera request previously returned BUSY after the user allowed the
+system camera prompt. Its authorization callback could run before foreground
+activation. MiniVerifiedMedia now keeps admitted work pending until the active
+notification or host resume, while preserving the original timeout, resource
+slot, generation ownership, cancellation and background checks. Both development
+and installed hosts use this service.
+
+Controlled native regressions pass pending/active-once, late retired callback,
+denial and timeout cases, along with the existing signed-surface/resource checks.
+Actual signed UIKit execution on iOS 26.4 now approves camera access, opens the
+real simulator camera picker, cancels it with iOS 26's Dismiss control, requires
+CANCELLED in the SDK, and recovers through system library selection. JPEG header,
+64×32 dimensions, release and denied later read are checked on initial launch
+and cold reopening. Routing and Home/resume also pass. XCTest reports one pass,
+zero failures and zero skips. All owned simulators were removed.
+
+Evidence: build/validation/camera-activation-20261016/result.json links the UI,
+controlled checks and full regression gate. The latter passes in 65.634 seconds
+on installed Bun 1.4.2 with an isolated compiler checkout; shared tracked upstream
+state is unchanged and the checkout is removed. iOS source/availability checks
+pass. The earlier Bun 1.3.11 gate remains separate evidence; a temporary compiler
+download timed out before this new UI run, so these results explicitly use 1.4.2.
+
+Failed pre-fix, diagnostic and selector runs remain retained. The first fixed
+UI fixture incorrectly read a hidden surface in its assertion message; the next
+looked for legacy Cancel rather than the observed Dismiss control. Correcting
+those test issues did not change production policy. One automatic approval review
+timed out before launch; its permitted retry succeeded. No physical device was
+accessed. Camera capture/quality, physical performance/isolation and other timing,
+endpoint and proposal-audit gates remain open; the full goal is active.
+
+## iOS camera image-worker coverage and capture limit (2026-10-16)
+
+The production camera UIImage worker passes controlled native execution for
+four orientation values at input scale 2 (320×160 source pixels). Output dimensions
+are 64×32 or 32×64 as appropriate. Each JPEG resource is read through the native
+registry, released, and denied on a later read. The existing camera activation,
+isolation and signed-surface checks also pass; all owned simulators are removed.
+Evidence: build/validation/camera-image-worker-20261016/result.json and linked
+build/ios-validation/camera-image-worker-ios26-20261016-assertion-fixed.
+This verifies normalization dimensions/resource handling, not photographic quality
+or a pixel-by-pixel orientation comparison.
+
+A separate actual-camera UI attempt opens the simulator camera and taps the
+shutter, but never produces a photo confirmation; the saved hierarchy remains
+on capture controls. That run failed and does not establish captured-image
+acceptance. Its recording, XCTest failure and attempted harness sources are
+retained at build/ios-validation/camera-capture-ios26-20261016. The unsuccessful
+capture mode was removed from the maintained runner; the previously passing
+denial/cancellation modes remain. The test-only worker assertion compile failure
+is retained separately. No production change was made in this unit, and the
+prior full regression gate still covers the current production implementation.
+Actual iOS camera capture, physical quality and other release gates remain open.
+The Pixel was untouched and the full goal remains active.
+
+## Current audit reconciled; minimum-iOS camera worker (2026-10-16)
+
+Reconciled the release checklist against retained receipts: fresh-project native
+launch/reload, relocated native exports and signed build/publish dry-run evidence
+are now distinguished from bare-OS setup, distribution signing and device release
+acceptance. The three-attack/flood-recovery and camera evidence is reflected in
+the current table. The latest full gate is correctly identified as Bun 1.4.2
+after the camera activation fix; the older Bun 1.3.11 run remains separate.
+Original 2026-10-03 scope checkboxes are explicitly historical, not current state.
+The supplied proposal remains absent, including after a scoped Desktop filename
+search; its exact seven-assumption/numbered-phase audit remains unverified.
+
+The current camera activation and UIImage worker also pass on a newly created
+iOS 16.0 / iPhone 14 Pro simulator: activation once, retirement, denial, timeout,
+four scaled-image orientation dimensions, JPEG read/release and stale-read denial,
+alongside the signed-surface suite. Its simulator is deleted. Evidence:
+build/ios-validation/camera-activation-worker-ios16-20261016/verified-result.json
+and retained runner.py/native logs. Runtime selection is explicit in the create
+command with no fallback; this is controlled input, not physical capture or a
+minimum-iOS camera permission UI claim. No new production change was needed.
+The Pixel remains untouched; device, timing, endpoint, source-audit and remaining
+service acceptance gates stay open. The full goal is active.
+
+## iOS pending-location revocation fixed (2026-10-16)
+
+A controlled native regression reproduced successful coordinate delivery after
+the manager's OS authorization changed to denied. Coordinate callbacks previously
+checked foreground/lifetime but not current permission, while authorization-change
+callbacks ignored changes after initial approval. The shared iOS service now
+rechecks host app approval and OS authorization before delivering a position and
+terminates pending work on revocation notifications, including after approval.
+
+Eight cases pass on iOS 26.4 and iOS 16.0: for both signed and development entry
+points, OS revocation before coordinates, host approval revocation before
+coordinates, authorization-change notification, and fresh authorized recovery.
+Denied replies contain no coordinate data; late callbacks do not create another
+reply. The existing iOS 16 signed-surface baseline also passes actual Core
+Location simulated coordinates, SDK/storage/services, camera activation/image
+worker and lifecycle checks. New opt-in runner:
+`bun tests/location-revocation-owned-ios.ts` (runtime/type/evidence overrides
+are documented in README). It verifies and removes separately owned simulators.
+
+Evidence: build/validation/location-revocation-20261016/result.json links the
+retained pre-fix source/failure, successful native runs and full regression gate.
+The full gate passes on Bun 1.4.2 in 52.426 seconds, with 74 Rust tests; its
+isolated compiler checkout is removed and shared tracked upstream is unchanged.
+No deadline, provider rate or resource limit was relaxed. An initial combined
+minimum-iOS run passed revocation but could not start the baseline because the
+simulator was shutting down; its failure/cleanup receipts remain retained. The
+successful runner uses a separate owned simulator per suite without claiming a
+proven cause for the earlier shutdown.
+
+This is controlled callback-ordering coverage, not real OS permission-toggle UI
+or physical GPS acceptance. Broader location stress and other device/timing/
+distribution/proposal-audit gates stay open. No physical device was accessed;
+the Pixel remained untouched and the full goal stays active.
+
+## Android location delivery revocation parity (2026-10-16)
+
+Source inspection confirms Android already rechecks current authorization before
+accepting provider coordinates. Its production UI adapter combines saved app
+approval with the current fine/coarse OS grant, and the signed native wrapper
+already had a revoke-at-completion case. No Android production change was needed.
+
+Added explicit development regressions that separately revoke app approval and
+OS permission while the request is pending. Both require DENIED without data
+and reject a repeated late callback after restoring approval; a new authorized
+request then succeeds with the exact controlled coordinates. The API 26 native
+Android wrapper/JSON/Handler run passes all three new cases, existing signed
+revocation and the full 26-case package/three-attack/64-round flood suite. The
+owned read-only emulator/AVD is removed; preexisting AVDs are unchanged.
+
+Evidence: build/validation/android-location-revocation-20261016/result.json and
+linked build/android-validation/location-revocation-api26-20261016. The minimum-OS
+runner now requires the exact new proof line rather than inferring execution
+from a generic pass. This unit changes tests only; the last full gate continues
+to cover the unchanged production sources. Real OS permission-toggle UI, API 23
+execution of these added cases, physical location and other release gates remain
+open. No phone access occurred; the Pixel is untouched and the goal is active.
+
+## Original proposal recovered and concrete gaps reopened (2026-10-16)
+
+Recovered the complete exported source from this chat's original October 3
+file-read record, rather than reconstructing it from summaries. Canonical copy:
+docs/reference/pocketjs-tsx-proposal-20261003.md with adjacent provenance JSON.
+It contains 646 lines / 29,122 characters; SHA-256 of retained UTF-8 bytes is
+70feb9b9cd77cd4552e1034aa84b189b19e74e6dde5c953b3ad5d44ee105bde2.
+The original Desktop file is still absent. The three embedded diagrams were
+placeholders even in that export; their unpublished content is not invented.
+This supersedes prior statements that source recovery prevents all further
+proposal auditing, without claiming the full audit is complete.
+
+The current release audit now checks the actual seven assumptions: pinned frame
+format, Apple integration alternative, Android geometry, own multi-instance
+composition, unchanged-present suppression, experimental replay reload, and
+bounded service traffic. It distinguishes actual evidence from the unexecuted
+upstream xcframework/P0 experiment and physical budgets. The exact source also
+reveals missing SDK UI convenience operations and guest app exit; iOS's current
+GPU tick does not implement idle-present suppression. Those implementation gaps
+are now explicit in the current checklist. Further source-backed verification
+and implementation take priority over repeating already passing service cases.
+
+Recovery evidence: build/validation/proposal-recovery-20261016/result.json.
+No production code or physical device changed. Existing user edits are retained,
+additional DevTools remain deferred, and the full goal stays active.
